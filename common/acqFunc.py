@@ -1,3 +1,4 @@
+#########################################################
 # acquisitionFunctions.py
 # Available acquisition functions:
 # - SBO (surrogate based optimization): directly using the prediction of the surrogate model ($\mu$)
@@ -6,7 +7,7 @@
 # Note: be sure to add any user defined aquisition function to getAcqFunc
 import numpy as np 
 from scipy.stats import norm
-
+#########################################################
 # expected improvement: 
 def EI(GP,points,f_min):
     pred = GP.predict_values(points)
@@ -18,19 +19,19 @@ def EI(GP,points,f_min):
         return 0.0
     ei = args1 + args2
     return ei
-
+#########################################################
 #surrogate Based optimization: min the Surrogate model by using the mean mu
 def SBO(GP,points):
     res = GP.predict_values(points)
     return res
-
+#########################################################
 #lower confidence bound optimization: minimize by using mu - 3*sigma
 def LCB(GP,points):
     pred = GP.predict_values(points)
     var = GP.predict_variances(points)
     res = pred-3.*np.sqrt(var)
     return res
-
+#########################################################
 def getAcqFunc(IC,gpr,f_min_k):
     if IC == 'EI':
         obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k)[:,0]
@@ -39,3 +40,4 @@ def getAcqFunc(IC,gpr,f_min_k):
     elif IC == 'LCB':
         obj_k = lambda x: LCB(gpr,np.atleast_2d(x))
     return obj_k
+#########################################################

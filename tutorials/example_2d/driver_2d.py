@@ -1,0 +1,94 @@
+"""
+<div class="jumbotron text-left"><b>
+    
+This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection for a polynomial 2D function
+<div>
+    
+Kevin Griffin
+    
+    March  2023
+
+<div class="alert alert-info fade in" id="d110">
+<p>In this notebook, </p>
+<ol> - The 2D objective function is analytically defined as $f(x_1,x_2) = (x_1-3)^2+(x_2-4)^2$. The domain considered is $x_1 \in [0, 8]$ and $x_2 \in [0, 10]$. The global minimum of $f = 0$ occurs at $[x_1, x_2] = [3, 4]$. </ol>
+<ol> - The optimization is programmed by calling bayesOpt.py which uses SMT's Gaussian Process model.</ol>
+<ol> - An animation of the iterations of the optimization is included to visually explain the algorithm. In higher dimensional problems, visualization is more difficult. </ol>
+</div>
+
+```python
+"""
+import numpy as np 
+#%matplotlib notebook
+import os
+os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_2d')
+import sys
+sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
+from classes import *
+from bayesOpt import *
+import viz as viz
+"""```
+
+
+Define the objective function
+
+
+```python"""
+# define the polynomial function
+def func_2d(x):
+    return pow((x[0]-3.0),2.0) + pow((x[1]-4.0),2.0)
+"""```
+
+Define the design parameters (inputs to the objective function)
+
+```python"""
+x0 = Param()
+x0.name = 'x0'
+x0.minVal = 0
+x0.maxVal = 8
+
+x1 = Param()
+x1.name = 'x1'
+x1.minVal = 0
+x1.maxVal = 10
+
+params = [x0, x1]
+"""```
+
+Define the options for surrogate modeling and optimization
+
+```python"""
+options = Options()
+# options.animation_2D = True
+# options.plot_2D = True
+options.plot_ND = True
+options.initial_samples = 10 # must be >= ndim+1
+options.n_iter = 30 # number of BayesOpt iterations
+# options.acqFunc = 'EI'
+options.acqFunc = 'SBO'
+# options.acqFunc = 'LCB'
+"""```
+
+Define the options for surrogate modeling and optimization
+
+```python"""
+import time
+t = time.time()
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(func_2d, params, options)
+t = time.time() - t
+print('Elapsed time = ', t, ' s')
+print('The minimum should be y = 0 at the location [x0_opt, x1_opt] = [3, 4]')
+print('The minimum found is y = ', y_opt, ' at the location', x_opt)
+
+"""```
+
+Plot an animation of the results
+
+
+```python"""
+viz.show_plots(options)
+"""```
+
+
+```python
+
+```"""
