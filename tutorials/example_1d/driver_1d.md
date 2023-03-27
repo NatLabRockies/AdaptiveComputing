@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
 from classes import *
 if is_notebook():
-    eval('%matplotlib notebook')
+    get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
 from bayesOpt import *
 import viz as viz
