@@ -18,12 +18,14 @@ Kevin Griffin
 ```python
 """
 import numpy as np 
-#%matplotlib notebook
 import os
 os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_2d')
 import sys
 sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
 from classes import *
+if is_notebook():
+    eval('%matplotlib notebook')
+import matplotlib.pyplot as plt
 from bayesOpt import *
 import viz as viz
 """```
@@ -71,7 +73,7 @@ options.acqFunc = 'SBO'
 # options.acqFunc = 'LCB'
 """```
 
-Define the options for surrogate modeling and optimization
+Perform the optimization
 
 ```python"""
 import time

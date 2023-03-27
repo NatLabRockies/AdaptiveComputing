@@ -1,3 +1,4 @@
+
 <div class="jumbotron text-left"><b>
     
 This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection for a polynomial 2D function
@@ -17,12 +18,14 @@ Kevin Griffin
 ```python
 
 import numpy as np 
-#%matplotlib notebook
 import os
 os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_2d')
 import sys
 sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
 from classes import *
+if is_notebook():
+    eval('%matplotlib notebook')
+import matplotlib.pyplot as plt
 from bayesOpt import *
 import viz as viz
 ```
@@ -60,7 +63,7 @@ params = [x0, x1, x2]
 
 Define the options for surrogate modeling and optimization
 
-```python"""
+```python
 options = Options()
 options.plot_ND = True
 options.initial_samples = 10 # must be >= ndim+1
@@ -70,7 +73,7 @@ options.acqFunc = 'SBO'
 # options.acqFunc = 'LCB'
 ```
 
-Define the options for surrogate modeling and optimization
+Perform the optimization
 
 ```python
 import time

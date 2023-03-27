@@ -16,6 +16,7 @@ import matplotlib.image as mpimg
 import matplotlib.animation as animation
 from IPython.display import HTML
 from matplotlib import cm
+from classes import is_notebook
 #########################################################
 # Validate input plot types and set up paths for animations
 def init(options,ndim):
@@ -60,11 +61,13 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
         sig_plus = Y_GP_plot+3*np.sqrt(Y_GP_plot_var)
         sig_moins = Y_GP_plot-3*np.sqrt(Y_GP_plot_var)
         un_gp = ax.fill_between(X_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='g')
-        lines = [true_fun,data,gp,un_gp,opt,ei]
+        ind_best = np.argmin(y_data)
+        est = ax.scatter(x_data[ind_best],y_data[ind_best],s=100,marker='s',color='b')
+        lines = [true_fun,data,gp,un_gp,opt,ei,est]
         ax.set_title('$x \sin{x}$ function')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Infill Criteria'])
+        ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Infill Criteria','Current estimate of optimum'])
         plt.savefig(options.output_dir + ('/frame_1D_%d' %k))
         plt.close(fig)
     
@@ -74,7 +77,9 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
         n_data = len(y_data)
         plt.scatter(x_data[:ndoe,0],x_data[:ndoe,1],s=20,marker='x',c=y_data[:ndoe],cmap=cm.coolwarm,label='Initial DOE')
         plt.scatter(x_data[ndoe:,0],x_data[ndoe:,1],s=20,marker='o',c=y_data[ndoe:],cmap=cm.coolwarm,label='Added points')
-        plt.scatter(x_data[n_data-1,0],x_data[n_data-1,1],s=60,marker='*',facecolors='none',edgecolors='g',label='Next point to evaluate')
+        plt.scatter(x_data[n_data-1,0],x_data[n_data-1,1],s=60,marker='s',facecolors='none',edgecolors='g',label='Next point to evaluate')
+        ind_best = np.argmin(y_data)
+        plt.scatter(x_data[ind_best,0],x_data[ind_best,1],s=100,marker='*',color='m',label='Current estimate of optimum')
         plt.title('Samples during EGO algorithm')
         plt.xlabel('x0')
         plt.ylabel('x1')
@@ -83,7 +88,7 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
         plt.close(fig)
 
     if options.animation_ND:
-        pass # XXX implement this
+        raise Exception('options.animation_ND is not supported. Use options.plot_ND instead.')
 
     return
 #########################################################
@@ -122,7 +127,7 @@ def finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
         ax = fig.add_subplot(111)
         plt.scatter(x_data[:ndoe,0],x_data[:ndoe,1],s=20,marker='x',c=y_data[:ndoe],cmap=cm.coolwarm,label='Initial DOE')
         sm = plt.scatter(x_data[ndoe:,0],x_data[ndoe:,1],s=20,marker='o',c=y_data[ndoe:],cmap=cm.coolwarm,label='Added points')
-        plt.scatter(x_data[ind_best,0],x_data[ind_best,1],s=60,marker='*',facecolors='none',edgecolors='g',label='Optimum found')
+        plt.scatter(x_data[ind_best,0],x_data[ind_best,1],s=100,marker='*',color='m',label='Optimum found')
         plt.title('Samples during EGO algorithm')
         plt.xlabel('x0')
         plt.ylabel('x1')
@@ -201,10 +206,13 @@ def show_plots(options):
             im = plt.imshow(image_pt)
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
-        # use this if the main program is a jupyter notebook: 
-        #HTML(ani.to_jshtml())
-        # use this if the main program is a .py script 
-        plt.show()
+        # display a javascript animation if this is running in a jupyter notebook
+        if is_notebook():
+            display(HTML(ani.to_jshtml()))
+        else:
+            plt.show() # display a movie
+        writergif = animation.PillowWriter(fps=1) 
+        ani.save(options.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
 
     if options.animation_2D:
         fig = plt.figure(figsize=[10,10])
@@ -217,11 +225,14 @@ def show_plots(options):
             im = plt.imshow(image_pt)
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
-        # use this if the main program is a jupyter notebook: 
-        #HTML(ani.to_jshtml())
-        # use this if the main program is a .py script 
-        plt.show()
-
+        # display a javascript animation if this is running in a jupyter notebook
+        if is_notebook():
+            display(HTML(ani.to_jshtml()))
+        else:
+            plt.show() # display a movie
+        writergif = animation.PillowWriter(fps=1) 
+        ani.save(options.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
+        
     if options.animation_ND:
         pass # XXX implement this
 

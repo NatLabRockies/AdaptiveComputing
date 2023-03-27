@@ -16,13 +16,14 @@ Kevin Griffin
 
 ```python"""
 import numpy as np 
-#%matplotlib notebook
-import matplotlib.pyplot as plt
 import os
 os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_1d')
 import sys
 sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
 from classes import *
+if is_notebook():
+    eval('%matplotlib notebook')
+import matplotlib.pyplot as plt
 from bayesOpt import *
 import viz as viz
 """```
@@ -51,13 +52,13 @@ Define the options for surrogate modeling and optimization
 ```python"""
 options = Options()
 options.animation_1D = True
-options.plot_1D = False
-options.initial_samples = 3 # must be >= ndim+1
-options.n_iter = 15 # number of BayesOpt iterations
+# options.plot_1D = True
+options.initial_samples = 2 # must be >= ndim+1
+options.n_iter = 7 # number of BayesOpt iterations
 options.acqFunc = 'EI'
 """```
 
-Define the options for surrogate modeling and optimization
+Perform the optimization
 
 ```python"""
 import time
