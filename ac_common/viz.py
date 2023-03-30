@@ -11,12 +11,12 @@
 import sys
 import numpy as np 
 import matplotlib.pyplot as plt
-from acqFunc import EI
+from .acqFunc import EI
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
 from IPython.display import HTML
 from matplotlib import cm
-from classes import is_notebook
+from . import utils
 #########################################################
 # Validate input plot types and set up paths for animations
 def init(options,ndim):
@@ -49,11 +49,11 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
         Y_EI_plot = -EI(gpr,X_plot,f_min_k)
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
-        if options.acqFunc == 'LCB' or options.acqFunc == 'SBO':
-            ei, = ax.plot(X_plot,Y_EI_plot,color='red')
-        else:    
-            ax1 = ax.twinx()
-            ei, = ax1.plot(X_plot,Y_EI_plot,color='red')
+        # if options.acqFunc == 'LCB' or options.acqFunc == 'SBO':
+        #     ei, = ax.plot(X_plot,Y_EI_plot,color='red')
+        # else:    
+        #     ax1 = ax.twinx()
+        #     ei, = ax1.plot(X_plot,Y_EI_plot,color='red')
         true_fun, = ax.plot(X_plot,Y_plot)
         data, = ax.plot(x_data[0:k+ndoe],y_data[0:k+ndoe],linestyle='',marker='o',color='orange')
         opt, = ax.plot(x_data[k+ndoe],y_data[k+ndoe],linestyle='',marker='*',color='r')
@@ -61,13 +61,13 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
         sig_plus = Y_GP_plot+3*np.sqrt(Y_GP_plot_var)
         sig_moins = Y_GP_plot-3*np.sqrt(Y_GP_plot_var)
         un_gp = ax.fill_between(X_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='g')
-        ind_best = np.argmin(y_data)
+        ind_best = np.argmin(y_data[:ndoe+k])
         est = ax.scatter(x_data[ind_best],y_data[ind_best],s=100,marker='s',color='b')
-        lines = [true_fun,data,gp,un_gp,opt,ei,est]
+        lines = [true_fun,data,gp,un_gp,opt,est]
         ax.set_title('$x \sin{x}$ function')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
-        ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Infill Criteria','Current estimate of optimum'])
+        ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Current estimate of optimum'])
         plt.savefig(options.output_dir + ('/frame_1D_%d' %k))
         plt.close(fig)
     
@@ -138,9 +138,7 @@ def finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
     
     if options.plot_ND:
         fig = plt.figure(figsize=[10,10])
-        #ax = fig.add_subplot(projection='polar')
         radius = np.zeros_like(y_data)
-        #theta = np.zeros_like(y_data)
         color = np.zeros_like(y_data) # the iteration in which this data point was collected
         for i in range(len(x_data)):
             x1 = x_data[i,:]
@@ -150,8 +148,6 @@ def finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
                 color[i] = 0
             else:
                 color[i] = i-ndoe+1
-            #theta[i] = np.arccos(np.dot(x1,x2)/np.linalg.norm(x1)/np.linalg.norm(x2))
-        #plt.scatter(theta, radius, c=y_data, s=20, cmap=cm.coolwarm, alpha=0.75)
         plt.scatter(radius[:ndoe,0],y_data[:ndoe],s=20,marker='x',c=color[:ndoe],cmap=cm.coolwarm,label='Initial DOE')
         sm = plt.scatter(radius[ndoe:,0],y_data[ndoe:],s=20,marker='o',c=color[ndoe:],cmap=cm.coolwarm,label='Added points')
         plt.scatter(radius[ind_best,0],y_data[ind_best],s=60,marker='*',facecolors='none',edgecolors='g',label='Optimum found')
@@ -207,7 +203,7 @@ def show_plots(options):
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
         # display a javascript animation if this is running in a jupyter notebook
-        if is_notebook():
+        if utils.is_notebook():
             display(HTML(ani.to_jshtml()))
         else:
             plt.show() # display a movie
@@ -226,12 +222,12 @@ def show_plots(options):
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
         # display a javascript animation if this is running in a jupyter notebook
-        if is_notebook():
+        if utils.is_notebook():
             display(HTML(ani.to_jshtml()))
         else:
             plt.show() # display a movie
         writergif = animation.PillowWriter(fps=1) 
-        ani.save(options.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
+        ani.save(options.output_dir + '/movie_2D' + '.gif', writer=writergif, dpi=500)
         
     if options.animation_ND:
         pass # XXX implement this

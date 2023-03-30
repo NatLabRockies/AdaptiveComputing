@@ -6,6 +6,13 @@ __pycache__/
 # emacs
 *~
 
+# images
+*.png
+*.gif
+
+# mac
+.DS_Store
+
 # C extensions
 *.so
 

@@ -11,21 +11,21 @@ Kevin Griffin
 <p>In this notebook, </p>
 <ol> - The 1D objective function is analytically defined as $f(x) = (x-3.5) sin((x-3.5)/\pi)$. The global minimum over the domain $x \in [0, 25]$ is $f\approx-15.1251$, which occurs at the parameter value of $x \approx 18.9352$. </ol>
 <ol> - The optimization is programmed by calling bayesOpt.py which uses SMT's Gaussian Process model.</ol>
-<ol> - An animation of the iterations of the optimization is included to visually explain the algorithm. In multi-dimensional problems, visualization is more difficult. </ol>
+<ol> - An animation of the iterations of the optimization is included to visually explain the algorithm.</ol>
 </div>
 
 ```python"""
-import numpy as np 
+AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
+working_dir = AC_path + '/tutorials/example_1d'
 import os
-os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_1d')
+os.chdir(working_dir)
 import sys
-sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
-from classes import *
-if is_notebook():
+sys.path.insert(0, AC_path)
+import numpy as np
+from ac_common import *
+if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
-from bayesOpt import *
-import viz as viz
 """```
 
 
@@ -41,7 +41,6 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x1 = Param()
-x1.name = 'x1'
 x1.minVal = 0
 x1.maxVal = 25
 params = [x1]

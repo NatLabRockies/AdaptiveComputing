@@ -10,24 +10,22 @@ Kevin Griffin
 
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
-<ol> - The 2D objective function is analytically defined as $f(x_1,x_2) = (x_1-3)^2+(x_2-4)^2$. The domain considered is $x_1 \in [0, 8]$ and $x_2 \in [0, 10]$. The global minimum of $f = 0$ occurs at $[x_1, x_2] = [3, 4]$. </ol>
-<ol> - The optimization is programmed by calling bayesOpt.py which uses SMT's Gaussian Process model.</ol>
-<ol> - An animation of the iterations of the optimization is included to visually explain the algorithm. In higher dimensional problems, visualization is more difficult. </ol>
+<ol> - The 2D objective function is analytically defined as $f(x_0,x_1) = (x_0-3)^2+(x_1-4)^2$. The domain considered is $x_0 \in [0, 8]$ and $x_1 \in [0, 10]$. The global minimum of $f = 0$ occurs at $[x_0, x_1] = [3, 4]$. </ol>
 </div>
 
 ```python
 """
-import numpy as np
+AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
+working_dir = AC_path + '/tutorials/example_2d'
 import os
-os.chdir('/Users/kgriffin/codes/AdaptiveComputing/tutorials/example_2d')
+os.chdir(working_dir)
 import sys
-sys.path.insert(0, '../../common') # add the path to the AdaptiveComputing common folder
-from classes import *
-if is_notebook():
+sys.path.insert(0, AC_path)
+import numpy as np
+from ac_common import *
+if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
-from bayesOpt import *
-import viz as viz
 """```
 
 
@@ -44,7 +42,6 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x0 = Param()
-x0.name = 'x0'
 x0.minVal = 0
 x0.maxVal = 8
 
