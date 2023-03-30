@@ -77,16 +77,7 @@ t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt] = [3, 4]')
 print('The minimum found is y = ', y_opt, ' at the location', x_opt)
-
 ```
-
-Plot an animation of the results
-
-
-```python
-viz.show_plots(options)
-```
-
 
 ```python
 

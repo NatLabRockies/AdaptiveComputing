@@ -1,15 +1,17 @@
 #########################################################
 # bayesOpt.py
 def bayesOpt(func_in, params, options):
-    from .classes import validate_params
+    from .classes import validate_params, validate_options
     import numpy as np
-    from .viz import init, animate, finalize
+    from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
+    from .utils import load_existing_csv
 
-    validate_params(params)
+    assert(validate_params(params))
     ndim = len(params)
+    assert(validate_options(options))
 
     # Set up animations
-    init(options,ndim)
+    viz_init(options,ndim)
 
     # Define the Gaussian Process model (AKA Kriging model)
     mixedType = False
@@ -41,6 +43,8 @@ def bayesOpt(func_in, params, options):
                 xtypes.append((ENUM, len(params[i].categories)))
                 xlimits.append(params[i].categories)
                 xlimits_num.append(list(range(len(params[i].categories))))
+            else:
+                raise Exception('Unrecognized type for parameter '+str(i))
         #gpr = KRG(theta0=[1e-2]*ndim,print_global = False)
         gpr = KRG(print_global = False) # XXX setting theta0 was causing gpr to not train because of a dimension issue
         gpr = MixedIntegerSurrogateModel(surrogate=gpr, xtypes=xtypes, xlimits=xlimits)
@@ -52,49 +56,70 @@ def bayesOpt(func_in, params, options):
         xlimits_num = xlimits
         gpr = KRG(theta0=[1e-2]*ndim,print_global = False)
 
+    # user can provide initial function evaluations in a .csv file
+    if hasattr(options, 'existing_csv_filename'):
+        [x_data_file, y_data_file] = load_existing_csv(options.existing_csv_filename,params)
+
     # Sample the objective function. This is the training data.
     from smt.sampling_methods import LHS
     if mixedType:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
-        # sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin") # "ese"
-        sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=1) # "ese"
+        if options.deterministic:
+            sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=1)
+        else:
+            sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=np.random.RandomState())
     else:
-        sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=1) # if debugging, use this to set random seed deterministically
-        #sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=np.random.RandomState())
-    ndoe = ndim + 1
-    if hasattr(options, 'initial_samples'):
+        if options.deterministic:
+            sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=1)
+        else:
+            sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=np.random.RandomState())
+    ndoe = ndim + 1 # this is the smallest sampling allowed by the SMT algorithms
+    if hasattr(options, 'initial_samples'): # check if more samples were requested
         if options.initial_samples >= ndoe:
             ndoe = options.initial_samples
+        elif hasattr(options, 'existing_csv_filename') and (options.initial_samples == 0):
+            if len(y_data_file) >= ndoe:
+                ndoe = 0
+            else:
+                raise Exception('0 options.initial_samples were requested, but number of provided .csv samples is < len(params) + 1')    
         else:
-            raise Exception('options.initial_samples must be >= len(params) + 1 or left unspecified')
-    x_data = sampling(ndoe) # 1st dimension is which sample, 2nd dimension is the parameter space
-    y_data = np.zeros([ndoe,1])
-    for i in range(len(x_data)):
-        y_data[i] = func(x_data[i])
+            raise Exception('options.initial_samples must be >= len(params) + 1, left unspecified, or set to zero if sufficient user-defined samples are provided in a .csv')
+    if ndoe > 0:
+        x_data = sampling(ndoe) # 1st dimension is which sample, 2nd dimension is the parameter space
+        y_data = np.zeros([ndoe,1])
+        for i in range(len(x_data)):
+            y_data[i] = func(x_data[i])
+        
+    # append the sampled data to any data provided in a .csv
+    if hasattr(options, 'existing_csv_filename'):
+        if  ndoe > 0: # case where some data is from .csv, some is from sampling
+            x_data = np.append(x_data_file,x_data,axis=0)
+            y_data = np.append(y_data_file,y_data,axis=0)
+            ndoe = ndoe + len(y_data_file)
+        else: # case where all data is from .csv
+            x_data = x_data_file
+            y_data = y_data_file
+            ndoe = len(y_data_file)
 
-    # Iteratively select new sample points and update the GP according to the acquisition function
+    # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
     from scipy.optimize import minimize
     from .acqFunc import getAcqFunc
     n_sample = 20 # number of samples of indicator function
-    # if mixedType:
-    #     sampling_st = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin") # "ese"
-    # else:
-    #     sampling_st = LHS(xlimits=xlimits, criterion='maximin', random_state=np.random.RandomState())
+    if mixedType:
+        sampling_st = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=np.random.RandomState())
+    else:
+        sampling_st = LHS(xlimits=xlimits, criterion='maximin', random_state=np.random.RandomState())
     for k in range(options.n_iter):
-        # # If debugging, uncomment below to set the random seed deterministically
-        if mixedType:
-            sampling_st = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=k) # "ese"
-        else:
-            sampling_st = LHS(xlimits=xlimits, criterion='maximin', random_state=k) 
+        if options.deterministic:
+            if mixedType:
+                sampling_st = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=k) # "ese"
+            else:
+                sampling_st = LHS(xlimits=xlimits, criterion='maximin', random_state=k)
         f_min_k = np.min(y_data)
         gpr.set_training_values(x_data,y_data)
         gpr.train()
         obj_k = getAcqFunc(options.acqFunc,gpr,f_min_k)
-        # create list of initial guesses for the minimization of the acqFunc.
-        # must be in loop to get new random samples
-        # 1st dim is which init_guess, 2nd dim is which param  
-        # Latin Hypercube sampling:
-        x_start = sampling_st(n_sample)
+        x_start = sampling_st(n_sample) # 1st dim is which init_guess, 2nd dim is which param
         # naive random sampling:
         #x_start = np.zeros([n_sample,ndim])
         #for i in range(ndim):
@@ -111,13 +136,14 @@ def bayesOpt(func_in, params, options):
         y_data = np.atleast_2d(np.append(y_data,y_et_k)).T
         x_data = np.append(x_data,np.atleast_2d(x_et_k),axis=0)
 
-        animate(options,xlimits_num,func,gpr,x_data,y_data,f_min_k,ndoe,k)
+        viz_animate(options,xlimits_num,func,gpr,x_data,y_data,f_min_k,ndoe,k)
     
     ind_best = np.argmin(y_data)
     x_opt = x_data[ind_best,:]
     y_opt = y_data[ind_best]
 
-    finalize(options,xlimits_num,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best)
+    viz_finalize(options,xlimits_num,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best)
+    viz_show_plots(options)
     
     return [x_opt, y_opt, ind_best, x_data, y_data, gpr]
 #########################################################

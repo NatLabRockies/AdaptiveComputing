@@ -69,18 +69,6 @@ print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
 print('The minimum found is [', x_opt[0], ',', y_opt,']')
 ```
 
-Plot an animation of the results
-
-
-```python
-viz.show_plots(options)
-```
-
-
-```python
-
-```
-
 ```python
 
 ```

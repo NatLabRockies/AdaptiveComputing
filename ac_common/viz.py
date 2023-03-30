@@ -19,7 +19,7 @@ from matplotlib import cm
 from . import utils
 #########################################################
 # Validate input plot types and set up paths for animations
-def init(options,ndim):
+def viz_init(options,ndim):
     print('Initializing plots...') 
     # validate the selected visualizations are compatible with the number of design parameters
     if options.animation_1D or options.plot_1D:
@@ -38,7 +38,7 @@ def init(options,ndim):
     return
 #########################################################
 # After each iteration, one frame of the animation is written 
-def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
+def viz_animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
     if options.animation_1D:
         X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
         Y_plot = np.zeros_like(X_plot)
@@ -93,7 +93,7 @@ def animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
     return
 #########################################################
 # After all iterations are complete make final plots and make any finishing touches
-def finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
+def viz_finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
     print('Finalize ...') 
     if options.plot_1D:
         X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
@@ -162,7 +162,7 @@ def finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
     return
 #########################################################
 # Show the plots and play the animations
-def show_plots(options):
+def viz_show_plots(options):
     print('Displaying plots and animations in', options.output_dir)
     if options.plot_1D:
         fig = plt.figure(figsize=[10,10])

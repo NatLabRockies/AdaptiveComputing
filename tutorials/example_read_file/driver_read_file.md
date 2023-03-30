@@ -1,7 +1,7 @@
 
 <div class="jumbotron text-left"><b>
     
-This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection for a function with mixed data types (continuous and discrete varaibles)
+This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection when some of the objective function evaluations have been precomputed and stored in a .csv file.
 <div>
     
 Kevin Griffin
@@ -10,6 +10,8 @@ Kevin Griffin
 
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
+<ol> - Existing function evaluations are read from a .csv file to make use of known data and reduce the computational resources required to achieve convergence.</ol>
+<ol> - Otherwise, this tutorial is the same as example_mixed_type .</ol> 
 <ol> - The 3D objective function of three different data types is considered.</ol> 
 <ol> - $x_0$ is a continous variable with bounds $[0,10]$.</ol> 
 <ol> - $x_1$ is an integer variable, which can takes the values ${2,3,4,5,6}$.</ol> 
@@ -21,7 +23,7 @@ Kevin Griffin
 ```python
 
 AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
-working_dir = AC_path + '/tutorials/example_mixed_type'
+working_dir = AC_path + '/tutorials/example_read_file'
 import os
 os.chdir(working_dir)
 import sys
@@ -82,11 +84,10 @@ Define the options for surrogate modeling and optimization
 ```python
 options = Options()
 options.plot_ND = True
-options.initial_samples = 8 # must be >= ndim+1
+options.existing_csv_filename = 'existing_data.csv'
+options.initial_samples = 0 # must be >= ndim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
 options.n_iter = 25 # number of BayesOpt iterations
 options.acqFunc = 'EI'
-# options.acqFunc = 'SBO'
-# options.acqFunc = 'LCB'
 ```
 
 Perform the optimization

@@ -32,6 +32,12 @@ def LCB(GP,points):
     res = pred-3.*np.sqrt(var)
     return res
 #########################################################
+#maximal standard deviation: tries to minimize the max standard deviation
+def MSD(GP,points):
+    var = GP.predict_variances(points)
+    res = -np.sqrt(var)
+    return res
+#########################################################
 def getAcqFunc(IC,gpr,f_min_k):
     if IC == 'EI':
         obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k)[:,0]
@@ -39,5 +45,7 @@ def getAcqFunc(IC,gpr,f_min_k):
         obj_k = lambda x: SBO(gpr,np.atleast_2d(x))
     elif IC == 'LCB':
         obj_k = lambda x: LCB(gpr,np.atleast_2d(x))
+    elif IC == 'MSD':
+        obj_k = lambda x: MSD(gpr,np.atleast_2d(x))
     return obj_k
 #########################################################

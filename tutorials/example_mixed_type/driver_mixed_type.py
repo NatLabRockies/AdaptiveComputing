@@ -101,14 +101,6 @@ print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5
 print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x_opt[1],', ',x2.categories[int(x_opt[2])],']')
 """```
 
-Plot an animation of the results
-
-
-```python"""
-viz.show_plots(options)
-"""```
-
-
 ```python
 
 ```"""
