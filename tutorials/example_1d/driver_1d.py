@@ -40,10 +40,10 @@ from func_1d import func_1d # import each of the simulation scripts
 Define the design parameters (inputs to the objective function)
 
 ```python"""
-x1 = Param()
-x1.minVal = 0
-x1.maxVal = 25
-params = [x1]
+x0 = Param()
+x0.minVal = 0
+x0.maxVal = 25
+params = [x0]
 """```
 
 Define the options for surrogate modeling and optimization
