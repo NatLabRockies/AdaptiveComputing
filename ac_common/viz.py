@@ -38,7 +38,7 @@ def viz_init(options,ndim):
     return
 #########################################################
 # After each iteration, one frame of the animation is written 
-def viz_animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
+def viz_animate(options,xlimits,func,gpr,x_data,y_data,ndoe,k):
     if options.animation_1D:
         X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
         Y_plot = np.zeros_like(X_plot)
@@ -46,7 +46,7 @@ def viz_animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
             Y_plot[i] = func(X_plot[i])
         Y_GP_plot = gpr.predict_values(X_plot)
         Y_GP_plot_var  =  gpr.predict_variances(X_plot)
-        Y_EI_plot = -EI(gpr,X_plot,f_min_k)
+        Y_EI_plot = -EI(gpr,X_plot,np.min(y_data))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         # if options.acqFunc == 'LCB' or options.acqFunc == 'SBO':
@@ -93,7 +93,7 @@ def viz_animate(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,k):
     return
 #########################################################
 # After all iterations are complete make final plots and make any finishing touches
-def viz_finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
+def viz_finalize(options,xlimits,func,gpr,x_data,y_data,ndoe,ind_best):
     print('Finalize ...') 
     if options.plot_1D:
         X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
@@ -102,7 +102,7 @@ def viz_finalize(options,xlimits,func,gpr,x_data,y_data,f_min_k,ndoe,ind_best):
             Y_plot[i] = func(X_plot[i])
         Y_GP_plot = gpr.predict_values(X_plot)
         Y_GP_plot_var  =  gpr.predict_variances(X_plot)
-        Y_EI_plot = -EI(gpr,X_plot,f_min_k)
+        Y_EI_plot = -EI(gpr,X_plot,np.min(y_data))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         true_fun, = ax.plot(X_plot,Y_plot)
