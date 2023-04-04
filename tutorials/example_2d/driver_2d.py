@@ -15,12 +15,8 @@ Kevin Griffin
 
 ```python
 """
-AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
-working_dir = AC_path + '/tutorials/example_2d'
-import os
-os.chdir(working_dir)
 import sys
-sys.path.insert(0, AC_path)
+sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
 import numpy as np
 from ac_common import *
 if utils.is_notebook():

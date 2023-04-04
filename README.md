@@ -1,78 +1,79 @@
-# AdaptiveComputing
-Goal-oriented computing including design optimization and automated surrogate model training
+# Adaptive Computing
+This repository contains the Adaptive Computing (AC) common software stack, which supports goal-based computing. As shown in the image below, the AC driver is designed to provide a simple and stable interface between: 
 
-## Getting started
-### Installing AC
-* Download the source code
+1. surrogate modeling and optimization tools (which are part of the AC common software) 
+2. and user-defined application-specific simulation code.
+
+![](ac_interface.png)
+
+Application-specific code defines an objective, which may be to solve a global optimization problem or to train a surrogate model with minimal uncertainty. Then, the AC driver decides where in the design parameter space to run simulations to best achieve that objective. This process is iterative; as new data is returned from simulations, the AC driver chooses new simulations to run. 
+
+Target applications of AC at NREL include-
+
+* Optimizing the chemical process of converting biomass to biofuel
+* Automating the training of surrogate models for Kinetic Monte Carlo simulations for materials synthesis
+* Multifidelity simulations of the energy grid at the neighborhood scale
+
+Key capabilities-
+
+* Support for multi-fidelity modeling
+* Continuous and discrete design parameters
+* Uncertainty quantification
+
+## Package organization and file strucutre
+* The `ac_common` directory contains the AC common software stack
+* The `tutorials` directory contains several example programs which demonstrate the capabilities and usage of the methods
+	* Each example directory contains a driver (main) program with `.py` and `.md` extensions. These are identical except for formatting differences. The `.py` is a python script which can be run from the command line or in an IDE. The `.md` file is a Jupyter notebook. Note that with Jupytext, the markdown files can be used just like `.ipynb` notebook files, except that the output will not be saved when they are closed. This aids with version control using git.  	 
+
+## Installing AC
+
+### Download the source code
 
 ~~~{.bash}
 git clone https://github.nrel.gov/AC/AdaptiveComputing.git
 ~~~
 
-* Create a conda environment to ensure the correct python version and libraries are installed
-* Install conda or if you are running on an HPC machine, run
+### Environment and dependencies
+
+* Python (haven't tested which versions will work, but I am using Python 3.9.13 from a recent conda distribution)
+* The surrogate modeling toolbox (SMT)
+* Optional: Jupyter notebooks and Jupytext
+
+#### Option 1: Install using a package manager
+For example, on mac
 
 ~~~{.bash}
-    module load conda
-~~~
-
-* Navigating to the AdaptiveComputing root directory.
-
-~~~{.bash}
-conda env create -f environment.yaml -n <env_name>
-~~~
-* where `<env_name>` should be replaced a name of your choosing, (e.g., `AC`)
-* The command prompt should indicate that you are running the conda environment. You can shorten/change the way this displays in the command prompt with the command
-
-~~~{.bash}
-conda config --set env_prompt '(AC)'
-~~~
-* where `(AC)` will be preprended on the command prompt to indicate the AC environment has been loaded.
-
-### This didn't work on my M1, so I did the following
-
-~~~{.bash}
-brew install conda
+brew install conda 
 pip install smt
 pip install jupytext
 ~~~
 
-### Using AC
-* Load the python environment and launch Jupyter notebooks
-* Note that each time you start a new shell, you need to activate the conda environment
-* A) If you are running on a laptop/desktop computer (only tested on M1 mac):
+#### Option 2: create a conda environment
+More instructions coming soon ... 
+
+## Running AC
+
+* Change the working directory to an example directory. E.g.,
 
 ~~~{.bash}
-conda activate AC
+cd tutorial/example_1d
+~~~
+
+### Option 1: Run using python
+
+* From the command line, run
+
+~~~{.bash}
+python driver_1d.py
+~~~
+
+### Option 2: Run using a Jupyter notebook
+
+* Launch the jupyter notebook server
+
+~~~{.bash}
 jupyter notebook
 ~~~
-* B) If you are running on an HPC machine (only tested on Eagle):
-* if you are running more than just a tutorial, it would be appropriate to request a login node
 
-~~~{.bash}
-srun -A acldrd -t 1:00:00 --pty /bin/bash
-~~~
-* Participants of the NREL LDRD project should use the `-A acldrd` option for billing, otherwise omit it.
-
-~~~{.bash}
-module load purge
-module load conda
-source activate AC
-~~~
-* noting the distinction between using the `source` and `conda` keywords on the HPC. Finally, start the notebook without a display
-
-~~~{.bash}
-jupyter notebook --no-browser --ip=0.0.0.0 --port=8080
-~~~
-* In a separate terminal, run 
-
-~~~{.bash}
-ssh -L 8080:<node_name>:8080 eagle.hpc.nrel.gov
-~~~
-* e.g. `<node_name>` is something like `el1` for a login node on eagle or `r3i6n27` for a compute node on eagle
-* where `<node_name>` is replaced by the name of the node where you started the notebook (see the command prompt of that window)
-* In a browser window- connect to the second URL printed when the notebook was started. The URL should begin with `http://127.0.0.1:8080/?token=…`
-* All calculations will now be done on HPC, and only the results are displayed locally
-
-* From the Jupyter GUI, run the notebook `tutorials/example_1d/driver_1d.md`
-	* Note that github only tracks `.md` files rather than `.ipynb` files. This is because markdown files work better with git's version control software. However, '.md' files do not store the output and figures from notebooks, so if you want to save this, you can save the notebook as a `.ipynb`. 
+* Navigate in the GUI to open `driver_1d.md`
+* Note that github has been configured to only track `.md` files rather than `.ipynb` files. This is because markdown files work better with git's version control software. However, '.md' files do not store the output and figures from notebooks, so if you want to save this, you can save the notebook as a `.ipynb`.
