@@ -15,19 +15,14 @@ Kevin Griffin
 </div>
 
 ```python"""
-AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
-working_dir = AC_path + '/tutorials/example_multifidelity_1d'
-import os
-os.chdir(working_dir)
 import sys
-sys.path.insert(0, AC_path)
+sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
 import numpy as np
 from ac_common import *
 if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
 """```
-
 
 Define the objective functions for the low and high fidelity models
 
@@ -65,7 +60,7 @@ Define the options for surrogate modeling and optimization
 options = Options()
 # options.animation_1D = True
 # options.plot_1D = True
-options.initial_samples = 3 # must be >= ndim+1
+options.n_init_samp = 3 # must be >= n_dim+1
 options.n_iter = 0 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
 options.acqFunc = 'EI'
 """```
@@ -84,14 +79,14 @@ print('The minimum found is [', x_opt[0], ',', y_opt,']')
 plt.figure()
 x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
 plt.plot(x, hf_function(x), color="k", label="Exact function")
-plt.scatter(x_data, y_data, marker="o", color="c", label="HF samples")
+plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
 plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
 """```
 
 Compute the multi-fidelity model
 
 ```python"""
-options.initial_samples = [7, 3] # must be >= ndim+1
+options.n_init_samp = [7, 3]
 t = time.time()
 x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(functions, params, options)
 t = time.time() - t
@@ -99,13 +94,13 @@ print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
 print('The minimum found is [', x_opt[0], ',', y_opt,']')
 
-x_LF = x_data[:options.initial_samples[0]]
-y_LF = y_data[:options.initial_samples[0]]
-plt.scatter(x_LF, y_LF, marker="*", color="r", label="LF samples")
-# x_HF = x_data[options.initial_samples[0]:]
-# y_HF = y_data[options.initial_samples[0]:]
+x_LF = x_data[0]
+y_LF = y_data[0]
+plt.scatter(x_LF, y_LF, marker="*", color="r", label="Low-fidelity samples")
+# x_HF = x_data[1]
+# y_HF = y_data[1]
 # plt.scatter(x_HF, y_HF, marker="*", color="g", label="HF samples")
-plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="MF GPR")
+plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
 
 plt.legend(loc=0)
 plt.ylim(-10, 17)
@@ -113,6 +108,7 @@ plt.xlim(-0.1, 1.1)
 plt.xlabel(r"$x$")
 plt.ylabel(r"$y$")
 
+plt.savefig('mf')
 plt.show()
 """```
 

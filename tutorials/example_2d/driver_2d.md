@@ -56,7 +56,7 @@ options = Options()
 options.animation_2D = True
 # options.plot_2D = True
 # options.plot_ND = True
-options.initial_samples = 10 # must be >= ndim+1
+options.n_init_samp = 10 # must be >= ndim+1
 options.n_iter = 30 # number of BayesOpt iterations
 # options.acqFunc = 'EI'
 options.acqFunc = 'SBO'

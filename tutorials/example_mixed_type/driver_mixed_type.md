@@ -78,7 +78,7 @@ Define the options for surrogate modeling and optimization
 ```python
 options = Options()
 options.plot_ND = True
-options.initial_samples = 8 # must be >= ndim+1
+options.n_init_samp = 8 # must be >= ndim+1
 options.n_iter = 25 # number of BayesOpt iterations
 options.acqFunc = 'EI'
 # options.acqFunc = 'SBO'

@@ -14,43 +14,54 @@ def is_notebook() -> bool:
         return False      # Probably standard Python interpreter
 #########################################################
 # # read a csv file and return the contents
-def load_existing_csv(filename,params):
+def load_existing_csv(filenames,params):
     import numpy as np
     import csv
 
-    ndim = len(params)
+    n_dim = len(params)
+    n_fl = len(filenames)
 
-    with open(filename, newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=',') #, quotechar='|'
-        a = []
-        for row in spamreader:
-            if len(row) != ndim + 1:
-                raise Exception('Rows of csv must have length equal to ndim+1.')
-            a.append(row)
-            # a = np.append(a,np.atleast_2d(np.array(row)),axis=0)
-    n_samples = len(a) - 1 # first row is header
-    if n_samples < 1:
-        raise Exception('There is less than 1 row of data in the csv (not counting the header).')
-    
-    x_data = np.zeros([n_samples,ndim])
-    y_data = np.zeros([n_samples,1])
-    # move the data from a list of lists to a 2d np array
-    for i in range(n_samples):
-        for j in range(ndim):
-            if a[0][j] == 'categorical':
-                x_data[i,j] = params[j].categories.index(a[i+1][j])
-            elif (a[0][j] == 'continuous') or (a[0][j] == 'ordered'):
-                x_data[i,j] = a[i+1][j]
-            else:
-                raise Exception('Unrecognized type for parameter '+str(i))    
-        y_data[i,0] = a[i+1][ndim]
+    x_data = []
+    y_data = []
+    for f in range(n_fl):
+        filename = filenames[f]
+        if filename == '':
+            print('No csv specified for fidelity level ' + str(f) + '. Skipping load_existing_csv for this level.')
+            x_data.append([])
+            y_data.append([])
+        else:
+            with open(filename, newline='') as csvfile:
+                spamreader = csv.reader(csvfile, delimiter=',') #, quotechar='|'
+                a = []
+                for row in spamreader:
+                    if len(row) != n_dim + 1:
+                        raise Exception('Rows of csv must have length equal to n_dim+1.')
+                    a.append(row)
+                    # a = np.append(a,np.atleast_2d(np.array(row)),axis=0)
+            n_samples = len(a) - 1 # first row is header
+            if n_samples < 1:
+                raise Exception('There is less than 1 row of data (not counting the header) in the csv for fidelity level ' + str(f) + '.')
+            x_data.append(np.zeros([n_samples,n_dim]))
+            y_data.append(np.zeros([n_samples,1]))
+            
+            # move the data from a list of lists to a 2d np array
+            for i in range(n_samples):
+                for j in range(n_dim):
+                    if a[0][j] == 'categorical':
+                        x_data[f][i,j] = params[j].categories.index(a[i+1][j])
+                    elif (a[0][j] == 'continuous') or (a[0][j] == 'ordered'):
+                        x_data[f][i,j] = a[i+1][j]
+                    else:
+                        raise Exception('Unrecognized type for parameter '+str(i))    
+                y_data[f][i,0] = a[i+1][n_dim]
+
     return [x_data, y_data]
 #########################################################
 ### test code
 if __name__ == "__main__":
-    print('Checking read_csv: ')
+    print('Testing load_existing_csv with one file: ')
     from classes import Param
-    AC_path = '/Users/kgriffin/codes/AdaptiveComputing'
+    AC_path = '../'
     working_dir = AC_path + '/tutorials/example_read_file'
     import os
     os.chdir(working_dir)
@@ -58,7 +69,12 @@ if __name__ == "__main__":
     x1 = Param(); x1.type = 'ordered'; x1.minVal = 2; x1.maxVal = 6
     x2 = Param(); x2.type = 'categorical'; x2.categories = ['a','b','c','d']
     params = [x0, x1, x2]
-    filename = 'existing_data.csv'
-    [x_data, y_data] = load_existing_csv(filename,params)
+    filenames = ['existing_data.csv']
+    [x_data, y_data] = load_existing_csv(filenames,params)
+
+    print('Testing load_existing_csv with two file: ')
+    #functions = [is_notebook, is_notebook, is_notebook] # this an array of arbitrary functions
+    filenames = ['','existing_data.csv','existing_data.csv']
+    [x_data, y_data] = load_existing_csv(filenames,params)
 
 #########################################################

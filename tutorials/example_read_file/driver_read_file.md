@@ -80,8 +80,8 @@ Define the options for surrogate modeling and optimization
 ```python
 options = Options()
 options.plot_ND = True
-options.existing_csv_filename = 'existing_data.csv'
-options.initial_samples = 0 # must be >= ndim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
+options.existing_csv_filenames = 'existing_data.csv'
+options.n_init_samp = 0 # must be >= ndim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
 options.n_iter = 25 # number of BayesOpt iterations
 options.acqFunc = 'EI'
 ```
