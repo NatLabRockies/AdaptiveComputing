@@ -36,7 +36,7 @@ Define the objective function
 ```python
 # define the polynomial function
 def func_mt(x):
-    # evaluate the categorical variable by doing string comparisons
+    # evaluate the categorical variable
     if x[2] == 'a':
         s = 10.
     elif x[2] == 'b':

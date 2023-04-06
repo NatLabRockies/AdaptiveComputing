@@ -14,7 +14,7 @@ def is_notebook() -> bool:
         return False      # Probably standard Python interpreter
 #########################################################
 # # read a csv file and return the contents
-def load_existing_csv(filenames,params):
+def read_input_data(filenames,params):
     import numpy as np
     import csv
 
@@ -26,12 +26,12 @@ def load_existing_csv(filenames,params):
     for f in range(n_fl):
         filename = filenames[f]
         if filename == '':
-            print('No csv specified for fidelity level ' + str(f) + '. Skipping load_existing_csv for this level.')
+            print('No csv specified for fidelity level ' + str(f) + '. Skipping read_input_data for this level.')
             x_data.append([])
             y_data.append([])
         else:
-            with open(filename, newline='') as csvfile:
-                spamreader = csv.reader(csvfile, delimiter=',') #, quotechar='|'
+            with open(filename, newline='', encoding='utf-8-sig') as csvfile:
+                spamreader = csv.reader(csvfile, delimiter=',') # , quotechar='|'
                 a = []
                 for row in spamreader:
                     if len(row) != n_dim + 1:
@@ -59,7 +59,7 @@ def load_existing_csv(filenames,params):
 #########################################################
 ### test code
 if __name__ == "__main__":
-    print('Testing load_existing_csv with one file: ')
+    print('Testing read_input_data with one file: ')
     from classes import Param
     AC_path = '../'
     working_dir = AC_path + '/tutorials/example_read_file'
@@ -70,11 +70,11 @@ if __name__ == "__main__":
     x2 = Param(); x2.type = 'categorical'; x2.categories = ['a','b','c','d']
     params = [x0, x1, x2]
     filenames = ['existing_data.csv']
-    [x_data, y_data] = load_existing_csv(filenames,params)
+    [x_data, y_data] = read_input_data(filenames,params)
 
-    print('Testing load_existing_csv with two file: ')
+    print('Testing read_input_data with two file: ')
     #functions = [is_notebook, is_notebook, is_notebook] # this an array of arbitrary functions
     filenames = ['','existing_data.csv','existing_data.csv']
-    [x_data, y_data] = load_existing_csv(filenames,params)
+    [x_data, y_data] = read_input_data(filenames,params)
 
 #########################################################

@@ -4,7 +4,7 @@ def bayesOpt(funcs_in, params, options):
     from .classes import validate_params, validate_options
     import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
-    from .utils import load_existing_csv
+    from .utils import read_input_data
     
     # Check the number of fidelity levels
     funcs_in = np.atleast_1d(funcs_in)
@@ -32,8 +32,6 @@ def bayesOpt(funcs_in, params, options):
             break
 
     if multifidelity: # XXX this is temporary until I support these combinations of options
-        if mixedType:
-            raise Exception('multifidelity modeling is currently only supported with continuous variable types.')
         if options.n_iter != 0:
             raise Exception('multifidelity modeling is currently only supported with options.n_iter = 0.')
 
@@ -72,16 +70,13 @@ def bayesOpt(funcs_in, params, options):
         
     # Define the Gaussian Process model (AKA the Kriging model)
     from smt.surrogate_models import KRG
-    if mixedType:
-        #gpr = KRG(theta0=[1e-2]*n_dim,print_global = False)
-        gpr = KRG(print_global = False) # XXX setting theta0 was causing gpr to not train because of a dimension issue
-        gpr = MixedIntegerSurrogateModel(surrogate=gpr, xtypes=xtypes, xlimits=xlimits)
+    if multifidelity:
+        gpr = MFK(print_global = False)
     else:
-        if multifidelity:
-            gpr = MFK(theta0=n_dim * [1.0],print_global = False) # XXX 1.0 is hard coded
-        else:
-            gpr = KRG(theta0=[1e-2]*n_dim,print_global = False) # XXX 1e-2 is hard coded
-
+        gpr = KRG(print_global = False) 
+    if mixedType:
+        gpr = MixedIntegerSurrogateModel(surrogate=gpr, xtypes=xtypes, xlimits=xlimits)
+    
     # The initial training data is from two sources 1) pseudo-random initial sampling and 2) read from an input file.
     # n_init is the number of initial training data for each fidelity level
     # n_init[i] is the number of pseudo-random samples (options.n_init_samp[i]) plus the number of points read from an input file (n_input[i])
@@ -103,26 +98,29 @@ def bayesOpt(funcs_in, params, options):
             else:
                 sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=randState)
             x_data.append(sampling(options.n_init_samp[i]))
-            y_data.append(np.zeros_like(x_data[i][:,0]))
+            y_data.append(np.atleast_2d(np.zeros_like(x_data[i][:,0])).T)
             for i_s in range (len(x_data[i])):
                 y_data[i][i_s] =funcs[i](x_data[i][i_s,:])
         
     # part 2) read user-provided function evaluations from a .csv file
-    if hasattr(options, 'existing_csv_filenames'):
-        [x_data_file, y_data_file] = load_existing_csv(options.existing_csv_filenames,params)
+    if hasattr(options, 'input_data_filenames'):
+        [x_data_file, y_data_file] = read_input_data(options.input_data_filenames,params)
         for i in range(n_fl):
             if options.n_init_samp[i] > 0: # case where some data is from .csv, some is from sampling
-                filename = options.existing_csv_filenames[i]
+                filename = options.input_data_filenames[i]
                 if filename != '':
                     x_data[i] = np.append(x_data_file[i],x_data[i],axis=0)
                     y_data[i] = np.append(y_data_file[i],y_data[i],axis=0)
                     n_init[i] = n_init[i] + len(y_data_file[i])
             else: # case where all data is from .csv
-                # x_data[i] = x_data_file[i]
-                # y_data[i] = y_data_file[i]
                 x_data.append(x_data_file[i])
                 y_data.append(y_data_file[i])
                 n_init[i] = len(y_data_file[i])
+    
+    # check that there is enough initial data
+    for i in range(n_fl):
+        if n_init[i] < n_dim + 1:
+            raise Exception('For fidelity level ' + str(i) + ', the default value of n_init_samp (the number of pseudo-random initial samples) has been overwritten and set to zero, but there are less than n_dim + 1 samples in the input file. Make sure there are n_dim + 1 samples in the input file, do not specify n_init_samp, or set n_init_samp > n_dim + 1.')
 
     # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
     from scipy.optimize import minimize

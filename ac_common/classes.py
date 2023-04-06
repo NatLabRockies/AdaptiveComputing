@@ -58,8 +58,8 @@ class Options:
 #########################################################    
 def validate_options(options,n_fl,n_dim):
     import numpy as np
-    if hasattr(options, 'existing_csv_filenames'):
-        options.existing_csv_filenames = np.atleast_1d(options.existing_csv_filenames)
+    if hasattr(options, 'input_data_filenames'):
+        options.input_data_filenames = np.atleast_1d(options.input_data_filenames)
     n_init_samp_min = n_dim + 1
     if not hasattr(options, 'n_init_samp'):
         options.n_init_samp = [n_init_samp_min] * n_fl
@@ -69,11 +69,12 @@ def validate_options(options,n_fl,n_dim):
     for i in range(n_fl):
         if options.n_init_samp[i] > 0:
             if options.n_init_samp[i] < n_init_samp_min:
+                print('Warning: The number of requested initial samples n_init_samp for fidelity level ' + str(i) + ' is being overwrittent to be its minimum allowable non-zero value of ' + str(n_init_samp_min) + str('.'))
                 options.n_init_samp[i] = n_init_samp_min
-    if hasattr(options, 'existing_csv_filenames'):
-        if len(options.existing_csv_filenames) != n_fl:
+    if hasattr(options, 'input_data_filenames'):
+        if len(options.input_data_filenames) != n_fl:
             raise Exception('If any filenames are provided, must give a separate csv for each the functions provided in funcs_in. Use empty quotes if no data should be loaded for a fidelity level.')
-        for filename in options.existing_csv_filenames:
+        for filename in options.input_data_filenames:
             if not filename.endswith('.csv'):
                 if filename != '':
                     raise Exception('csv filename must end in .csv or be an empty string')
@@ -121,18 +122,18 @@ if __name__ == "__main__":
     print('Checking validate_options:')
     options = Options()
     options.plot_ND = True
-    options.existing_csv_filenames = 'existing_data.csv'
+    options.input_data_filenames = 'existing_data.csv'
     options.n_init_samp = 4 # must be >= n_dim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
     options.n_iter = 25 # number of BayesOpt iterations
     options.acqFunc = 'EI'
     print('This is a valid set of options:',validate_options(options,1,3))
 
-    options.existing_csv_filenames = 'existing_data.txt'
+    options.input_data_filenames = 'existing_data.txt'
     try:
         validate_options(options,1,3)
     except Exception:
         print('Correctly identified missing csv extension.')
-        options.existing_csv_filenames = 'existing_data.csv'
+        options.input_data_filenames = 'existing_data.csv'
     else:
         raise Exception('Did not identify a missing csv extension.')
 
@@ -144,9 +145,9 @@ if __name__ == "__main__":
         options.acqFunc = 'EI'
     else:
         raise Exception('Did not identify unrecognized acqFunc.')
-    options.existing_csv_filenames = 'existing_data.csv'
+    options.input_data_filenames = 'existing_data.csv'
 
-    options.existing_csv_filenames = ['','existing_data.csv','']
+    options.input_data_filenames = ['','existing_data.csv','']
     options.n_init_samp = [2,4]
     try:
         validate_options(options,3,3)
@@ -156,7 +157,7 @@ if __name__ == "__main__":
     else:
         raise Exception('Did not identify missing entry in initial samples.')
     
-    options.existing_csv_filenames = ['','existing_data.csvf','']
+    options.input_data_filenames = ['','existing_data.csvf','']
     try:
         validate_options(options,3,3)
     except Exception:
