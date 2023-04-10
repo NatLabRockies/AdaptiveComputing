@@ -65,8 +65,8 @@ if __name__ == "__main__":
     working_dir = AC_path + '/tutorials/example_read_file'
     import os
     os.chdir(working_dir)
-    x0 = Param(); x0.type = 'continuous'; x0.minVal = 0; x0.maxVal = 8
-    x1 = Param(); x1.type = 'ordered'; x1.minVal = 2; x1.maxVal = 6
+    x0 = Param(); x0.type = 'continuous'; x0.min_val = 0; x0.max_val = 8
+    x1 = Param(); x1.type = 'ordered'; x1.min_val = 2; x1.max_val = 6
     x2 = Param(); x2.type = 'categorical'; x2.categories = ['a','b','c','d']
     params = [x0, x1, x2]
     filenames = ['existing_data.csv']

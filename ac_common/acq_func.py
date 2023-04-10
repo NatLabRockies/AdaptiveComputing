@@ -4,7 +4,7 @@
 # - SBO (surrogate based optimization): directly using the prediction of the surrogate model ($\mu$)
 # - LCB (Lower Confidence bound): using the confidence interval : $\mu -3 \times \sigma$
 # - EI for expected Improvement (EGO)
-# Note: be sure to add any user defined aquisition function to getAcqFunc
+# Note: be sure to add any user defined aquisition function to get_acq_func
 import numpy as np 
 from scipy.stats import norm
 #########################################################
@@ -38,7 +38,7 @@ def MSD(GP,points):
     res = -np.sqrt(var)
     return res
 #########################################################
-def getAcqFunc(IC,gpr,f_min_k):
+def get_acq_func(IC,gpr,f_min_k):
     if IC == 'EI':
         obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k)[:,0]
     elif IC =='SBO':

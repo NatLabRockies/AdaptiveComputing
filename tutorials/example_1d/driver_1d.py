@@ -10,7 +10,7 @@ Kevin Griffin
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
 <ol> - The 1D objective function is analytically defined as $f(x) = (x-3.5) sin((x-3.5)/\pi)$. The global minimum over the domain $x \in [0, 25]$ is $f\approx-15.1251$, which occurs at the parameter value of $x \approx 18.9352$. </ol>
-<ol> - The optimization is programmed by calling bayesOpt.py which uses SMT's Gaussian Process model.</ol>
+<ol> - The optimization is programmed by calling bayes_opt.py which uses SMT's Gaussian Process model.</ol>
 <ol> - An animation of the iterations of the optimization is included to visually explain the algorithm.</ol>
 </div>
 
@@ -37,8 +37,8 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x0 = Param()
-x0.minVal = 0
-x0.maxVal = 25
+x0.min_val = 0
+x0.max_val = 25
 params = [x0]
 """```
 
@@ -46,11 +46,11 @@ Define the options for surrogate modeling and optimization
 
 ```python"""
 options = Options()
-options.animation_1D = True
-# options.plot_1D = True
+options.animation_1d = True
+# options.plot_1d = True
 options.n_init_samp = 2 # must be >= ndim+1
 options.n_iter = 7 # number of BayesOpt iterations
-options.acqFunc = 'EI'
+options.acq_func = 'EI'
 """```
 
 Perform the optimization
@@ -58,7 +58,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(func_1d, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(func_1d, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')

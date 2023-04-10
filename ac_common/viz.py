@@ -11,7 +11,7 @@
 import sys
 import numpy as np 
 import matplotlib.pyplot as plt
-from .acqFunc import EI
+from .acq_func import EI
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
 from IPython.display import HTML
@@ -21,15 +21,15 @@ from . import utils
 # Validate input plot types and set up paths for animations
 def viz_init(options,n_dim):
     # validate the selected visualizations are compatible with the number of design parameters
-    if options.animation_1D or options.plot_1D:
+    if options.animation_1d or options.plot_1d:
         if n_dim != 1:
-            raise Exception('options.animation_1D and options.plot_1D should be False unless n_dim=1')
-    if options.animation_2D or options.plot_2D:
+            raise Exception('options.animation_1d and options.plot_1d should be False unless n_dim=1')
+    if options.animation_2d or options.plot_2d:
         if n_dim != 2:
-            raise Exception('options.animation_2D and options.plot_2D should be False unless n_dim=2')
+            raise Exception('options.animation_2d and options.plot_2d should be False unless n_dim=2')
         
     # create output directory
-    if options.plot_1D or options.plot_2D or options.plot_ND or options.animation_1D or options.animation_2D or options.animation_ND:
+    if options.plot_1d or options.plot_2d or options.plot_nd or options.animation_1d or options.animation_2d or options.animation_nd:
         from pathlib import Path
         Path(options.output_dir).mkdir(parents=True, exist_ok=True)
         plt.ioff()
@@ -40,7 +40,7 @@ def viz_init(options,n_dim):
 def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
     # just plot the highest fidelity level
     ndoe = n_init[-1]
-    if options.animation_1D:
+    if options.animation_1d:
         X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
         Y_plot = np.zeros_like(X_plot)
         for i in range(len(X_plot)):
@@ -50,7 +50,7 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         Y_EI_plot = -EI(gpr,X_plot,np.min(y_data[-1]))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
-        # if options.acqFunc == 'LCB' or options.acqFunc == 'SBO':
+        # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
         #     ei, = ax.plot(X_plot,Y_EI_plot,color='red')
         # else:    
         #     ax1 = ax.twinx()
@@ -72,7 +72,7 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         plt.savefig(options.output_dir + ('/frame_1D_%d' %k))
         plt.close(fig)
     
-    if options.animation_2D:
+    if options.animation_2d:
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         n_data = len(y_data[-1])
@@ -88,8 +88,8 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         plt.savefig(options.output_dir + ('/frame_2D_%d' %k))
         plt.close(fig)
 
-    if options.animation_ND:
-        raise Exception('options.animation_ND is not supported. Use options.plot_ND instead.')
+    if options.animation_nd:
+        raise Exception('options.animation_nd is not supported. Use options.plot_nd instead.')
 
     return
 #########################################################
@@ -97,25 +97,25 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
 def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
     # just plot the highest fidelity level
     ndoe = n_init[-1]
-    if options.plot_1D:
-        X_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
-        Y_plot = np.zeros_like(X_plot)
-        for i in range(len(X_plot)):
-            Y_plot[i] = funcs[-1](X_plot[i])
-        Y_GP_plot = gpr.predict_values(X_plot)
-        Y_GP_plot_var  =  gpr.predict_variances(X_plot)
-        Y_EI_plot = -EI(gpr,X_plot,np.min(y_data[-1]))
+    if options.plot_1d:
+        x_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
+        y_plot = np.zeros_like(x_plot)
+        for i in range(len(x_plot)):
+            y_plot[i] = funcs[-1](x_plot[i])
+        y_gp_plot = gpr.predict_values(x_plot)
+        y_gp_plot_var  =  gpr.predict_variances(x_plot)
+        y_ei_plot = -EI(gpr,x_plot,np.min(y_data[-1]))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
-        true_fun, = ax.plot(X_plot,Y_plot)
+        true_fun, = ax.plot(x_plot,y_plot)
         n_data = len(x_data[-1])
         data_init, = ax.plot(x_data[-1][0:ndoe],y_data[-1][0:ndoe],linestyle='',marker='o',color='orange')
         data, = ax.plot(x_data[-1][ndoe:n_data],y_data[-1][ndoe:n_data],linestyle='',marker='o',color='k')
         opt, = ax.plot(x_data[-1][ind_best],y_data[-1][ind_best],linestyle='',marker='*',color='r')
-        gp, = ax.plot(X_plot,Y_GP_plot,linestyle='--',color='g')
-        sig_plus = Y_GP_plot+3*np.sqrt(Y_GP_plot_var)
-        sig_moins = Y_GP_plot-3*np.sqrt(Y_GP_plot_var)
-        un_gp = ax.fill_between(X_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='g')
+        gp, = ax.plot(x_plot,y_gp_plot,linestyle='--',color='g')
+        sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
+        sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
+        un_gp = ax.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='g')
         lines = [true_fun,data_init,data,gp,un_gp,opt]
         ax.set_title('$x \sin{x}$ function')
         ax.set_xlabel('x')
@@ -124,7 +124,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         plt.savefig(options.output_dir + ('/final_1D'))
         plt.close(fig)
         
-    if options.plot_2D:
+    if options.plot_2d:
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         plt.scatter(x_data[-1][:ndoe,0],x_data[-1][:ndoe,1],s=20,marker='x',c=y_data[-1][:ndoe],cmap=cm.coolwarm,label='Initial DOE')
@@ -138,7 +138,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         plt.savefig(options.output_dir + ('/final_2D'))
         plt.close(fig)
     
-    if options.plot_ND:
+    if options.plot_nd:
         fig = plt.figure(figsize=[10,10])
         radius = np.zeros_like(y_data[-1])
         color = np.zeros_like(y_data[-1]) # the iteration in which this data point was collected
@@ -166,7 +166,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
 # Show the plots and play the animations
 def viz_show_plots(options):
     print('Displaying plots and animations in', options.output_dir)
-    if options.plot_1D:
+    if options.plot_1d:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
@@ -175,7 +175,7 @@ def viz_show_plots(options):
         im = plt.imshow(image_pt)
         plt.show()
 
-    if options.plot_2D:
+    if options.plot_2d:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
@@ -184,7 +184,7 @@ def viz_show_plots(options):
         im = plt.imshow(image_pt)
         plt.show()
 
-    if options.plot_ND:
+    if options.plot_nd:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
@@ -193,7 +193,7 @@ def viz_show_plots(options):
         im = plt.imshow(image_pt)
         plt.show()
     
-    if options.animation_1D:
+    if options.animation_1d:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
@@ -212,7 +212,7 @@ def viz_show_plots(options):
         writergif = animation.PillowWriter(fps=1) 
         ani.save(options.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
 
-    if options.animation_2D:
+    if options.animation_2d:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
@@ -231,7 +231,7 @@ def viz_show_plots(options):
         writergif = animation.PillowWriter(fps=1) 
         ani.save(options.output_dir + '/movie_2D' + '.gif', writer=writergif, dpi=500)
         
-    if options.animation_ND:
+    if options.animation_nd:
         pass # XXX implement this
 
     return

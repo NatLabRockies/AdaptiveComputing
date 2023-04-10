@@ -1,6 +1,6 @@
 #########################################################
-# bayesOpt.py
-def bayesOpt(funcs_in, params, options):
+# bayes_opt.py
+def bayes_opt(funcs_in, params, options):
     from .classes import validate_params, validate_options
     import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
@@ -50,12 +50,12 @@ def bayesOpt(funcs_in, params, options):
         for i in range(n_dim):
             if params[i].type == 'continuous':
                 xtypes.append(FLOAT)
-                xlimits.append([params[i].minVal, params[i].maxVal])
-                xlimits_num.append([params[i].minVal, params[i].maxVal])
+                xlimits.append([params[i].min_val, params[i].max_val])
+                xlimits_num.append([params[i].min_val, params[i].max_val])
             elif params[i].type == 'ordered':
                 xtypes.append(ORD)
-                xlimits.append([params[i].minVal, params[i].maxVal])
-                xlimits_num.append([params[i].minVal, params[i].maxVal])
+                xlimits.append([params[i].min_val, params[i].max_val])
+                xlimits_num.append([params[i].min_val, params[i].max_val])
             elif params[i].type == 'categorical':
                 xtypes.append((ENUM, len(params[i].categories)))
                 xlimits.append(params[i].categories)
@@ -65,7 +65,7 @@ def bayesOpt(funcs_in, params, options):
     else:
         xlimits = np.zeros([n_dim,2]) # the first dimension is the parameter space (n_dim), the second defines the bounds (min/max) for each parameter
         for i in range(n_dim):    
-            xlimits[i,:] = [params[i].minVal, params[i].maxVal]
+            xlimits[i,:] = [params[i].min_val, params[i].max_val]
         xlimits_num = xlimits
         
     # Define the Gaussian Process model (AKA the Kriging model)
@@ -89,14 +89,14 @@ def bayesOpt(funcs_in, params, options):
     for i in range(n_fl):
         if options.n_init_samp[i] > 0: 
             assert(options.n_init_samp[i] >= n_dim + 1) # this was established by validate_options()
-            randState = np.random.RandomState()
+            rand_state = np.random.RandomState()
             if options.deterministic:
-                randState = i*(options.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
+                rand_state = i*(options.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
 
             if mixedType:
-                sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=randState)
+                sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
             else:
-                sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=randState)
+                sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
             x_data.append(sampling(options.n_init_samp[i]))
             y_data.append(np.atleast_2d(np.zeros_like(x_data[i][:,0])).T)
             for i_s in range (len(x_data[i])):
@@ -124,10 +124,10 @@ def bayesOpt(funcs_in, params, options):
 
     # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
     from scipy.optimize import minimize
-    from .acqFunc import getAcqFunc
+    from .acq_func import get_acq_func
     n_opt_probes = 20 # number of samples of indicator function
-    i = 0 # XXX fixing bayesOpt to only use the lowest fidelity level
-    randState = np.random.RandomState()
+    i = 0 # XXX fixing bayes_opt to only use the lowest fidelity level
+    rand_state = np.random.RandomState()
     for k in range(options.n_iter):
         if multifidelity:
             for i_f in range(n_fl-1):
@@ -138,13 +138,13 @@ def bayesOpt(funcs_in, params, options):
             gpr.set_training_values(x_data[0],y_data[0])
             gpr.train()
         f_min_k = np.min(y_data)
-        obj_k = getAcqFunc(options.acqFunc,gpr,f_min_k)
+        obj_k = get_acq_func(options.acq_func,gpr,f_min_k)
         if options.deterministic:
-            randState = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+            rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
         if mixedType:
-            sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=randState)
+            sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
         else:
-            sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=randState)
+            sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
         x_start = sampling_opt(n_opt_probes) # 1st dim is which init_guess, 2nd dim is which param
         # naive random sampling:
         #x_start = np.zeros([n_opt_probes,n_dim])

@@ -55,15 +55,15 @@ Define the design parameters (inputs to the objective function)
 ```python"""
 x0 = Param()
 x0.type = 'continuous'
-x0.minVal = 0
-x0.maxVal = 8
+x0.min_val = 0
+x0.max_val = 8
 
 # Use an ordered integer when the order of the discrete values has significance,
 # that is, we expect neigboring values to have objective function values that are correlated
 x1 = Param()
 x1.type = 'ordered'
-x1.minVal = 2
-x1.maxVal = 6 # domain: 2,3,4,5,6.
+x1.min_val = 2
+x1.max_val = 6 # domain: 2,3,4,5,6.
 
 # Use categorical type if the order of the categories is arbitrary.
 x2 = Param()
@@ -77,12 +77,12 @@ Define the options for surrogate modeling and optimization
 
 ```python"""
 options = Options()
-options.plot_ND = True
+options.plot_nd = True
 options.n_init_samp = 8 # must be >= ndim+1
 options.n_iter = 25 # number of BayesOpt iterations
-options.acqFunc = 'EI'
-# options.acqFunc = 'SBO'
-# options.acqFunc = 'LCB'
+options.acq_func = 'EI'
+# options.acq_func = 'SBO'
+# options.acq_func = 'LCB'
 """```
 
 Perform the optimization
@@ -90,7 +90,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(func_mt, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(func_mt, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

@@ -60,7 +60,7 @@ def hf_function(x):
         s = 6.
     else:
         raise Exception('Unrecognized value for categorical variable x[2]')
-    return ((x[0] * 6 - 2) ** 2) * np.sin((x[0] * 6 - 2) * 2) + s
+    return ((x[0] * 6.0 - 2.0) ** 2) * np.sin((x[0] * 6.0 - 2.0) * 2.0) + s
 
 functions = [lf_function,hf_function]
 """```
@@ -69,8 +69,8 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x0 = Param()
-x0.minVal = 0
-x0.maxVal = 1
+x0.min_val = 0
+x0.max_val = 1
 
 x1 = Param()
 x1.type = 'categorical'
@@ -83,11 +83,11 @@ Define the options for surrogate modeling and optimization
 
 ```python"""
 options = Options()
-# options.animation_1D = True
-# options.plot_1D = True
+# options.animation_1d = True
+# options.plot_1d = True
 options.input_data_filenames = ['low_fidelity.csv','high_fidelity.csv']
 options.n_iter = 0 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
-options.acqFunc = 'EI'
+options.acq_func = 'EI'
 """```
 
 Compute the multi-fidelity model
@@ -96,7 +96,7 @@ Compute the multi-fidelity model
 options.n_init_samp = [200, 0]
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(functions, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')

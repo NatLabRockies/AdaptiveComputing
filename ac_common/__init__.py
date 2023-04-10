@@ -3,7 +3,7 @@ from . import utils
 from . import viz
 from .classes import * # this means we can use Param instead of classes.Param #
 #from . import classes
-from .opt import * # this means we can use bayesOpt instead of opt.bayesOpt
+from .opt import * # this means we can use bayes_opt instead of opt.bayes_opt
 #from . import opt
-from . import acqFunc
+from . import acq_func
 

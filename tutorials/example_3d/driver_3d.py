@@ -38,16 +38,16 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x0 = Param()
-x0.minVal = 0
-x0.maxVal = 8
+x0.min_val = 0
+x0.max_val = 8
 
 x1 = Param()
-x1.minVal = 0
-x1.maxVal = 10
+x1.min_val = 0
+x1.max_val = 10
 
 x2 = Param()
-x2.minVal = 0
-x2.maxVal = 9
+x2.min_val = 0
+x2.max_val = 9
 
 params = [x0, x1, x2]
 """```
@@ -56,12 +56,12 @@ Define the options for surrogate modeling and optimization
 
 ```python"""
 options = Options()
-options.plot_ND = True
+options.plot_nd = True
 options.n_init_samp = 10 # must be >= ndim+1
 options.n_iter = 30 # number of BayesOpt iterations
-# options.acqFunc = 'EI'
-options.acqFunc = 'SBO'
-# options.acqFunc = 'LCB'
+# options.acq_func = 'EI'
+options.acq_func = 'SBO'
+# options.acq_func = 'LCB'
 """```
 
 Perform the optimization
@@ -69,7 +69,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(func_3d, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(func_3d, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [3, 4, 1]')

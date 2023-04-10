@@ -12,20 +12,20 @@ def validate_params(params):
     for i in range(n_dim):
         params[i].type
         if params[i].type == 'continuous':
-            if not hasattr(params[i], 'minVal'):
-                raise Exception('minVal not specified for param '+str(i))
-            if not hasattr(params[i], 'maxVal'):
-                raise Exception('maxVal not specified for param '+str(i))
+            if not hasattr(params[i], 'min_val'):
+                raise Exception('min_val not specified for param '+str(i))
+            if not hasattr(params[i], 'max_val'):
+                raise Exception('max_val not specified for param '+str(i))
         elif params[i].type == 'ordered':
-            if not hasattr(params[i], 'minVal'):
-                raise Exception('minVal not specified for param '+str(i))
-            if not hasattr(params[i], 'maxVal'):
-                raise Exception('maxVal not specified for param '+str(i))
+            if not hasattr(params[i], 'min_val'):
+                raise Exception('min_val not specified for param '+str(i))
+            if not hasattr(params[i], 'max_val'):
+                raise Exception('max_val not specified for param '+str(i))
         elif params[i].type == 'categorical':
-            if hasattr(params[i], 'minVal'):
-                raise Exception('minVal should not be specified for categorical params (param '+str(i)+')')
-            if hasattr(params[i], 'maxVal'):
-                raise Exception('maxVal should not be specified for categorical params (param '+str(i)+')')
+            if hasattr(params[i], 'min_val'):
+                raise Exception('min_val should not be specified for categorical params (param '+str(i)+')')
+            if hasattr(params[i], 'max_val'):
+                raise Exception('max_val should not be specified for categorical params (param '+str(i)+')')
             if not hasattr(params[i], 'categories'):
                 raise Exception('Categories not specified for param['+str(i)+'].')
             if len(params[i].categories) != len(set(params[i].categories)):
@@ -45,13 +45,13 @@ class Options:
     # set the default options
     # surrogateModel = 'KRG'
     deterministic = True # random seeds are set deterministically
-    acqFunc = 'EI'
-    animation_1D = False
-    animation_2D = False
-    animation_ND = False
-    plot_1D = False
-    plot_2D = False
-    plot_ND = False
+    acq_func = 'EI'
+    animation_1d = False
+    animation_2d = False
+    animation_nd = False
+    plot_1d = False
+    plot_2d = False
+    plot_nd = False
     output_dir = './plots'
     n_iter = 15 # number of BayesOpt iterations
     # n_init_samp defaults to n_dim+1. It can be set larger but not smaller.
@@ -79,19 +79,19 @@ def validate_options(options,n_fl,n_dim):
                 if filename != '':
                     raise Exception('csv filename must end in .csv or be an empty string')
         
-    supported_acqFuns = ['EI','LCB','SBO','MSD']
+    supported_acq_funcs = ['EI','LCB','SBO','MSD']
     try:
-        supported_acqFuns.index(options.acqFunc)
+        supported_acq_funcs.index(options.acq_func)
     except ValueError:
-        raise Exception('Unrecognized acqFunc specified.')
+        raise Exception('Unrecognized acq_func specified.')
 
     return True
 #########################################################
 ### test code
 if __name__ == "__main__":
     print('Checking validate_params:')
-    x0 = Param(); x0.type = 'continuous'; x0.minVal = 0; x0.maxVal = 8
-    x1 = Param(); x1.type = 'ordered'; x1.minVal = 2; x1.maxVal = 6
+    x0 = Param(); x0.type = 'continuous'; x0.min_val = 0; x0.max_val = 8
+    x1 = Param(); x1.type = 'ordered'; x1.min_val = 2; x1.max_val = 6
     x2 = Param(); x2.type = 'categorical'; x2.categories = ['a','b','c','d']
     params = [x0, x1, x2]
     print('This is a valid set of parameters:',validate_params(params))
@@ -121,11 +121,11 @@ if __name__ == "__main__":
 
     print('Checking validate_options:')
     options = Options()
-    options.plot_ND = True
+    options.plot_nd = True
     options.input_data_filenames = 'existing_data.csv'
     options.n_init_samp = 4 # must be >= n_dim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
     options.n_iter = 25 # number of BayesOpt iterations
-    options.acqFunc = 'EI'
+    options.acq_func = 'EI'
     print('This is a valid set of options:',validate_options(options,1,3))
 
     options.input_data_filenames = 'existing_data.txt'
@@ -137,14 +137,14 @@ if __name__ == "__main__":
     else:
         raise Exception('Did not identify a missing csv extension.')
 
-    options.acqFunc = 'XX'
+    options.acq_func = 'XX'
     try:
         validate_options(options,1,3)
     except Exception:
-        print('Correctly identified unrecognized acqFunc.')
-        options.acqFunc = 'EI'
+        print('Correctly identified unrecognized acq_func.')
+        options.acq_func = 'EI'
     else:
-        raise Exception('Did not identify unrecognized acqFunc.')
+        raise Exception('Did not identify unrecognized acq_func.')
     options.input_data_filenames = 'existing_data.csv'
 
     options.input_data_filenames = ['','existing_data.csv','']

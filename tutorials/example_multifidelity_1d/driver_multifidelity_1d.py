@@ -49,8 +49,8 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 x0 = Param()
-x0.minVal = 0
-x0.maxVal = 1
+x0.min_val = 0
+x0.max_val = 1
 params = [x0]
 """```
 
@@ -58,11 +58,11 @@ Define the options for surrogate modeling and optimization
 
 ```python"""
 options = Options()
-# options.animation_1D = True
-# options.plot_1D = True
+# options.animation_1d = True
+# options.plot_1d = True
 options.n_init_samp = 3 # must be >= n_dim+1
 options.n_iter = 0 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
-options.acqFunc = 'EI'
+options.acq_func = 'EI'
 """```
 
 Compute the baseline high fidelity model as a baseline
@@ -70,7 +70,7 @@ Compute the baseline high fidelity model as a baseline
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(hf_function, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(hf_function, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
@@ -88,7 +88,7 @@ Compute the multi-fidelity model
 ```python"""
 options.n_init_samp = [7, 3]
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayesOpt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(functions, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
