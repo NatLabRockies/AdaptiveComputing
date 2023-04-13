@@ -129,6 +129,7 @@ def bayes_opt(funcs_in, params, options):
     i = 0 # XXX fixing bayes_opt to only use the lowest fidelity level
     rand_state = np.random.RandomState()
     for k in range(options.n_iter):
+        print('Beginning AC optimization iteration ' + str(k))
         if multifidelity:
             for i_f in range(n_fl-1):
                 gpr.set_training_values(x_data[i_f], y_data[i_f], name=i_f) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
@@ -152,7 +153,7 @@ def bayes_opt(funcs_in, params, options):
         #    x_start[:,i_r] = np.random.rand(n_opt_probes)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
         opt_all = np.array([])
         for i_s in range(n_opt_probes):
-            opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method='SLSQP', bounds=xlimits_num))
+            opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method='Powell', bounds=xlimits_num))         
         opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]] # gets only the enties of opt_all that have 'success'=True. Note: opt_all is a dictionary, so opt_all[0]['success'] is equivalent to pt_all[0].success
         obj_success = np.array([opt_i['fun'] for opt_i in opt_success]) # create an array of the function values for all of the successful optimization points
         ind_min = np.argmin(obj_success) # which initial guess was best (led to the deepest min value)

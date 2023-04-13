@@ -171,21 +171,25 @@ git clone https://github.nrel.gov/AC/AdaptiveComputing.git
 
 ### Environment and dependencies
 
-* Python (haven't tested which versions will work, but I am using Python 3.9.13 from a recent conda distribution)
+* Python (tested with Python 3.9.13 installed with a recent conda distribution)
 * The surrogate modeling toolbox (SMT)
 * Optional: Jupyter notebooks and Jupytext
 
-#### Option 1: Install using a package manager
+#### Option 1: Install locally using a package manager
 For example, on mac
 
 ~~~{.bash}
 brew install conda 
 pip install smt
+# optional:
 pip install jupytext
 ~~~
 
-#### Option 2: create a conda environment
-More instructions coming soon ... 
+#### Option 2: Install on Eagle (an NREL HPC machine)
+
+~~~{.bash}
+module load conda
+~~~
 
 ## Running AC
 
@@ -203,7 +207,13 @@ cd tutorial/example_1d
 python driver_1d.py
 ~~~
 
+* For HPC, may use graphics forwarding or use (FastX)[https://www.nrel.gov/hpc/eagle-software-fastx.html] to connect to `eagle-dav.hpc.nrel.gov`
+
 ### Option 2: Run using a Jupyter notebook
+
+* Note that github has been configured to only track `.md` files rather than `.ipynb` files. This is because markdown files work better with git's version control software. However, '.md' files do not store the output and figures from notebooks, so if you want to save this, you can save the notebook as a `.ipynb`.
+
+#### Option 2a: Run on a local machine using a Jupyter notebook
 
 * Launch the jupyter notebook server
 
@@ -212,4 +222,7 @@ jupyter notebook
 ~~~
 
 * Navigate in the GUI to open `driver_1d.md`
-* Note that github has been configured to only track `.md` files rather than `.ipynb` files. This is because markdown files work better with git's version control software. However, '.md' files do not store the output and figures from notebooks, so if you want to save this, you can save the notebook as a `.ipynb`.
+
+### Option 2b: Run using a Jupyter notebook
+
+* See the `conda_env_instructions.md`

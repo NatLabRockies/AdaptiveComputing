@@ -145,7 +145,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         for i in range(len(x_data[-1])):
             x1 = x_data[-1][i,:]
             x2 = x_data[-1][ind_best,:]
-            radius[i] = np.linalg.norm(x1-x2)
+            radius[i] = np.linalg.norm((x1-x2)/(xlimits[:,1]-xlimits[:,0]))
             if i < ndoe:
                 color[i] = 0
             else:

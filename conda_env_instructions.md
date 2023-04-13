@@ -27,10 +27,9 @@ conda activate AC
 * The command prompt should indicate that you are running the conda environment. You can shorten/change the way this displays in the command prompt with the command
 
 ~~~{.bash}
-conda config --set env_prompt '(AC)'
+conda config --set env_prompt '({name})'
 ~~~
-* where `(AC)` will be preprended on the command prompt to indicate the AC environment has been loaded.
-
+* where `(AC)` will be preprended on the command prompt if you have named the model AC. This is a visual reminder that the AC environment has been loaded.
 
 ### Running AC interactively on HPC resources
 * Load the python environment and launch Jupyter notebooks
