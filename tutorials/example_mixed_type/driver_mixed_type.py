@@ -81,8 +81,6 @@ options.plot_nd = True
 options.n_init_samp = 8 # must be >= ndim+1
 options.n_iter = 25 # number of BayesOpt iterations
 options.acq_func = 'EI'
-# options.acq_func = 'SBO'
-# options.acq_func = 'LCB'
 """```
 
 Perform the optimization
@@ -90,7 +88,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(func_mt, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

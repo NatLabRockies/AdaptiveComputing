@@ -1,6 +1,6 @@
 #########################################################
-# bayes_opt.py
-def bayes_opt(funcs_in, params, options):
+# opt.py
+def opt(funcs_in, params, options):
     from .classes import validate_params, validate_options
     import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
@@ -125,8 +125,8 @@ def bayes_opt(funcs_in, params, options):
     # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
     from scipy.optimize import minimize
     from .acq_func import get_acq_func
-    n_opt_probes = 20 # number of samples of indicator function
-    i = 0 # XXX fixing bayes_opt to only use the lowest fidelity level
+    
+    i = 0 # XXX fixing opt to only use the lowest fidelity level
     rand_state = np.random.RandomState()
     for k in range(options.n_iter):
         print('Beginning AC optimization iteration ' + str(k))
@@ -146,14 +146,24 @@ def bayes_opt(funcs_in, params, options):
             sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
         else:
             sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
-        x_start = sampling_opt(n_opt_probes) # 1st dim is which init_guess, 2nd dim is which param
+        x_start = sampling_opt(options.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
         # naive random sampling:
-        #x_start = np.zeros([n_opt_probes,n_dim])
+        #x_start = np.zeros([options.n_opt_pts,n_dim])
         #for i_r in range(n_dim):
-        #    x_start[:,i_r] = np.random.rand(n_opt_probes)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
+        #    x_start[:,i_r] = np.random.rand(options.n_opt_pts)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
         opt_all = np.array([])
-        for i_s in range(n_opt_probes):
-            opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method='Powell', bounds=xlimits_num))         
+        for i_s in range(options.n_opt_pts):
+            # minimization_method values that are sometimes appropriate:
+            # Powell: slow for continuous. Works for virtualEngineering. Warns initial guess not in specified bounds for mixed types
+            # Nelder-Mead: similar to Powell but might not work for virtualEngineering
+            # SLSQP: fast for continuous. works for mixed types. `x0` violates bound constraints for virtualEngineering
+            # L-BFGS-B: fast for continuous. very slow for mixed types
+            # TNC: bit slower than SLSQP for continuous. mixed types raises: `x0` violates bound constraints.
+            # minimization_method values that should not be used:
+            # CG, BFGS, Newton-CG, COBYLA: can not handle bounds
+            # trust-constr: warnings from approximate Hessian
+            # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
+            opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=options.minimization_method, bounds=xlimits_num))
         opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]] # gets only the enties of opt_all that have 'success'=True. Note: opt_all is a dictionary, so opt_all[0]['success'] is equivalent to pt_all[0].success
         obj_success = np.array([opt_i['fun'] for opt_i in opt_success]) # create an array of the function values for all of the successful optimization points
         ind_min = np.argmin(obj_success) # which initial guess was best (led to the deepest min value)

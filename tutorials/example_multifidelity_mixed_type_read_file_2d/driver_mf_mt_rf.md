@@ -96,7 +96,7 @@ Compute the multi-fidelity model
 options.n_init_samp = [200, 0]
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(functions, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')

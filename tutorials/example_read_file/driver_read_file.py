@@ -91,7 +91,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(func_mt, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

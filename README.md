@@ -20,14 +20,14 @@ Key capabilities-
 * Gaussian process modeling
 * Continuous and discrete design parameters
 * Uncertainty quantification
-<!-- * Uncomment this line when bayes_opt n_iter >0 is supported: Support for multi-fidelity modeling --->
+<!-- * Uncomment this line when opt n_iter >0 is supported: Support for multi-fidelity modeling --->
 
 ## Package details
 
-### Explanation of the `bayes_opt` function
-The workhorse of the AC package is the `bayes_opt` function. This function performs Bayesian optimization, a technique for surrogate-based optimization, which is illustrated in the figure below. In this simple 1 parameter example, the user defines a python function which returns the value of the `x sin(x)` function. `bayes_opt` sees this as a black-box function which it can evaluate at various parameter (`x`) values. 
+### Explanation of the `opt` function
+The workhorse of the AC package is the `opt` function. This function performs Bayesian optimization, a technique for surrogate-based optimization, which is illustrated in the figure below. In this simple 1 parameter example, the user defines a python function which returns the value of the `x sin(x)` function. `opt` sees this as a black-box function which it can evaluate at various parameter (`x`) values. 
 
-`bayes_opt` begins with a few random function evaluations. These can be provided at specified points in the design parameter space or can be automatically selected using Latin Hypercube Sampling. The inital data points are used to train a Gaussian Process (GP) model of the black-box function. The GP model provides an estimate of the function, which is the mean of the GP (also called a Gaussian Process Regression and is essentially a smooth interpolation of the sampled points) and the variance of the GP model which estimates the uncertainty of the GPR in between sampled data points. 
+`opt` begins with a few random function evaluations. These can be provided at specified points in the design parameter space or can be automatically selected using Latin Hypercube Sampling. The inital data points are used to train a Gaussian Process (GP) model of the black-box function. The GP model provides an estimate of the function, which is the mean of the GP (also called a Gaussian Process Regression and is essentially a smooth interpolation of the sampled points) and the variance of the GP model which estimates the uncertainty of the GPR in between sampled data points. 
 
 <figure align = "center"><img src="images_for_readme/example_1d.png" alt="Trulli" style="width:50%"><figcaption align = "center"><b>A limited number of function evaluations are used to train a GP. We plot the GPR estimate and its confidence intervals, the sample points, and the reference exact function.</b></figcaption></figure>
 
@@ -35,7 +35,7 @@ So far, the Bayesian optimization has not started, we have just performed regres
 
 <figure align = "center"><img src="images_for_readme/movie_1d.gif" alt="Trulli" style="width:50%"><img src="images_for_readme/example_1d.png" alt="Trulli" style="width:50%"><figcaption align = "center"><b>Left: Animation (gif) of the Bayesian Optimization algorithm for a 1 parameter function. Right: still frame illustrating that for the chosen acquisition function, the next function evaluation will be chosen at a parameter value where there is large uncertainty.</b></figcaption></figure>
 
-`bayes_opt` is called with the arguments `simulations`, `params`, and `options`, which are described next.
+`opt` is called with the arguments `simulations`, `params`, and `options`, which are described next.
 
 ### User-defined simulations
 `simulations` is the name of the user-defined function that implements a simulation. The form is `f(x)`, where `x` is a list of arguments. In the example above, it was a simple function that evaluates `a*x*sin(x/b-c)`. In a multi-fidelity setting, `simulations` is a list of the user-defined functions that implement simulations which various cost and accuracy. This represents a hierarchy of simulation fidelities. More information on multi-fidelity is available further down this page. Note, all simulations must take the same arguments and return the same scalar output.
@@ -103,10 +103,10 @@ Available options:
 | `plot_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
 | `plot_nd`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
 | `output_dir`  | none | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. |
+| `options.minimization_method` | 'SLSQP' | string | `SLSQP` or `Powell` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. `SLSQP` is generally recommended, but `Powell` can be tried if there are bounds violation errors. This issue is under investigation. |
+| `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
 
-<!-- | `animation_nd`  | False  | boolean  | `True` or `False` |  True: show and save a movie of the Bayesian Optimization iterations. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. | --->
-
-<!-- |   |   |   |   |    | -->
+<!-- |  |  |  |  |  | -->
 
 #### More information about acquisition functions
 The follow is a list of supported acquisition functions. These determine which function evaluation will be made on the present iteration. Note that `EI`, `LCB`, and `SBO` are written to find the global minimum, so the objective function should be negated if the maximum is sought.
@@ -116,13 +116,13 @@ The follow is a list of supported acquisition functions. These determine which f
 * `options.acq_func = SBO` to use the Surrogate-Based Optimization algorithm. This queries the point in the design space where the surrogate's mean is minimal. This acquisition function is generally only useful for finding local minima and is not particularly robust though it can converge quickly.
 * `options.acq_func = MSD` to use the Maximal Standard Deviation algorithm. This queries the point in the design space that has the largest standard deviation estimated by the surrogate model. 
 
-### Calling `bayes_opt`
+### Calling `opt`
 
 ~~~{.bash}
-x_opt, y_opt, ind_best, x_data, y_data, surrogate = bayes_opt(simulations, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, surrogate = opt(simulations, params, options)
 ~~~
 
-`bayes_opt` returns following data:
+`opt` returns following data:
 
 * `y_opt`the optimal value and `x_opt` its corresponding parameters
 * `x_data` and `y_data` are lists of all the of function evaluations made
@@ -134,8 +134,8 @@ See the tutorial for more details on use. Presently, multi-fidelity is only supp
 <figure align = "center"><img src="images_for_readme/mf.png" alt="Trulli" style="width:80%"><figcaption align = "center"><b>Comment.</b></figcaption></figure>
 
 ## Package organization and file strucutre
-* The `bayes_opt` function is implmented in `ac_common/opt.py`. Other supporting functions can be found in `ac_common/`, which is the main directory for the AC common software stack.
-* The `tutorials` directory contains several example programs which demonstrate the capabilities and usage of `bayes_opt` with various options and objective functions.
+* The `opt` function is implmented in `ac_common/opt.py`. Other supporting functions can be found in `ac_common/`, which is the main directory for the AC common software stack.
+* The `tutorials` directory contains several example programs which demonstrate the capabilities and usage of `opt` with various options and objective functions.
 
 The available tutorials are listed below:
 

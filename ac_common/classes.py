@@ -16,11 +16,15 @@ def validate_params(params):
                 raise Exception('min_val not specified for param '+str(i))
             if not hasattr(params[i], 'max_val'):
                 raise Exception('max_val not specified for param '+str(i))
+            if params[i].max_val <= params[i].min_val:
+                raise Exception('max_val <= min_val for param '+str(i))
         elif params[i].type == 'ordered':
             if not hasattr(params[i], 'min_val'):
                 raise Exception('min_val not specified for param '+str(i))
             if not hasattr(params[i], 'max_val'):
                 raise Exception('max_val not specified for param '+str(i))
+            if params[i].max_val <= params[i].min_val:
+                raise Exception('max_val <= min_val for param '+str(i))
         elif params[i].type == 'categorical':
             if hasattr(params[i], 'min_val'):
                 raise Exception('min_val should not be specified for categorical params (param '+str(i)+')')
@@ -44,6 +48,7 @@ class Options:
         return cls.instance
     # set the default options
     # surrogateModel = 'KRG'
+    minimization_method = 'SLSQP'
     deterministic = True # random seeds are set deterministically
     acq_func = 'EI'
     animation_1d = False
@@ -53,7 +58,8 @@ class Options:
     plot_2d = False
     plot_nd = False
     output_dir = './plots'
-    n_iter = 15 # number of BayesOpt iterations
+    n_iter = 15 # number of optimization iterations in opt.opt
+    n_opt_pts = 20 # number of initial guesses used to probe the acquisition function
     # n_init_samp defaults to n_dim+1. It can be set larger but not smaller.
 #########################################################    
 def validate_options(options,n_fl,n_dim):

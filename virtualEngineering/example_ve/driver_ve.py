@@ -91,6 +91,7 @@ options = Options()
 options.plot_nd = True
 options.n_init_samp = 9 # must be >= ndim+1
 options.n_iter = 8 # number of BayesOpt iterations
+options.minimization_method = 'Powell'
 options.acq_func = 'EI'
 # options.acq_func = 'SBO'
 # options.acq_func = 'LCB'
@@ -101,7 +102,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(ve, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(ve, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum found is y = ', y_opt, ' at the location', x_opt)

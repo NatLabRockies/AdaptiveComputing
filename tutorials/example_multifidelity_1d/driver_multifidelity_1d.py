@@ -70,7 +70,7 @@ Compute the baseline high fidelity model as a baseline
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(hf_function, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_function, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
@@ -88,7 +88,7 @@ Compute the multi-fidelity model
 ```python"""
 options.n_init_samp = [7, 3]
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = bayes_opt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(functions, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
