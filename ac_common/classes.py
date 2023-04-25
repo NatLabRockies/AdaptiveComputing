@@ -66,6 +66,8 @@ def validate_options(options,n_fl,n_dim):
     import numpy as np
     if hasattr(options, 'input_data_filenames'):
         options.input_data_filenames = np.atleast_1d(options.input_data_filenames)
+    if hasattr(options, 'output_data_filenames'):
+        options.output_data_filenames = np.atleast_1d(options.output_data_filenames)
     n_init_samp_min = n_dim + 1
     if not hasattr(options, 'n_init_samp'):
         options.n_init_samp = [n_init_samp_min] * n_fl
@@ -97,7 +99,14 @@ def validate_options(options,n_fl,n_dim):
             if not filename.endswith('.csv'):
                 if filename != '':
                     raise Exception('csv filename must end in .csv or be an empty string')
-        
+    if hasattr(options, 'output_data_filenames'):
+        if len(options.output_data_filenames) != n_fl:
+            raise Exception('If any filenames are provided, must give a separate csv for each the functions provided in funcs_in. Use empty quotes if no data should be loaded for a fidelity level.')
+        for filename in options.output_data_filenames:
+            if not filename.endswith('.csv'):
+                if filename != '':
+                    raise Exception('csv filename must end in .csv or be an empty string')
+                    
     supported_acq_funcs = ['EI','LCB','SBO','MSD']
     try:
         supported_acq_funcs.index(options.acq_func)

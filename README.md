@@ -92,7 +92,8 @@ Available options:
 
 | Field name | Default |  Acceptable types |  Acceptable values | Description  |
 |---|---|---|---|---|
-| `input_data_filenames` | none | string, list of strings  | empty string or strings ending in `.csv`  |  file names to read existing data from. List length must equal the number of  simulations provided. |
+| `input_data_filenames` | none | string, list of strings  | empty string or strings ending in `.csv`  |  file names to read existing data from. List length must equal the number of  simulations levels provided. See details of file format below. |
+ `output_data_filenames` | none | string, list of strings | empty string or strings ending in `.csv`  |  file names to write final data to. This includes the data read from a file, from LHS sampling, and from Bayesian optimization. List length must equal the number of  simulations levels provided. See details of file format below. |
 | `acq_func`  | `'EI'`  |  string |  `'EI'`,`'LCB'`,`'SBO'`,`'MSD'` | Chose which acquisition function to use for the optimization. See descriptions below.  |
 | `n_iter`  | 15  | integer  |  positive or zero | Number of Bayesian Optimization iterations. |
 | `n_init_samp`  | `n_dim+1`  | integer  | positive or zero | Number of pseudo-random initial samples collected using Latin Hypercube Sampling used to initialize the Bayesian Optimization. |
@@ -106,7 +107,6 @@ Available options:
 | `minimization_method` | `'SLSQP'` | string | `'SLSQP'` or `'Powell'` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. `SLSQP` is generally recommended, but `Powell` can be tried if there are bounds violation errors. This issue is under investigation. |
 | `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
 | `cpu_hrs_per_sim` | none | list of floats | `>0` | An estimate of the number of CPU (or cost-equivalent resource) hours required to compute a simulation at each fidelity level. The length of the list equals the number of user-defined simulations. This input is required if the number of user-defined simulations `n_fl > 1` and Bayesian optimization is used to select the next simulation point, that is `n_iter > 0`. |
-
 <!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions
@@ -116,6 +116,23 @@ The follow is a list of supported acquisition functions. These determine which f
 * `options.acq_func = LCB` to use the Lower Confidence Bound algorithm. This queries the point in the design space where the surrogate's mean minus 3 times its variance is minimal. Thus, it probes the point where the 99% conficence interval is lowest. This acquisition function can converge quickly but is not particularly robust.
 * `options.acq_func = SBO` to use the Surrogate-Based Optimization algorithm. This queries the point in the design space where the surrogate's mean is minimal. This acquisition function is generally only useful for finding local minima and is not particularly robust though it can converge quickly.
 * `options.acq_func = MSD` to use the Maximal Standard Deviation algorithm. This queries the point in the design space that has the largest standard deviation estimated by the surrogate model. 
+
+#### Input and output data file format
+The entries in the list `options.input_data_filenames` are comma separated value `.csv` files. The first N columns represent the N parameters of the design space. The last column is the value of the objective function. This column is optional in the input file. The rows represent the data points. The first row is reserved for the data type labels. These indicate the data type of each column (design parameter). So each entry is either `continuous`, `ordered`, or `categorical`. The entry in objective function column's first row should be `y`.
+
+Example `.csv` file with two data points. This file specifies the three design parameters (which are of three different data types). The fourth column specifies corresponding objective function values `y`.
+
+| continuous | ordered | categorical | y |
+|---|---|---|---|
+| 4	| 6 | c | 7.5 |
+| 7 | 3 | d | 6 |
+
+If you would like AC to compute the objective function for you, leave out the last column or leave some entries in the last column empty. For example,
+
+| continuous | ordered | categorical |
+|---|---|---|
+| 4	| 6 | c | 
+| 7 | 3 | d |
 
 ### Calling `opt`
 

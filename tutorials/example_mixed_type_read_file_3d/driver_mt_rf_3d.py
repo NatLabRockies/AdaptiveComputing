@@ -1,4 +1,4 @@
-
+"""
 <div class="jumbotron text-left"><b>
     
 This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection when some of the objective function evaluations have been precomputed and stored in a .csv file.
@@ -21,7 +21,7 @@ Kevin Griffin
 </div>
 
 ```python
-
+"""
 import sys
 sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
 import numpy as np
@@ -29,13 +29,13 @@ from ac_common import *
 if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
-```
+"""```
 
 
 Define the objective function
 
 
-```python
+```python"""
 # define the polynomial function
 def func_mt(x):
     # evaluate the categorical variable by doing string comparisons
@@ -50,11 +50,11 @@ def func_mt(x):
     else:
         raise Exception('Unrecognized value for categorical variable x[2]')
     return pow((x[0]-5.0),2.0) + pow((x[1]-4.0),2.0) + s - 5.0
-```
+"""```
 
 Define the design parameters (inputs to the objective function)
 
-```python
+```python"""
 x0 = Param()
 x0.type = 'continuous'
 x0.min_val = 0
@@ -73,22 +73,24 @@ x2.type = 'categorical'
 x2.categories = ['a','b','c','d']
 
 params = [x0, x1, x2]
-```
+"""```
 
 Define the options for surrogate modeling and optimization
 
-```python
+```python"""
 options = Options()
 options.plot_nd = True
-options.input_data_filenames = 'existing_data.csv'
+# options.input_data_filenames = 'input_data.csv'
+options.input_data_filenames = 'input_data_parameters_only.csv'
+options.output_data_filenames = 'output_data.csv'
 options.n_init_samp = 0 # must be >= ndim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
 options.n_iter = 25 # number of BayesOpt iterations
 options.acq_func = 'EI'
-```
+"""```
 
 Perform the optimization
 
-```python
+```python"""
 import time
 t = time.time()
 x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
@@ -96,8 +98,8 @@ t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')
 print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x_opt[1],', ',x2.categories[int(x_opt[2])],']')
-```
+"""```
 
 ```python
 
-```
+```"""

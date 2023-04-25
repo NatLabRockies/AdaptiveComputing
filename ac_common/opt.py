@@ -4,7 +4,7 @@ def opt(simulations, params, options):
     from .classes import validate_params, validate_options
     import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
-    from .utils import read_input_data
+    from .utils import read_input_data, write_output_data
     
     # Check the number of fidelity levels
     simulations = np.atleast_1d(simulations)
@@ -38,7 +38,7 @@ def opt(simulations, params, options):
     funcs =[]
     for i in range(n_fl):
         if mixedType:
-            funcs.append(lambda x: simulations[i](args_str_2_enum(x,params))) 
+            funcs.append(lambda x, i=i: simulations[i](args_str_2_enum(x,params))) 
         else:
             funcs.append(simulations[i])
 
@@ -95,7 +95,7 @@ def opt(simulations, params, options):
         
     # part 2) read user-provided function evaluations from a .csv file
     if hasattr(options, 'input_data_filenames'):
-        [x_data_file, y_data_file] = read_input_data(options.input_data_filenames,params)
+        [x_data_file, y_data_file] = read_input_data(options.input_data_filenames,params,funcs)
         for i in range(n_fl):
             if options.n_init_samp[i] > 0: # case where some data is from .csv, some is from sampling
                 filename = options.input_data_filenames[i]
@@ -214,6 +214,9 @@ def opt(simulations, params, options):
             y_opt = y_min_i
             x_opt = x_data[i][ind_best_mf,:]
     # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
+
+    if hasattr(options, 'output_data_filenames'):
+        write_output_data(options.output_data_filenames,params,x_data,y_data)
 
     viz_finalize(options,xlimits_num,funcs,gprs[-1],x_data,y_data,n_init,ind_best)
     viz_show_plots(options)
