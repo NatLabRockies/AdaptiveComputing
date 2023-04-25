@@ -72,11 +72,24 @@ def validate_options(options,n_fl,n_dim):
     options.n_init_samp = np.atleast_1d(options.n_init_samp)
     if len(options.n_init_samp) != n_fl:
         raise Exception('Must list the number of initial samples for each function provided in funcs_in.')
+    # change n_init_samp if it is less that the allowable minimum
     for i in range(n_fl):
         if options.n_init_samp[i] > 0:
             if options.n_init_samp[i] < n_init_samp_min:
                 print('Warning: The number of requested initial samples n_init_samp for fidelity level ' + str(i) + ' is being overwrittent to be its minimum allowable non-zero value of ' + str(n_init_samp_min) + str('.'))
                 options.n_init_samp[i] = n_init_samp_min
+    # multi-fidelity Bayesian optimization requires the cost to be specified for each fidelity level
+    if n_fl > 1:
+        if options.n_iter > 0:
+            if not hasattr(options, 'cpu_hrs_per_sim'):
+                raise Exception('In order to conduct multi-fidelity Bayesian optimization, the user must specify options.cpu_hrs_per_sim to be a list of length n_fl.')
+            if len(options.cpu_hrs_per_sim) != n_fl:
+                raise Exception('In order to conduct multi-fidelity Bayesian optimization, the user must specify options.cpu_hrs_per_sim to be a list of length n_fl.')
+            for hrs in options.cpu_hrs_per_sim:
+                if hrs <= 0:
+                    raise Exception('cpu_hrs_per_sim must be > 0.')
+    else:
+        options.cpu_hrs_per_sim = [1]
     if hasattr(options, 'input_data_filenames'):
         if len(options.input_data_filenames) != n_fl:
             raise Exception('If any filenames are provided, must give a separate csv for each the functions provided in funcs_in. Use empty quotes if no data should be loaded for a fidelity level.')

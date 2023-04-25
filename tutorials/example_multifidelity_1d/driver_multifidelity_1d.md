@@ -22,13 +22,14 @@ from ac_common import *
 if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
+import time
 ```
 
 Define the objective functions for the low and high fidelity models
 
 ```python
 # low fidelity model
-def lf_function(x):
+def lf_simulation(x):
     import numpy as np
     return (
         0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
@@ -37,11 +38,11 @@ def lf_function(x):
     )
 
 # high fidelity model
-def hf_function(x):
+def hf_simulation(x):
     import numpy as np
     return ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
 
-functions = [lf_function,hf_function]
+simulations = [lf_simulation,hf_simulation]
 
 ```
 
@@ -60,35 +61,59 @@ Define the options for surrogate modeling and optimization
 options = Options()
 # options.animation_1d = True
 # options.plot_1d = True
-options.n_init_samp = 3 # must be >= n_dim+1
-options.n_iter = 0 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
-options.acq_func = 'EI'
+options.n_iter = 10
+options.acq_func = 'MSD'
+# options.acq_func = 'EI'
+options.cpu_hrs_per_sim = [1, 5]
 ```
 
-Compute the baseline high fidelity model as a baseline
+Compute the low and high fidelity models as baselines
 
 ```python
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_function, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-print('The minimum found is [', x_opt[0], ',', y_opt,']')
-
 plt.figure()
 x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
-plt.plot(x, hf_function(x), color="k", label="Exact function")
-plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
-plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
+plt.plot(x, hf_simulation(x), color="k", label="Exact function")
+
+# compute the high fidelity model
+# options.n_init_samp = 3 # must be >= n_dim+1
+# t = time.time()
+# x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_simulation, params, options)
+# t = time.time() - t
+# print('Elapsed time = ', t, ' s')
+# print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
+# print('The minimum found is [', x_opt[0], ',', y_opt,']')
+# plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
+# plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
+# print(x_data)
+# print(gpr.predict_variances(x_data[0]).T)
+
+# compute the low fidelity model
+# options.n_init_samp = 7
+# t = time.time()
+# x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(lf_simulation, params, options)
+# t = time.time() - t
+# print('Elapsed time = ', t, ' s')
+# print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
+# print('The minimum found is [', x_opt[0], ',', y_opt,']')
+# #plt.plot(x, lf_simulation(x), color="k", label="Exact function")
+# plt.scatter(x_data, y_data, marker="o", color="c", label="Low-fidelity samples")
+# plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="LF GPR")
+# sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
+# sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
+# un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='c')
+# mean_LF = gpr.predict_values(x)
+# gpr_LF = gpr
+#print('max LF var = ',max(gpr.predict_variances(x)))
+# print(x_data)
+# print(gpr.predict_variances(x_data[0]).T)
 ```
 
 Compute the multi-fidelity model
 
 ```python
-options.n_init_samp = [7, 3]
+options.n_init_samp = [5,3]
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
@@ -96,11 +121,14 @@ print('The minimum found is [', x_opt[0], ',', y_opt,']')
 
 x_LF = x_data[0]
 y_LF = y_data[0]
-plt.scatter(x_LF, y_LF, marker="*", color="r", label="Low-fidelity samples")
-# x_HF = x_data[1]
-# y_HF = y_data[1]
-# plt.scatter(x_HF, y_HF, marker="*", color="g", label="HF samples")
+plt.scatter(x_LF, y_LF, marker="*", color="c", label="Low-fidelity samples")
+x_HF = x_data[1]
+y_HF = y_data[1]
+plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
 plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
+sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
+sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
+un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
 
 plt.legend(loc=0)
 plt.ylim(-10, 17)

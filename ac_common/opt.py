@@ -1,14 +1,14 @@
 #########################################################
 # opt.py
-def opt(funcs_in, params, options):
+def opt(simulations, params, options):
     from .classes import validate_params, validate_options
     import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
     from .utils import read_input_data
     
     # Check the number of fidelity levels
-    funcs_in = np.atleast_1d(funcs_in)
-    n_fl = len(funcs_in) # number of fidelity levels
+    simulations = np.atleast_1d(simulations)
+    n_fl = len(simulations) # number of fidelity levels
     multifidelity = False
     if n_fl != 1:
         multifidelity = True
@@ -31,21 +31,21 @@ def opt(funcs_in, params, options):
             from smt.applications.mixed_integer import MixedIntegerSamplingMethod
             break
 
-    if multifidelity: # XXX this is temporary until I support these combinations of options
-        if options.n_iter != 0:
-            raise Exception('multifidelity modeling is currently only supported with options.n_iter = 0.')
+    # if multifidelity: # XXX this is temporary until I support these combinations of options
+    #     if options.n_iter != 0:
+    #         raise Exception('multifidelity modeling is currently only supported with options.n_iter = 0.')
 
     funcs =[]
     for i in range(n_fl):
         if mixedType:
-            funcs.append(lambda x: funcs_in[i](args_str_2_enum(x,params))) 
+            funcs.append(lambda x: simulations[i](args_str_2_enum(x,params))) 
         else:
-            funcs.append(funcs_in[i])
+            funcs.append(simulations[i])
 
     # Define xlimits, the domain for the design parameters
     if mixedType:
         xtypes = []
-        xlimits = [] # this is the domain for the user defined funcs_in[] (which may include mixed types)
+        xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
         xlimits_num = [] # this is the domain for funcs[] which assumes the categoricals and integers have been converted to continuous types
         for i in range(n_dim):
             if params[i].type == 'continuous':
@@ -67,15 +67,6 @@ def opt(funcs_in, params, options):
         for i in range(n_dim):    
             xlimits[i,:] = [params[i].min_val, params[i].max_val]
         xlimits_num = xlimits
-        
-    # Define the Gaussian Process model (AKA the Kriging model)
-    from smt.surrogate_models import KRG
-    if multifidelity:
-        gpr = MFK(print_global = False)
-    else:
-        gpr = KRG(print_global = False) 
-    if mixedType:
-        gpr = MixedIntegerSurrogateModel(surrogate=gpr, xtypes=xtypes, xlimits=xlimits)
     
     # The initial training data is from two sources 1) pseudo-random initial sampling and 2) read from an input file.
     # n_init is the number of initial training data for each fidelity level
@@ -122,89 +113,112 @@ def opt(funcs_in, params, options):
         if n_init[i] < n_dim + 1:
             raise Exception('For fidelity level ' + str(i) + ', the default value of n_init_samp (the number of pseudo-random initial samples) has been overwritten and set to zero, but there are less than n_dim + 1 samples in the input file. Make sure there are n_dim + 1 samples in the input file, do not specify n_init_samp, or set n_init_samp > n_dim + 1.')
 
+    # Define the Gaussian Process model (AKA the Kriging model)
+    from smt.surrogate_models import KRG
+    gprs = []
+    for i_fl in range(n_fl): # create at hierarchy of gprs
+        if multifidelity:
+            gprs.append(MFK(print_global = False))
+        else:
+            gprs.append(KRG(print_global = False)) 
+        if mixedType:
+            gprs[i_fl] = MixedIntegerSurrogateModel(surrogate=gprs[i_fl], xtypes=xtypes, xlimits=xlimits)
+        
     # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
-    from scipy.optimize import minimize
-    from .acq_func import get_acq_func
+    from .acq_func import get_acq_func, minimize_acq_func
     
-    i = 0 # XXX fixing opt to only use the lowest fidelity level
+    # i = 0 # XXX fixing opt to only use the lowest fidelity level
     rand_state = np.random.RandomState()
     for k in range(options.n_iter):
         print('Beginning AC optimization iteration ' + str(k))
-        if multifidelity:
-            for i_f in range(n_fl-1):
-                gpr.set_training_values(x_data[i_f], y_data[i_f], name=i_f) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-            gpr.set_training_values(x_data[n_fl-1], y_data[n_fl-1]) # high-fidelity dataset without name
-            gpr.train()
-        else:
-            gpr.set_training_values(x_data[0],y_data[0])
-            gpr.train()
-        f_min_k = np.min(y_data)
-        obj_k = get_acq_func(options.acq_func,gpr,f_min_k)
-        if options.deterministic:
-            rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
-        if mixedType:
-            sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
-        else:
-            sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
-        x_start = sampling_opt(options.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-        # naive random sampling:
-        #x_start = np.zeros([options.n_opt_pts,n_dim])
-        #for i_r in range(n_dim):
-        #    x_start[:,i_r] = np.random.rand(options.n_opt_pts)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
-        opt_all = np.array([])
-        for i_s in range(options.n_opt_pts):
-            # minimization_method values that are sometimes appropriate:
-            # Powell: slow for continuous. Works for virtualEngineering. Warns initial guess not in specified bounds for mixed types
-            # Nelder-Mead: similar to Powell but might not work for virtualEngineering
-            # SLSQP: fast for continuous. works for mixed types. `x0` violates bound constraints for virtualEngineering
-            # L-BFGS-B: fast for continuous. very slow for mixed types
-            # TNC: bit slower than SLSQP for continuous. mixed types raises: `x0` violates bound constraints.
-            # minimization_method values that should not be used:
-            # CG, BFGS, Newton-CG, COBYLA: can not handle bounds
-            # trust-constr: warnings from approximate Hessian
-            # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
-            opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=options.minimization_method, bounds=xlimits_num))
-        opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]] # gets only the enties of opt_all that have 'success'=True. Note: opt_all is a dictionary, so opt_all[0]['success'] is equivalent to pt_all[0].success
-        obj_success = np.array([opt_i['fun'] for opt_i in opt_success]) # create an array of the function values for all of the successful optimization points
-        ind_min = np.argmin(obj_success) # which initial guess was best (led to the deepest min value)
-        opt = opt_success[ind_min] # the full output for the best initial guess
-        x_et_k = opt['x'] # the x value at which the min occurs
-        y_et_k = funcs[i](x_et_k) # this is the objective function rather than the infill criterion
-        y_data[i] = np.atleast_2d(np.append(y_data,y_et_k)).T
-        x_data[i] = np.append(x_data[i],np.atleast_2d(x_et_k),axis=0)
 
-        viz_animate(options,xlimits_num,funcs,gpr,x_data,y_data,n_init,k)
+        for i_fl in range(n_fl):
+            for ii_fl in range(i_fl):
+                gprs[i_fl].set_training_values(x_data[ii_fl], y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+            gprs[i_fl].set_training_values(x_data[i_fl], y_data[i_fl]) # highest-fidelity dataset does not get a name
+            gprs[i_fl].train()
+
+        #af_array = []
+        af_array = np.zeros([n_fl,1]) # acquisition function values for each fidelity level
+        for i in range(n_fl):
+            if options.deterministic:
+                rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+                # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
+                # rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+            if mixedType:
+                sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
+            else:
+                sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
+            x_start = sampling_opt(options.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+            f_min_k = np.min(y_data[i])
+            obj_k = get_acq_func(options.acq_func,gprs[i],f_min_k)
+            x_et_k = minimize_acq_func(obj_k, x_start, options, xlimits_num)
+            #af_array.append(obj_k(x_et_k)[0])
+            af_array[i] = obj_k(x_et_k)
+        ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(options.cpu_hrs_per_sim).T)
+        y_et_k = funcs[ind_which_lvl](x_et_k)
+        y_data[ind_which_lvl] = np.atleast_2d(np.append(y_data[ind_which_lvl],y_et_k)).T
+        x_data[ind_which_lvl] = np.append(x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
+        
+        # if options.deterministic:
+        #     # rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+        #     # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
+        #     rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+        # if mixedType:
+        #     sampling_opt = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
+        # else:
+        #     sampling_opt = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
+        # x_start = sampling_opt(options.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+        # f_min_k = np.min(y_data)
+        # obj_k = get_acq_func(options.acq_func,gprs[-1],f_min_k)
+        # x_et_k = minimize_acq_func(obj_k, x_start, options, xlimits_num)
+        # if multifidelity: # decide which fidelity level to evaluate the objective on.
+        #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels. Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
+        #     # A = [];
+        #     # for i_var_check in range(n_fl-1):
+        #     #     A.append(gprs[i_var_check].predict_variances(x_et_k))
+        #     # ind_which_lvl = 0
+        #     # y_et_k = funcs[ind_which_lvl](x_et_k)
+        #     # y_data[i] = np.atleast_2d(np.append(y_data,y_et_k)).T
+        #     # x_data[i] = np.append(x_data[i],np.atleast_2d(x_et_k),axis=0)
+        #     # for i_var_check in range(n_fl-1):
+        #     #     if gprs[i_var_check + 1].predict_variances(x_et_k) > A[i_var_check]
+        #     ??
+        # else: # always use fidelity level 0
+        #     ind_which_lvl = 0
+        #     y_et_k = funcs[ind_which_lvl](x_et_k)
+        #     y_data[i] = np.atleast_2d(np.append(y_data,y_et_k)).T
+        #     x_data[i] = np.append(x_data[i],np.atleast_2d(x_et_k),axis=0)
+
+        viz_animate(options,xlimits_num,funcs,gprs[-1],x_data,y_data,n_init,k)
     
-    # Update the surrogate model with the last point added 
-    if multifidelity:
-        for i in range(n_fl-1):
-            gpr.set_training_values(x_data[i], y_data[i], name=i) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-        gpr.set_training_values(x_data[n_fl-1], y_data[n_fl-1]) # high-fidelity dataset without name
-        gpr.train()
-    else:
-        gpr.set_training_values(x_data[0],y_data[0])
-        gpr.train()
+    # Update the surrogate model with the last point added
+    i_fl = n_fl-1 # Only update the highest fidelity level since that is the only one that is outputted
+    for ii_fl in range(i_fl):
+        gprs[i_fl].set_training_values(x_data[ii_fl], y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+    gprs[i_fl].set_training_values(x_data[i_fl], y_data[i_fl]) # highest-fidelity dataset does not get a name
+    gprs[i_fl].train()
 
     # Find the optimal point that has been evaluated by the high fidelity model
     ind_best = np.argmin(y_data[n_fl-1])
     # # option 1: estimate the optimum using the high fidelity model
     # x_opt = x_data[n_fl-1][ind_best,:]
     # y_opt = y_data[n_fl-1][ind_best]
-    # option 2: estimate the optimum using the GPR and every sampled location with any fidelity level
+    # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
     x_opt = x_data[n_fl-1][ind_best,:]
     y_opt = y_data[n_fl-1][ind_best]
     for i in range(n_fl-1):
-        y_min_i = np.min(gpr.predict_values(x_data[i]))
+        y_min_i = np.min(gprs[-1].predict_values(x_data[i]))
         if  y_min_i < y_opt:
-            ind_best_mf = np.argmin(gpr.predict_values(x_data[i]))
+            ind_best_mf = np.argmin(gprs[-1].predict_values(x_data[i]))
             y_opt = y_min_i
             x_opt = x_data[i][ind_best_mf,:]
     # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
 
-    viz_finalize(options,xlimits_num,funcs,gpr,x_data,y_data,n_init,ind_best)
+    viz_finalize(options,xlimits_num,funcs,gprs[-1],x_data,y_data,n_init,ind_best)
     viz_show_plots(options)
     
-    return [x_opt, y_opt, ind_best, x_data, y_data, gpr]
+    return [x_opt, y_opt, ind_best, x_data, y_data, gprs[-1]]
 #########################################################
 def args_str_2_enum(x,params):
     # for mixed type functions, the user defined function may have 

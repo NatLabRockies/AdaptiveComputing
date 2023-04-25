@@ -7,6 +7,7 @@
 # Note: be sure to add any user defined aquisition function to get_acq_func
 import numpy as np 
 from scipy.stats import norm
+from scipy.optimize import minimize
 #########################################################
 # expected improvement: 
 def EI(GP,points,f_min):
@@ -15,24 +16,24 @@ def EI(GP,points,f_min):
     args0 = (f_min - pred)/np.sqrt(var)
     args1 = (f_min - pred)*norm.cdf(args0)
     args2 = np.sqrt(var)*norm.pdf(args0)
-    if var.size == 1 and var == 0.0:  # can be use only if one point is computed
-        return 0.0
+    if var.size == 1 and var == 0.0:  
+        raise Exception('Must evaluate EI for more than one point.') #return 0.0
     ei = args1 + args2
     return ei
 #########################################################
-#surrogate Based optimization: min the Surrogate model by using the mean mu
+# surrogate Based optimization: min the Surrogate model by using the mean mu
 def SBO(GP,points):
     res = GP.predict_values(points)
     return res
 #########################################################
-#lower confidence bound optimization: minimize by using mu - 3*sigma
+# lower confidence bound optimization: minimize by using mu - 3*sigma
 def LCB(GP,points):
     pred = GP.predict_values(points)
     var = GP.predict_variances(points)
     res = pred-3.*np.sqrt(var)
     return res
 #########################################################
-#maximal standard deviation: tries to minimize the max standard deviation
+# maximal standard deviation: tries to minimize the max standard deviation
 def MSD(GP,points):
     var = GP.predict_variances(points)
     res = -np.sqrt(var)
@@ -48,4 +49,30 @@ def get_acq_func(IC,gpr,f_min_k):
     elif IC == 'MSD':
         obj_k = lambda x: MSD(gpr,np.atleast_2d(x))
     return obj_k
+#########################################################
+# find the minimum of the acquisition function using several initial guesses and the minimize function from scipy
+def minimize_acq_func(obj_k, x_start, options, xlimits_num):
+    # naive random sampling:
+    #x_start = np.zeros([options.n_opt_pts,n_dim])
+    #for i_r in range(n_dim):
+    #    x_start[:,i_r] = np.random.rand(options.n_opt_pts)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
+    opt_all = np.array([])
+    for i_s in range(options.n_opt_pts):
+        # minimization_method values that are sometimes appropriate:
+        # Powell: slow for continuous. Works for virtualEngineering. Warns initial guess not in specified bounds for mixed types
+        # Nelder-Mead: similar to Powell but might not work for virtualEngineering
+        # SLSQP: fast for continuous. works for mixed types. `x0` violates bound constraints for virtualEngineering
+        # L-BFGS-B: fast for continuous. very slow for mixed types
+        # TNC: bit slower than SLSQP for continuous. mixed types raises: `x0` violates bound constraints.
+        # minimization_method values that should not be used:
+        # CG, BFGS, Newton-CG, COBYLA: can not handle bounds
+        # trust-constr: warnings from approximate Hessian
+        # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
+        opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=options.minimization_method, bounds=xlimits_num))
+    opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]] # gets only the enties of opt_all that have 'success'=True. Note: opt_all is a dictionary, so opt_all[0]['success'] is equivalent to pt_all[0].success
+    obj_success = np.array([opt_i['fun'] for opt_i in opt_success]) # create an array of the function values for all of the successful optimization points
+    ind_min = np.argmin(obj_success) # which initial guess was best (led to the deepest min value)
+    opt = opt_success[ind_min] # the full output for the best initial guess
+    x_et_k = opt['x'] # the x value at which the min occurs
+    return x_et_k # note that y_et_k will be the objective function rather than the acquisition function value at this point
 #########################################################

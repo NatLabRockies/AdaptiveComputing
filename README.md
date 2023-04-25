@@ -20,7 +20,7 @@ Key capabilities-
 * Gaussian process modeling
 * Continuous and discrete design parameters
 * Uncertainty quantification
-<!-- * Uncomment this line when opt n_iter >0 is supported: Support for multi-fidelity modeling --->
+* Multi-fidelity modeling
 
 ## Package details
 
@@ -93,7 +93,7 @@ Available options:
 | Field name | Default |  Acceptable types |  Acceptable values | Description  |
 |---|---|---|---|---|
 | `input_data_filenames` | none | string, list of strings  | empty string or strings ending in `.csv`  |  file names to read existing data from. List length must equal the number of  simulations provided. |
-| `acq_func`  | `EI`  |  string |  `EI`,`LCB`,`SBO`,`MSD` | Chose which acquisition function to use for the optimization. See descriptions below.  |
+| `acq_func`  | `'EI'`  |  string |  `'EI'`,`'LCB'`,`'SBO'`,`'MSD'` | Chose which acquisition function to use for the optimization. See descriptions below.  |
 | `n_iter`  | 15  | integer  |  positive or zero | Number of Bayesian Optimization iterations. |
 | `n_init_samp`  | `n_dim+1`  | integer  | positive or zero | Number of pseudo-random initial samples collected using Latin Hypercube Sampling used to initialize the Bayesian Optimization. |
 | `deterministic`  |  `True` | boolean | `True` or `False` |  True: random seeds for sampling are chosen deterministically so that results are reproducible. |
@@ -103,10 +103,11 @@ Available options:
 | `plot_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
 | `plot_nd`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
 | `output_dir`  | none | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. |
-| `options.minimization_method` | 'SLSQP' | string | `SLSQP` or `Powell` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. `SLSQP` is generally recommended, but `Powell` can be tried if there are bounds violation errors. This issue is under investigation. |
+| `minimization_method` | `'SLSQP'` | string | `'SLSQP'` or `'Powell'` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. `SLSQP` is generally recommended, but `Powell` can be tried if there are bounds violation errors. This issue is under investigation. |
 | `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
+| `cpu_hrs_per_sim` | none | list of floats | `>0` | An estimate of the number of CPU (or cost-equivalent resource) hours required to compute a simulation at each fidelity level. The length of the list equals the number of user-defined simulations. This input is required if the number of user-defined simulations `n_fl > 1` and Bayesian optimization is used to select the next simulation point, that is `n_iter > 0`. |
 
-<!-- |  |  |  |  |  | -->
+<!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions
 The follow is a list of supported acquisition functions. These determine which function evaluation will be made on the present iteration. Note that `EI`, `LCB`, and `SBO` are written to find the global minimum, so the objective function should be negated if the maximum is sought.
@@ -129,9 +130,20 @@ x_opt, y_opt, ind_best, x_data, y_data, surrogate = opt(simulations, params, opt
 * `surrogate` an object representing the final surrogate (GP) model trained.
 
 ## Multi-fidelity
-See the tutorial for more details on use. Presently, multi-fidelity is only supported when `options.n_iter=0`. Bayesian Optimization support will be added soon.
+The user defines a list of simulations which contains each of the fidelity levels in ascending order. The user's estimate for the cost of the fidelity levels is specified with `options.cpu_hrs_per_sim`. See the tutorial `tutorials/example_multifidelity_1d.md` for more details on use.
 
 <figure align = "center"><img src="images_for_readme/mf.png" alt="Trulli" style="width:80%"><figcaption align = "center"><b>Comment.</b></figcaption></figure>
+
+A bi-fidelity model is constructed using two corrections functions `rho` and `delta`, which are both functions of the design parameter(s).
+
+~~~{.bash}
+y_BF1[x] = y_0[x] rho[x] + delta[x]
+~~~
+
+These correction functions are assumed to be low order polynomials. Their coefficients are found by the least squares regression of the high fidelity data (`y_1`) to the bi-fidelity model.
+
+This framework is used recursively to support an arbitrary level of fidelity levels. For example, if there were a third (an even higher fidelity) level (`y_2`), then `y_BF2[x] = y_BF1[x] rho1[x] + delta1[x]`. And so on for higher fidelity levels.
+
 
 ## Package organization and file strucutre
 * The `opt` function is implmented in `ac_common/opt.py`. Other supporting functions can be found in `ac_common/`, which is the main directory for the AC common software stack.
