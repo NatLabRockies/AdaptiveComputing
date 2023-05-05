@@ -107,6 +107,7 @@ Available options:
 | `minimization_method` | `'SLSQP'` | string | `'SLSQP'` or `'Powell'` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. `SLSQP` is generally recommended, but `Powell` can be tried if there are bounds violation errors. This issue is under investigation. |
 | `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
 | `cpu_hrs_per_sim` | none | list of floats | `>0` | An estimate of the number of CPU (or cost-equivalent resource) hours required to compute a simulation at each fidelity level. The length of the list equals the number of user-defined simulations. This input is required if the number of user-defined simulations `n_fl > 1` and Bayesian optimization is used to select the next simulation point, that is `n_iter > 0`. |
+| `perform_lower_sims` | `True` | boolean | `True` or `False` | True: at every point in the design space where a simulation has been performed, all lower fidelity models are also simulated there too. |
 <!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions

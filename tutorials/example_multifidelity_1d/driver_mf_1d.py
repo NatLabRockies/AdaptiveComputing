@@ -65,6 +65,7 @@ options.n_iter = 10
 options.acq_func = 'MSD'
 # options.acq_func = 'EI'
 options.cpu_hrs_per_sim = [1, 5]
+options.perform_lower_sims = False
 """```
 
 Compute the low and high fidelity models as baselines

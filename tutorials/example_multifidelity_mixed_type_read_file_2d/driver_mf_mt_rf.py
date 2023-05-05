@@ -24,11 +24,11 @@ if utils.is_notebook():
 import matplotlib.pyplot as plt
 """```
 
-Define the objective functions for the low and high fidelity models
+Define the simulations (objective functions) for the low and high fidelity models
 
 ```python"""
 # low fidelity model
-def lf_function(x):
+def lf_simulation(x):
     import numpy as np
     # evaluate the categorical variable
     if x[1] == 'a':
@@ -47,7 +47,7 @@ def lf_function(x):
     )
 
 # high fidelity model
-def hf_function(x):
+def hf_simulation(x):
     import numpy as np
     # evaluate the categorical variable
     if x[1] == 'a':
@@ -62,7 +62,7 @@ def hf_function(x):
         raise Exception('Unrecognized value for categorical variable x[2]')
     return ((x[0] * 6.0 - 2.0) ** 2) * np.sin((x[0] * 6.0 - 2.0) * 2.0) + s
 
-functions = [lf_function,hf_function]
+simulations = [lf_simulation,hf_simulation]
 """```
 
 Define the design parameters (inputs to the objective function)
@@ -88,7 +88,7 @@ options = Options()
 # options.input_data_filenames = ['lf_input_data.csv','hf_input_data.csv']
 options.input_data_filenames = ['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv']
 options.output_data_filenames = ['lf_output_data.csv','hf_output_data.csv']
-options.n_iter = 4 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
+options.n_iter = 6 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
 options.acq_func = 'EI'
 options.cpu_hrs_per_sim = [1, 5]
 """```
@@ -96,10 +96,10 @@ options.cpu_hrs_per_sim = [1, 5]
 Compute the multi-fidelity model
 
 ```python"""
-options.n_init_samp = [200, 0]
+options.n_init_samp = [4, 0]
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(functions, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')

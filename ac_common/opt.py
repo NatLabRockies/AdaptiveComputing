@@ -31,10 +31,6 @@ def opt(simulations, params, options):
             from smt.applications.mixed_integer import MixedIntegerSamplingMethod
             break
 
-    # if multifidelity: # XXX this is temporary until I support these combinations of options
-    #     if options.n_iter != 0:
-    #         raise Exception('multifidelity modeling is currently only supported with options.n_iter = 0.')
-
     funcs =[]
     for i in range(n_fl):
         if mixedType:
@@ -69,13 +65,12 @@ def opt(simulations, params, options):
         xlimits_num = xlimits
     
     # The initial training data is from two sources 1) pseudo-random initial sampling and 2) read from an input file.
-    # n_init is the number of initial training data for each fidelity level
-    # n_init[i] is the number of pseudo-random samples (options.n_init_samp[i]) plus the number of points read from an input file (n_input[i])
+    # n_init[i] will be the number of pseudo-random samples (options.n_init_samp[i]) plus the number of points read from an input file
     n_init = options.n_init_samp
-    x_data = [] # x_data is a list of length n_fl. Each entry is an n_init x n_dim np array
-    y_data = [] # y_data is a list of length n_fl. Each entry is an n_init x 1 np array
-    
-    # part 1) pseudo-random initial sampling
+    x_data = [np.empty([0,n_dim])]*n_fl # x_data is a list of length n_fl. Each entry will be an n_init x n_dim np array
+    y_data = [np.empty([0,1])]*n_fl # y_data is a list of length n_fl. Each entry will be an n_init x 1 np array
+
+    # Part 1) Pseudo-random initial sampling
     from smt.sampling_methods import LHS
     for i in range(n_fl):
         if options.n_init_samp[i] > 0: 
@@ -88,30 +83,43 @@ def opt(simulations, params, options):
                 sampling = MixedIntegerSamplingMethod(xtypes, xlimits, LHS, criterion="maximin", random_state=rand_state)
             else:
                 sampling = LHS(xlimits=xlimits, criterion='maximin', random_state=rand_state)
-            x_data.append(sampling(options.n_init_samp[i]))
-            y_data.append(np.atleast_2d(np.zeros_like(x_data[i][:,0])).T)
+            x_data[i] = np.append(x_data[i],sampling(options.n_init_samp[i]),axis=0)
+            y_data[i] = np.append(y_data[i],np.atleast_2d(np.zeros_like(x_data[i][:,0])).T,axis=0)
             for i_s in range (len(x_data[i])):
-                y_data[i][i_s] =funcs[i](x_data[i][i_s,:])
+                y_data[i][i_s] = funcs[i](x_data[i][i_s,:])
         
-    # part 2) read user-provided function evaluations from a .csv file
+    # Part 2) Read user-provided function evaluations from a .csv file
     if hasattr(options, 'input_data_filenames'):
         [x_data_file, y_data_file] = read_input_data(options.input_data_filenames,params,funcs)
         for i in range(n_fl):
-            if options.n_init_samp[i] > 0: # case where some data is from .csv, some is from sampling
-                filename = options.input_data_filenames[i]
-                if filename != '':
-                    x_data[i] = np.append(x_data_file[i],x_data[i],axis=0)
-                    y_data[i] = np.append(y_data_file[i],y_data[i],axis=0)
-                    n_init[i] = n_init[i] + len(y_data_file[i])
-            else: # case where all data is from .csv
-                x_data.append(x_data_file[i])
-                y_data.append(y_data_file[i])
-                n_init[i] = len(y_data_file[i])
+            filename = options.input_data_filenames[i]
+            if filename != '':
+                x_data[i] = np.append(x_data_file[i],x_data[i],axis=0)
+                y_data[i] = np.append(y_data_file[i],y_data[i],axis=0)
+                n_init[i] = n_init[i] + len(y_data_file[i])
     
-    # check that there is enough initial data
+    # Part 3) At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
+    if options.perform_lower_sims:
+        for i_fl in range(n_fl-1,0,-1): # for all levels greater than zero, counting backwards
+            for j_d_upper in range(n_init[i_fl]): # for all data points in this level
+                # check if this point exists on the next lowest level
+                pt_exists = False 
+                for j_d_lower in range(n_init[i_fl-1]): # for all data in the level below
+                    if np.array_equal(x_data[i_fl][j_d_upper,:],x_data[i_fl-1][j_d_lower,:]):
+                        pt_exists = True
+                if not pt_exists: # add it to the lower level
+                    y_et_k = funcs[i_fl-1](x_data[i_fl][j_d_upper,:])
+                    y_data[i_fl-1] = np.atleast_2d(np.append(y_data[i_fl-1],y_et_k)).T
+                    x_data[i_fl-1] = np.append(x_data[i_fl-1],np.atleast_2d(x_data[i_fl][j_d_upper,:]),axis=0)
+                    n_init[i_fl-1] = n_init[i_fl-1] + 1
+
+    # Check that there is enough initial data
     for i in range(n_fl):
         if n_init[i] < n_dim + 1:
-            raise Exception('For fidelity level ' + str(i) + ', the default value of n_init_samp (the number of pseudo-random initial samples) has been overwritten and set to zero, but there are less than n_dim + 1 samples in the input file. Make sure there are n_dim + 1 samples in the input file, do not specify n_init_samp, or set n_init_samp > n_dim + 1.')
+            raise Exception('For fidelity level ' + str(i) + ', the default value of n_init_samp (the number of pseudo-random initial samples) has been overwritten and set to zero, but there are < n_dim + 1 samples in the input file. Make sure there are n_dim + 1 samples in the input file, do not specify n_init_samp, or set n_init_samp >= n_dim + 1.')
+        if i > 0:
+            if n_init[i] >= n_init[i-1]:
+                print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(n_init[i])+', which is >= '+str(n_init[i-1])+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active.')
 
     # Define the Gaussian Process model (AKA the Kriging model)
     from smt.surrogate_models import KRG
@@ -159,6 +167,17 @@ def opt(simulations, params, options):
         y_et_k = funcs[ind_which_lvl](x_et_k)
         y_data[ind_which_lvl] = np.atleast_2d(np.append(y_data[ind_which_lvl],y_et_k)).T
         x_data[ind_which_lvl] = np.append(x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
+        # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
+        if options.perform_lower_sims:
+            for i_fl in range(ind_which_lvl):
+                pt_exists = False 
+                for j_d_lower in range(n_init[i_fl]): # for all data in the level below
+                    if np.array_equal(x_data[ind_which_lvl][-1,:],x_data[i_fl][j_d_lower,:]):
+                        pt_exists = True
+                if not pt_exists: # run the sim at the current level
+                    y_et_k = funcs[i_fl](x_et_k)
+                    y_data[i_fl] = np.atleast_2d(np.append(y_data[i_fl],y_et_k)).T
+                    x_data[i_fl] = np.append(x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
         
         # if options.deterministic:
         #     # rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
