@@ -69,6 +69,7 @@ def opt(simulations, params, options):
     n_init = options.n_init_samp
     x_data = [np.empty([0,n_dim])]*n_fl # x_data is a list of length n_fl. Each entry will be an n_init x n_dim np array
     y_data = [np.empty([0,1])]*n_fl # y_data is a list of length n_fl. Each entry will be an n_init x 1 np array
+    unmasked_data = [np.empty([0,1])]*n_fl # unmasked_data is a list of length n_fl. Each entry will be an n_init x 1 np array
 
     # Part 1) Pseudo-random initial sampling
     from smt.sampling_methods import LHS
@@ -121,6 +122,37 @@ def opt(simulations, params, options):
             if n_init[i] >= n_init[i-1]:
                 print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(n_init[i])+', which is >= '+str(n_init[i-1])+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active.')
 
+    # Mask data that is NaN or outside allowable bounds
+    for ind_which_lvl in range(n_fl):
+        unmasked_data[ind_which_lvl] = np.full([len(y_data[ind_which_lvl]),1], True)
+        for i in range(len(y_data[ind_which_lvl])):
+            if np.isnan(y_data[ind_which_lvl][i]):
+                if options.mask_nans:
+                    unmasked_data[ind_which_lvl][i] = False
+                    print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(i)+'] = '+str(y_data[ind_which_lvl][i])+'. Masking this point.')
+                else:
+                    raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
+            else:
+                oob = False
+                if hasattr(options, 'lbound_inclusive'):
+                    if y_data[ind_which_lvl][i]<options.lbound_inclusive:
+                        oob = True
+                if hasattr(options, 'ubound_inclusive'):
+                    if y_data[ind_which_lvl][i]>options.ubound_inclusive:
+                        oob = True
+                if hasattr(options, 'lbound_exclusive'):
+                    if y_data[ind_which_lvl][i]<=options.lbound_exclusive:
+                        oob = True
+                if hasattr(options, 'ubound_exclusive'):
+                    if y_data[ind_which_lvl][i]>=options.ubound_exclusive:
+                        oob = True
+                if oob:
+                    if options.mask_oob_values:
+                        unmasked_data[ind_which_lvl][i] = False
+                        print('y_data['+str(ind_which_lvl)+']['+str(i)+'] = '+str(y_data[ind_which_lvl][i])+' is out of user-specified allowable bounds. Masking this point.')
+                    else:
+                        raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
+
     # Define the Gaussian Process model (AKA the Kriging model)
     from smt.surrogate_models import KRG
     gprs = []
@@ -135,11 +167,24 @@ def opt(simulations, params, options):
     # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
     from .acq_func import get_acq_func, minimize_acq_func
     
-    # i = 0 # XXX fixing opt to only use the lowest fidelity level
     rand_state = np.random.RandomState()
     for k in range(options.n_iter):
         print('Beginning AC optimization iteration ' + str(k))
 
+        # First, train GPRs using only the x_data[unmasked], y_data[unmasked]
+        for i_fl in range(n_fl):
+            for ii_fl in range(i_fl):
+                gprs[i_fl].set_training_values(np.atleast_2d(x_data[ii_fl][unmasked_data[ii_fl]]).T, np.atleast_2d(y_data[ii_fl][unmasked_data[ii_fl]]).T, name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+            gprs[i_fl].set_training_values(np.atleast_2d(x_data[i_fl][unmasked_data[i_fl]]).T, np.atleast_2d(y_data[i_fl][unmasked_data[i_fl]]).T) # highest-fidelity dataset does not get a name
+            gprs[i_fl].train()
+
+        # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
+        for i_fl in range(n_fl):
+            for i in range(len(y_data[i_fl])):
+                if not unmasked_data[i_fl][i]:
+                    y_data[i_fl][i] = gprs[i_fl].predict_values(x_data[i_fl][i])
+
+        # Retrain GPR using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
         for i_fl in range(n_fl):
             for ii_fl in range(i_fl):
                 gprs[i_fl].set_training_values(x_data[ii_fl], y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
@@ -166,6 +211,7 @@ def opt(simulations, params, options):
         ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(options.cpu_hrs_per_sim).T)
         y_et_k = funcs[ind_which_lvl](x_et_k)
         y_data[ind_which_lvl] = np.atleast_2d(np.append(y_data[ind_which_lvl],y_et_k)).T
+        unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(unmasked_data[ind_which_lvl],True)).T
         x_data[ind_which_lvl] = np.append(x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
         # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
         if options.perform_lower_sims:
@@ -177,7 +223,36 @@ def opt(simulations, params, options):
                 if not pt_exists: # run the sim at the current level
                     y_et_k = funcs[i_fl](x_et_k)
                     y_data[i_fl] = np.atleast_2d(np.append(y_data[i_fl],y_et_k)).T
+                    unmasked_data[i_fl] = np.atleast_2d(np.append(unmasked_data[i_fl],False)).T
                     x_data[i_fl] = np.append(x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
+        
+        # Check for NaNs and out of bounds y_data
+        if np.isnan(y_data[ind_which_lvl][-1]):
+            if options.mask_nans:
+                unmasked_data[ind_which_lvl][-1] = False
+                print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+'. Masking this point.')
+            else:
+                raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
+        else:
+            oob = False
+            if hasattr(options, 'lbound_inclusive'):
+                if y_data[ind_which_lvl][-1]<options.lbound_inclusive:
+                    oob = True
+            if hasattr(options, 'ubound_inclusive'):
+                if y_data[ind_which_lvl][-1]>options.ubound_inclusive:
+                    oob = True
+            if hasattr(options, 'lbound_exclusive'):
+                if y_data[ind_which_lvl][-1]<=options.lbound_exclusive:
+                    oob = True
+            if hasattr(options, 'ubound_exclusive'):
+                if y_data[ind_which_lvl][-1]>=options.ubound_exclusive:
+                    oob = True
+            if oob:
+                if options.mask_oob_values:
+                    unmasked_data[ind_which_lvl][-1] = False
+                    print('y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+' is out of user-specified allowable bounds. Masking this point.')
+                else:
+                    raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
         
         # if options.deterministic:
         #     # rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
@@ -211,11 +286,12 @@ def opt(simulations, params, options):
 
         viz_animate(options,xlimits_num,funcs,gprs[-1],x_data,y_data,n_init,k)
     
-    # Update the surrogate model with the last point added
+    # Update the surrogate model with the last point added. This training only uses unmasked data.
+    # This training only uses unmasked data
     i_fl = n_fl-1 # Only update the highest fidelity level since that is the only one that is outputted
     for ii_fl in range(i_fl):
-        gprs[i_fl].set_training_values(x_data[ii_fl], y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-    gprs[i_fl].set_training_values(x_data[i_fl], y_data[i_fl]) # highest-fidelity dataset does not get a name
+        gprs[i_fl].set_training_values(np.atleast_2d(x_data[ii_fl][unmasked_data[ii_fl]]).T, np.atleast_2d(y_data[ii_fl][unmasked_data[ii_fl]]).T, name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+    gprs[i_fl].set_training_values(np.atleast_2d(x_data[i_fl][unmasked_data[i_fl]]).T, np.atleast_2d(y_data[i_fl][unmasked_data[i_fl]]).T) # highest-fidelity dataset does not get a name
     gprs[i_fl].train()
 
     # Find the optimal point that has been evaluated by the high fidelity model
@@ -226,12 +302,21 @@ def opt(simulations, params, options):
     # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
     x_opt = x_data[n_fl-1][ind_best,:]
     y_opt = y_data[n_fl-1][ind_best]
+    opt_is_masked = False
+    if not unmasked_data[n_fl-1][ind_best]:
+        opt_is_masked = True
     for i in range(n_fl-1):
         y_min_i = np.min(gprs[-1].predict_values(x_data[i]))
         if  y_min_i < y_opt:
             ind_best_mf = np.argmin(gprs[-1].predict_values(x_data[i]))
             y_opt = y_min_i
             x_opt = x_data[i][ind_best_mf,:]
+            if not unmasked_data[i][ind_best_mf]:
+                opt_is_masked = True
+            else:
+                opt_is_masked = False
+    if opt_is_masked:
+        print('Warning: the minimum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
     # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
 
     if hasattr(options, 'output_data_filenames'):

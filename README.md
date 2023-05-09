@@ -108,6 +108,10 @@ Available options:
 | `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
 | `cpu_hrs_per_sim` | none | list of floats | `>0` | An estimate of the number of CPU (or cost-equivalent resource) hours required to compute a simulation at each fidelity level. The length of the list equals the number of user-defined simulations. This input is required if the number of user-defined simulations `n_fl > 1` and Bayesian optimization is used to select the next simulation point, that is `n_iter > 0`. |
 | `perform_lower_sims` | `True` | boolean | `True` or `False` | True: at every point in the design space where a simulation has been performed, all lower fidelity models are also simulated there too. |
+| `mask_nans` | `True` | boolean | `True` or `False` | True: represent NaN simulation values with the surrogate model. See details on masking algorithm. False: NaNs trigger an error. |
+| `mask_oob_values` | `True` | boolean | `True` or `False` | True: represent simulation values that are out of allowable bounds with the surrogate model. See details on masking algorithm. False: out of bounds simulation values trigger an error. |
+| `lbound_inclusive`, `ubound_inclusive`, `lbound_exclusive`, `ubound_exclusive` | none | float | any | Define the allowable bounds for simulation returns. See details on masking below. |
+
 <!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions
@@ -134,6 +138,25 @@ If you would like AC to compute the objective function for you, leave out the la
 |---|---|---|
 | 4	| 6 | c | 
 | 7 | 3 | d |
+
+#### More information on masking NaN and out of bounds (unallowable) simulation values
+Anytime a simulation returns a `NaN` value, that data point will be flagged. Similarly, the user can also define a range of allowable simulation values and all simulation return values outside this range will be flagged. By default, the flagged values are then masked, to prevent them from contaminating the surrogate model (details described below). If the user prefers not to use masking, the calculation can be terminated immediately upon discovering a `NaN` or out of bounds value by setting `options.mask_nans=False` or `options.mask_oob_values=False`, respectively. 
+
+Lower and upper bounds can be inclusive or exclusive. Upper and/or lower bounds should be omitted if semi-infinite or infinite bounds are needed. The simulation return value f(x) must obey all specified constraints in order to be classified as allowable:
+
+* f(x) >= `lbound_inclusive`
+* f(x) <= `ubound_inclusive` 
+* f(x) > `lbound_exclusive`
+* f(x) < `ubound_exclusive`
+
+The surrogate model is trained using all unmasked data (non-NaN, within allowable bounds). However, just ignoring masked data would cause the Bayesian Optimization algorithm to repeatedly sample data in regions in the design space where NaNs or unallowable values are found (since the uncertainty will not reduce in these regions if returned values are always ignored). The masking algorithm is as follows.
+
+* A precursor surrogate model is trained using all unmasked data.
+* The values for masked data points are estimated using the precursor surrogate model.
+* A surrogate model is retraining using unmasked data and the estimates for masked data points.
+* This second surrogate model is used for evaluating the acquistion function.
+
+This two-step training is performed at every iteration, and the precursor surrogate model is returned at the end of all iterations. This algorithm effectively fills in masked holes in the objective function using the present value of the surrogate model.  
 
 ### Calling `opt`
 

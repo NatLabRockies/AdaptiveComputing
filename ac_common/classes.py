@@ -62,6 +62,8 @@ class Options:
     n_opt_pts = 20 # number of initial guesses used to probe the acquisition function
     # n_init_samp defaults to n_dim+1. It can be set larger but not smaller.
     perform_lower_sims = True
+    mask_nans = True
+    mask_oob_values = True
 #########################################################    
 def validate_options(options,n_fl,n_dim):
     import numpy as np
