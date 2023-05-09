@@ -161,7 +161,7 @@ def opt(simulations, params, options):
     from smt.surrogate_models import KRG
     gprs = []
     for i_fl in range(n_fl): # create at hierarchy of gprs
-        if multifidelity:
+        if multifidelity and i_fl > 0:
             gprs.append(MFK(print_global = False))
         else:
             gprs.append(KRG(print_global = False)) 
