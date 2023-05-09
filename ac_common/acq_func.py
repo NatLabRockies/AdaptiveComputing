@@ -60,12 +60,11 @@ def minimize_acq_func(obj_k, x_start, options, xlimits_num):
     for i_s in range(options.n_opt_pts):
         # minimization_method values that are sometimes appropriate:
         # Powell: slow for continuous. Works for virtualEngineering. Warns initial guess not in specified bounds for mixed types
-        # Nelder-Mead: similar to Powell but might not work for virtualEngineering
         # SLSQP: fast for continuous. works for mixed types. `x0` violates bound constraints for virtualEngineering
         # L-BFGS-B: fast for continuous. very slow for mixed types
         # TNC: bit slower than SLSQP for continuous. mixed types raises: `x0` violates bound constraints.
         # minimization_method values that should not be used:
-        # CG, BFGS, Newton-CG, COBYLA: can not handle bounds
+        # CG, BFGS, Newton-CG, COBYLA: can not handle bounds. Nelder-Mead: version on Eagle can not handle bounds
         # trust-constr: warnings from approximate Hessian
         # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
         opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=options.minimization_method, bounds=xlimits_num))
