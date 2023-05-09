@@ -1,8 +1,8 @@
 #########################################################
 # opt.py
+import numpy as np
 def opt(simulations, params, options):
     from .classes import validate_params, validate_options
-    import numpy as np
     from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
     from .utils import read_input_data, write_output_data
     
@@ -34,9 +34,13 @@ def opt(simulations, params, options):
     funcs =[]
     for i in range(n_fl):
         if mixedType:
-            funcs.append(lambda x, i=i: simulations[i](args_str_2_enum(x,params))) 
+            #funcs.append(lambda x, i=i: simulations[i](args_str_2_enum(x,params))) 
+            func_int = lambda x, i=i: simulations[i](args_str_2_enum(x,params))
+            funcs.append(lambda v: catch_valerr(func_int,v))
         else:
-            funcs.append(simulations[i])
+            #funcs.append(simulations[i])
+            func_int = lambda x, i=i: simulations[i](x)
+            funcs.append(lambda v: catch_valerr(func_int,v))
 
     # Define xlimits, the domain for the design parameters
     if mixedType:
@@ -88,7 +92,7 @@ def opt(simulations, params, options):
             y_data[i] = np.append(y_data[i],np.atleast_2d(np.zeros_like(x_data[i][:,0])).T,axis=0)
             for i_s in range (len(x_data[i])):
                 y_data[i][i_s] = funcs[i](x_data[i][i_s,:])
-        
+
     # Part 2) Read user-provided function evaluations from a .csv file
     if hasattr(options, 'input_data_filenames'):
         [x_data_file, y_data_file] = read_input_data(options.input_data_filenames,params,funcs)
@@ -113,14 +117,6 @@ def opt(simulations, params, options):
                     y_data[i_fl-1] = np.atleast_2d(np.append(y_data[i_fl-1],y_et_k)).T
                     x_data[i_fl-1] = np.append(x_data[i_fl-1],np.atleast_2d(x_data[i_fl][j_d_upper,:]),axis=0)
                     n_init[i_fl-1] = n_init[i_fl-1] + 1
-
-    # Check that there is enough initial data
-    for i in range(n_fl):
-        if n_init[i] < n_dim + 1:
-            raise Exception('For fidelity level ' + str(i) + ', the default value of n_init_samp (the number of pseudo-random initial samples) has been overwritten and set to zero, but there are < n_dim + 1 samples in the input file. Make sure there are n_dim + 1 samples in the input file, do not specify n_init_samp, or set n_init_samp >= n_dim + 1.')
-        if i > 0:
-            if n_init[i] >= n_init[i-1]:
-                print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(n_init[i])+', which is >= '+str(n_init[i-1])+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active.')
 
     # Mask data that is NaN or outside allowable bounds
     for ind_which_lvl in range(n_fl):
@@ -153,6 +149,14 @@ def opt(simulations, params, options):
                     else:
                         raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
 
+    # Check that there is enough initial data
+    for i in range(n_fl):
+        if np.count_nonzero(unmasked_data[i]) < n_dim + 1:
+            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(unmasked_data[i]))+' < n_dim+1 initial values that are non-NaN and within user-specified bounds.  Either specify more in input file or increase the number of pseudo-randomly sampled points n_init_samp.')
+        if i > 0:
+            if np.count_nonzero(unmasked_data[i]) >= np.count_nonzero(unmasked_data[i-1]):
+                print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(np.count_nonzero(unmasked_data[i]))+', which is >= '+str(np.count_nonzero(unmasked_data[i-1]))+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active. Note: that only values that are non-NaN and within user-specified allowable bounds are included in these counts.')
+
     # Define the Gaussian Process model (AKA the Kriging model)
     from smt.surrogate_models import KRG
     gprs = []
@@ -174,8 +178,8 @@ def opt(simulations, params, options):
         # First, train GPRs using only the x_data[unmasked], y_data[unmasked]
         for i_fl in range(n_fl):
             for ii_fl in range(i_fl):
-                gprs[i_fl].set_training_values(np.atleast_2d(x_data[ii_fl][unmasked_data[ii_fl]]).T, np.atleast_2d(y_data[ii_fl][unmasked_data[ii_fl]]).T, name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-            gprs[i_fl].set_training_values(np.atleast_2d(x_data[i_fl][unmasked_data[i_fl]]).T, np.atleast_2d(y_data[i_fl][unmasked_data[i_fl]]).T) # highest-fidelity dataset does not get a name
+                gprs[i_fl].set_training_values(x_data[ii_fl][unmasked_data[ii_fl].flatten()], y_data[ii_fl][unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+            gprs[i_fl].set_training_values(x_data[i_fl][unmasked_data[i_fl].flatten()], y_data[i_fl][unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name
             gprs[i_fl].train()
 
         # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
@@ -290,8 +294,8 @@ def opt(simulations, params, options):
     # This training only uses unmasked data
     i_fl = n_fl-1 # Only update the highest fidelity level since that is the only one that is outputted
     for ii_fl in range(i_fl):
-        gprs[i_fl].set_training_values(np.atleast_2d(x_data[ii_fl][unmasked_data[ii_fl]]).T, np.atleast_2d(y_data[ii_fl][unmasked_data[ii_fl]]).T, name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-    gprs[i_fl].set_training_values(np.atleast_2d(x_data[i_fl][unmasked_data[i_fl]]).T, np.atleast_2d(y_data[i_fl][unmasked_data[i_fl]]).T) # highest-fidelity dataset does not get a name
+        gprs[i_fl].set_training_values(x_data[ii_fl][unmasked_data[ii_fl].flatten()], y_data[ii_fl][unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+    gprs[i_fl].set_training_values(x_data[i_fl][unmasked_data[i_fl].flatten()], y_data[i_fl][unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name        
     gprs[i_fl].train()
 
     # Find the optimal point that has been evaluated by the high fidelity model
@@ -341,3 +345,11 @@ def args_str_2_enum(x,params):
         elif params[i].type == 'categorical':
             x[i] = params[i].categories[int(x[i])] # the int cast is needed because SMT stores enums as floats
     return x
+#########################################################
+def catch_valerr(func,x):
+    try:
+        val = func(x)
+    except ValueError:
+        print('Caught a ValueError in user-defined simulation and setting to NaN.')
+        val = np.NaN
+    return val
