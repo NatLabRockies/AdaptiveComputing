@@ -53,48 +53,55 @@ def func_mt(x):
 Define the design parameters (inputs to the objective function)
 
 ```python
-x0 = Param()
-x0.type = 'continuous'
-x0.min_val = 0
-x0.max_val = 8
+def driver_mixed_type_3d():
+    x0 = Param()
+    x0.type = 'continuous'
+    x0.min_val = 0
+    x0.max_val = 8
 
-# Use an ordered integer when the order of the discrete values has significance,
-# that is, we expect neigboring values to have objective function values that are correlated
-x1 = Param()
-x1.type = 'ordered'
-x1.min_val = 2
-x1.max_val = 6 # domain: 2,3,4,5,6.
+    # Use an ordered integer when the order of the discrete values has significance,
+    # that is, we expect neigboring values to have objective function values that are correlated
+    x1 = Param()
+    x1.type = 'ordered'
+    x1.min_val = 2
+    x1.max_val = 6 # domain: 2,3,4,5,6.
 
-# Use categorical type if the order of the categories is arbitrary.
-x2 = Param()
-x2.type = 'categorical'
-x2.categories = ['a','b','c','d']
+    # Use categorical type if the order of the categories is arbitrary.
+    x2 = Param()
+    x2.type = 'categorical'
+    x2.categories = ['a','b','c','d']
 
-params = [x0, x1, x2]
+    params = [x0, x1, x2]
+    ```
+
+    Define the options for surrogate modeling and optimization
+
+    ```python
+    options = Options()
+    options.plot_nd = True
+    options.n_init_samp = 8 # must be >= ndim+1
+    options.n_iter = 25 # number of BayesOpt iterations
+    options.acq_func = 'EI'
+    ```
+
+    Perform the optimization
+
+    ```python
+    import time
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')
+    print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x_opt[1],', ',x2.categories[int(x_opt[2])],']')
+    computed_values = [x_opt[0], x_opt[1], x_opt[2], y_opt[0]]
+    expected_values = [5.0, 4.0, 1.0, 0.0] # Note: 1 maps to 'b' for x2
+    assert(x2.categories[int(x_opt[2])]=='b')
+    tolerances = [0.15, 1e-12, 1e-12, 0.2]
+    return expected_values, computed_values, tolerances
 ```
 
-Define the options for surrogate modeling and optimization
-
 ```python
-options = Options()
-options.plot_nd = True
-options.n_init_samp = 8 # must be >= ndim+1
-options.n_iter = 25 # number of BayesOpt iterations
-options.acq_func = 'EI'
-```
-
-Perform the optimization
-
-```python
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')
-print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x_opt[1],', ',x2.categories[int(x_opt[2])],']')
-```
-
-```python
-
+if __name__ == '__main__':
+    driver_mixed_type_3d()
 ```

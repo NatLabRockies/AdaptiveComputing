@@ -49,98 +49,95 @@ simulations = [lf_simulation,hf_simulation]
 Define the design parameters (inputs to the objective function)
 
 ```python
-x0 = Param()
-x0.min_val = 0
-x0.max_val = 1
-params = [x0]
-```
+def driver_mf_1d():
+    x0 = Param()
+    x0.min_val = 0
+    x0.max_val = 1
+    params = [x0]
 
-Define the options for surrogate modeling and optimization
+    # Define the options for surrogate modeling and optimization
+    options = Options()
+    # options.animation_1d = True
+    # options.plot_1d = True
+    options.n_iter = 10
+    # options.acq_func = 'MSD'
+    options.acq_func = 'EI'
+    options.cpu_hrs_per_sim = [1, 5]
+    options.perform_lower_sims = False
 
-```python
-options = Options()
-# options.animation_1d = True
-# options.plot_1d = True
-options.n_iter = 10
-options.acq_func = 'MSD'
-# options.acq_func = 'EI'
-options.cpu_hrs_per_sim = [1, 5]
-options.perform_lower_sims = False
-```
+    # Compute the low and high fidelity models as baselines
+    plt.figure()
+    x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
+    plt.plot(x, hf_simulation(x), color="k", label="Exact function")
 
-Compute the low and high fidelity models as baselines
+    # compute the high fidelity model
+    # options.n_init_samp = 3 # must be >= n_dim+1
+    # t = time.time()
+    # x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_simulation, params, options)
+    # t = time.time() - t
+    # print('Elapsed time = ', t, ' s')
+    # print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
+    # print('The minimum found is [', x_opt[0], ',', y_opt,']')
+    # plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
+    # plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
+    # print(x_data)
+    # print(gpr.predict_variances(x_data[0]).T)
 
-```python
-plt.figure()
-x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
-plt.plot(x, hf_simulation(x), color="k", label="Exact function")
+    # compute the low fidelity model
+    # options.n_init_samp = 7
+    # t = time.time()
+    # x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(lf_simulation, params, options)
+    # t = time.time() - t
+    # print('Elapsed time = ', t, ' s')
+    # print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
+    # print('The minimum found is [', x_opt[0], ',', y_opt,']')
+    # #plt.plot(x, lf_simulation(x), color="k", label="Exact function")
+    # plt.scatter(x_data, y_data, marker="o", color="c", label="Low-fidelity samples")
+    # plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="LF GPR")
+    # sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
+    # sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
+    # un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='c')
+    # mean_LF = gpr.predict_values(x)
+    # gpr_LF = gpr
+    #print('max LF var = ',max(gpr.predict_variances(x)))
+    # print(x_data)
+    # print(gpr.predict_variances(x_data[0]).T)
 
-# compute the high fidelity model
-# options.n_init_samp = 3 # must be >= n_dim+1
-# t = time.time()
-# x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_simulation, params, options)
-# t = time.time() - t
-# print('Elapsed time = ', t, ' s')
-# print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-# print('The minimum found is [', x_opt[0], ',', y_opt,']')
-# plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
-# plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
-# print(x_data)
-# print(gpr.predict_variances(x_data[0]).T)
+    # Compute the multi-fidelity model
+    options.n_init_samp = [5,3]
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
+    print('The minimum found is [', x_opt[0], ',', y_opt,']')
 
-# compute the low fidelity model
-# options.n_init_samp = 7
-# t = time.time()
-# x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(lf_simulation, params, options)
-# t = time.time() - t
-# print('Elapsed time = ', t, ' s')
-# print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-# print('The minimum found is [', x_opt[0], ',', y_opt,']')
-# #plt.plot(x, lf_simulation(x), color="k", label="Exact function")
-# plt.scatter(x_data, y_data, marker="o", color="c", label="Low-fidelity samples")
-# plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="LF GPR")
-# sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
-# sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
-# un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='c')
-# mean_LF = gpr.predict_values(x)
-# gpr_LF = gpr
-#print('max LF var = ',max(gpr.predict_variances(x)))
-# print(x_data)
-# print(gpr.predict_variances(x_data[0]).T)
-```
+    x_LF = x_data[0]
+    y_LF = y_data[0]
+    plt.scatter(x_LF, y_LF, marker="*", color="c", label="Low-fidelity samples")
+    x_HF = x_data[1]
+    y_HF = y_data[1]
+    plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
+    plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
+    sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
+    sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
+    un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
 
-Compute the multi-fidelity model
+    plt.legend(loc=0)
+    plt.ylim(-10, 17)
+    plt.xlim(-0.1, 1.1)
+    plt.xlabel(r"$x$")
+    plt.ylabel(r"$y$")
 
-```python
-options.n_init_samp = [5,3]
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-print('The minimum found is [', x_opt[0], ',', y_opt,']')
-
-x_LF = x_data[0]
-y_LF = y_data[0]
-plt.scatter(x_LF, y_LF, marker="*", color="c", label="Low-fidelity samples")
-x_HF = x_data[1]
-y_HF = y_data[1]
-plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
-plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
-sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
-sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
-un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
-
-plt.legend(loc=0)
-plt.ylim(-10, 17)
-plt.xlim(-0.1, 1.1)
-plt.xlabel(r"$x$")
-plt.ylabel(r"$y$")
-
-plt.savefig('mf')
-plt.show()
+    plt.savefig('mf')
+    plt.show()
+    computed_values = [x_opt, y_opt]
+    expected_values = [0.757249, -6.02074]
+    tolerances = [0.1]*len(expected_values)
+    return expected_values, computed_values, tolerances
 ```
 
 ```python
-
+if __name__ == '__main__':
+    driver_mf_1d()
 ```

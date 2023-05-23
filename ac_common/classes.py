@@ -42,10 +42,11 @@ def validate_params(params):
     return True
 #########################################################
 class Options:
-    def __new__(cls): # make this class a singleton
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(Options, cls).__new__(cls)
-        return cls.instance
+    # def __new__(cls): # make this class a singleton
+    #     if not hasattr(cls, 'instance'):
+    #         cls.instance = super(Options, cls).__new__(cls)
+    #     return cls.instance
+
     # set the default options
     # surrogateModel = 'KRG'
     minimization_method = 'SLSQP'

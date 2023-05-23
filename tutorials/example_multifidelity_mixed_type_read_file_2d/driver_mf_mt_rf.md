@@ -68,44 +68,45 @@ simulations = [lf_simulation,hf_simulation]
 Define the design parameters (inputs to the objective function)
 
 ```python
-x0 = Param()
-x0.min_val = 0
-x0.max_val = 1
+def driver_mf_mt_rf():
+    x0 = Param()
+    x0.min_val = 0
+    x0.max_val = 1
 
-x1 = Param()
-x1.type = 'categorical'
-x1.categories = ['a','b','c','d']
+    x1 = Param()
+    x1.type = 'categorical'
+    x1.categories = ['a','b','c','d']
 
-params = [x0, x1]
+    params = [x0, x1]
+
+    # Define the options for surrogate modeling and optimization
+    options = Options()
+    # options.animation_1d = True
+    # options.plot_1d = True
+    # options.input_data_filenames = ['lf_input_data.csv','hf_input_data.csv']
+    options.input_data_filenames = ['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv']
+    options.output_data_filenames = ['lf_output_data.csv','hf_output_data.csv']
+    options.n_iter = 20 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
+    options.acq_func = 'EI'
+    options.cpu_hrs_per_sim = [1, 5]
+
+    # Compute the multi-fidelity model
+    options.n_init_samp = [4, 0]
+    import time
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')
+    print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x1.categories[int(x_opt[1])],']')
+    computed_values = [x_opt[0], x_opt[1], y_opt]
+    expected_values = [0.757249, 1.0, -1.02074] # Note: 1 maps to 'b' for x2
+    assert(x1.categories[int(x_opt[1])]=='b')
+    tolerances = [0.3, 1e-12, 0.1]
+    return expected_values, computed_values, tolerances
 ```
 
-Define the options for surrogate modeling and optimization
-
 ```python
-options = Options()
-# options.animation_1d = True
-# options.plot_1d = True
-# options.input_data_filenames = ['lf_input_data.csv','hf_input_data.csv']
-options.input_data_filenames = ['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv']
-options.output_data_filenames = ['lf_output_data.csv','hf_output_data.csv']
-options.n_iter = 6 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
-options.acq_func = 'EI'
-options.cpu_hrs_per_sim = [1, 5]
-```
-
-Compute the multi-fidelity model
-
-```python
-options.n_init_samp = [4, 0]
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')
-print('The minimum found is y = ', y_opt, ' at the location [', x_opt[0],', ',x1.categories[int(x_opt[1])],']')
-```
-
-```python
-
+if __name__ == '__main__':
+    driver_mf_mt_rf()
 ```

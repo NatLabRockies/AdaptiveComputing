@@ -36,35 +36,35 @@ from func_1d import func_1d # import each of the simulation scripts
 Define the design parameters (inputs to the objective function)
 
 ```python"""
-x0 = Param()
-x0.min_val = 0
-x0.max_val = 25
-params = [x0]
-"""```
+def driver_1d():
+    x0 = Param()
+    x0.min_val = 0
+    x0.max_val = 25
+    params = [x0]
 
-Define the options for surrogate modeling and optimization
+    # Define the options for surrogate modeling and optimization
+    options = Options()
+    options.animation_1d = True
+    # options.plot_1d = True
+    options.n_init_samp = 2 # must be >= ndim+1
+    options.n_iter = 7 # number of BayesOpt iterations
+    options.acq_func = 'EI'
+
+    # Perform the optimization
+    import time
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_1d, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
+    print('The minimum found is [', x_opt[0], ',', y_opt,']')
+    computed_values = [x_opt[0], y_opt]
+    expected_values = [18.9352, -15.1251]
+    tolerances = [0.1, 0.1]
+    return expected_values, computed_values, tolerances
+"""```
 
 ```python"""
-options = Options()
-options.animation_1d = True
-# options.plot_1d = True
-options.n_init_samp = 2 # must be >= ndim+1
-options.n_iter = 7 # number of BayesOpt iterations
-options.acq_func = 'EI'
-"""```
-
-Perform the optimization
-
-```python"""
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_1d, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
-print('The minimum found is [', x_opt[0], ',', y_opt,']')
-"""```
-
-```python
-
-```"""
+if __name__ == '__main__':
+    driver_1d()
+"""```"""

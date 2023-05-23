@@ -36,38 +36,38 @@ from func_mask_1d import func_mask_1d # import each of the simulation scripts
 Define the design parameters (inputs to the objective function)
 
 ```python
-x0 = Param()
-x0.min_val = -5
-x0.max_val = 23
-params = [x0]
+def driver_mask_1d():
+    x0 = Param()
+    x0.min_val = -5
+    x0.max_val = 23
+    params = [x0]
+
+    # Define the options for surrogate modeling and optimization
+    options = Options()
+    options.animation_1d = True
+    # options.plot_1d = True
+    options.n_init_samp = 2 # must be >= ndim+1
+    options.n_iter = 10 # number of BayesOpt iterations
+    options.acq_func = 'EI'
+    options.ubound_inclusive = 8
+    options.mask_nans = True
+    options.mask_oob_values = True
+
+    # Perform the optimization
+    import time
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mask_1d, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
+    print('The minimum found is [', x_opt[0], ',', y_opt,']')
+    computed_values = [x_opt[0], y_opt[0]]
+    expected_values = [18.9352, -15.1251]
+    tolerances = [0.2]*len(expected_values)
+    return expected_values, computed_values, tolerances
 ```
 
-Define the options for surrogate modeling and optimization
-
 ```python
-options = Options()
-options.animation_1d = True
-# options.plot_1d = True
-options.n_init_samp = 2 # must be >= ndim+1
-options.n_iter = 10 # number of BayesOpt iterations
-options.acq_func = 'EI'
-options.ubound_inclusive = 8
-options.mask_nans = True
-options.mask_oob_values = True
-```
-
-Perform the optimization
-
-```python
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mask_1d, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
-print('The minimum found is [', x_opt[0], ',', y_opt,']')
-```
-
-```python
-
+if __name__ == '__main__':
+    driver_mask_1d()
 ```

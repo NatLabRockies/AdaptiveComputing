@@ -37,42 +37,41 @@ def func_2d(x):
 Define the design parameters (inputs to the objective function)
 
 ```python
-x0 = Param()
-x0.min_val = 0
-x0.max_val = 8
+def driver_2d():
+    x0 = Param()
+    x0.min_val = 0
+    x0.max_val = 8
 
-x1 = Param()
-x1.name = 'x1'
-x1.min_val = 0
-x1.max_val = 10
+    x1 = Param()
+    x1.name = 'x1'
+    x1.min_val = 0
+    x1.max_val = 10
 
-params = [x0, x1]
-```
+    params = [x0, x1]
 
-Define the options for surrogate modeling and optimization
-
-```python
-options = Options()
-options.animation_2d = True
-# options.plot_2d = True
-# options.plot_nd = True
-options.n_init_samp = 10 # must be >= ndim+1
-options.n_iter = 30 # number of BayesOpt iterations
-options.acq_func = 'EI'
-```
-
-Perform the optimization
-
-```python
-import time
-t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_2d, params, options)
-t = time.time() - t
-print('Elapsed time = ', t, ' s')
-print('The minimum should be y = 0 at the location [x0_opt, x1_opt] = [3, 4]')
-print('The minimum found is y = ', y_opt, ' at the location', x_opt)
+    # Define the options for surrogate modeling and optimization
+    options = Options()
+    options.animation_2d = True
+    # options.plot_2d = True
+    # options.plot_nd = True
+    options.n_init_samp = 10 # must be >= ndim+1
+    options.n_iter = 30 # number of BayesOpt iterations
+    options.acq_func = 'EI'
+    # Perform the optimization
+    import time
+    t = time.time()
+    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_2d, params, options)
+    t = time.time() - t
+    print('Elapsed time = ', t, ' s')
+    print('The minimum should be y = 0 at the location [x0_opt, x1_opt] = [3, 4]')
+    print('The minimum found is y = ', y_opt, ' at the location', x_opt)
+    computed_values = [x_opt[0], x_opt[1], y_opt[0]]
+    expected_values = [3.0, 4.0, 0.0]
+    tolerances = [0.15]*len(expected_values)
+    return expected_values, computed_values, tolerances
 ```
 
 ```python
-
+if __name__ == '__main__':
+    driver_2d()
 ```
