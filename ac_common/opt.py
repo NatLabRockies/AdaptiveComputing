@@ -122,33 +122,8 @@ def opt(simulations, params, options):
     for ind_which_lvl in range(n_fl):
         unmasked_data[ind_which_lvl] = np.full([len(y_data[ind_which_lvl]),1], True)
         for i in range(len(y_data[ind_which_lvl])):
-            if np.isnan(y_data[ind_which_lvl][i]):
-                if options.mask_nans:
-                    unmasked_data[ind_which_lvl][i] = False
-                    print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(i)+'] = '+str(y_data[ind_which_lvl][i])+'. Masking this point.')
-                else:
-                    raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
-            else:
-                oob = False
-                if hasattr(options, 'lbound_inclusive'):
-                    if y_data[ind_which_lvl][i]<options.lbound_inclusive:
-                        oob = True
-                if hasattr(options, 'ubound_inclusive'):
-                    if y_data[ind_which_lvl][i]>options.ubound_inclusive:
-                        oob = True
-                if hasattr(options, 'lbound_exclusive'):
-                    if y_data[ind_which_lvl][i]<=options.lbound_exclusive:
-                        oob = True
-                if hasattr(options, 'ubound_exclusive'):
-                    if y_data[ind_which_lvl][i]>=options.ubound_exclusive:
-                        oob = True
-                if oob:
-                    if options.mask_oob_values:
-                        unmasked_data[ind_which_lvl][i] = False
-                        print('y_data['+str(ind_which_lvl)+']['+str(i)+'] = '+str(y_data[ind_which_lvl][i])+' is out of user-specified allowable bounds. Masking this point.')
-                    else:
-                        raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
-
+            unmasked_data[ind_which_lvl][i] = check_nan_oob(y_data[ind_which_lvl][i],options)
+            
     # Check that there is enough initial data
     for i in range(n_fl):
         if np.count_nonzero(unmasked_data[i]) < n_dim + 1:
@@ -227,36 +202,12 @@ def opt(simulations, params, options):
                 if not pt_exists: # run the sim at the current level
                     y_et_k = funcs[i_fl](x_et_k)
                     y_data[i_fl] = np.atleast_2d(np.append(y_data[i_fl],y_et_k)).T
-                    unmasked_data[i_fl] = np.atleast_2d(np.append(unmasked_data[i_fl],False)).T
+                    unmasked_data[i_fl] = np.atleast_2d(np.append(unmasked_data[i_fl],True)).T
+                    unmasked_data[i_fl][-1] = check_nan_oob(y_data[ind_which_lvl][-1],options)
                     x_data[i_fl] = np.append(x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
-        
+
         # Check for NaNs and out of bounds y_data
-        if np.isnan(y_data[ind_which_lvl][-1]):
-            if options.mask_nans:
-                unmasked_data[ind_which_lvl][-1] = False
-                print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+'. Masking this point.')
-            else:
-                raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
-        else:
-            oob = False
-            if hasattr(options, 'lbound_inclusive'):
-                if y_data[ind_which_lvl][-1]<options.lbound_inclusive:
-                    oob = True
-            if hasattr(options, 'ubound_inclusive'):
-                if y_data[ind_which_lvl][-1]>options.ubound_inclusive:
-                    oob = True
-            if hasattr(options, 'lbound_exclusive'):
-                if y_data[ind_which_lvl][-1]<=options.lbound_exclusive:
-                    oob = True
-            if hasattr(options, 'ubound_exclusive'):
-                if y_data[ind_which_lvl][-1]>=options.ubound_exclusive:
-                    oob = True
-            if oob:
-                if options.mask_oob_values:
-                    unmasked_data[ind_which_lvl][-1] = False
-                    print('y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+' is out of user-specified allowable bounds. Masking this point.')
-                else:
-                    raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
+        unmasked_data[ind_which_lvl][-1] = check_nan_oob(y_data[ind_which_lvl][-1],options)
         
         # if options.deterministic:
         #     # rand_state = i*(options.n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
@@ -353,3 +304,33 @@ def catch_valerr(func,x):
         print('Caught a ValueError in user-defined simulation and setting to NaN.')
         val = np.NaN
     return val
+#########################################################
+def check_nan_oob(y,options):
+    unmasked = True
+    if np.isnan(y):
+        if options.mask_nans:
+            unmasked = False
+            #print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+'. Masking this point.')
+        else:
+            raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
+    else:
+        oob = False
+        if hasattr(options, 'lbound_inclusive'):
+            if y<options.lbound_inclusive:
+                oob = True
+        if hasattr(options, 'ubound_inclusive'):
+            if y>options.ubound_inclusive:
+                oob = True
+        if hasattr(options, 'lbound_exclusive'):
+            if y<=options.lbound_exclusive:
+                oob = True
+        if hasattr(options, 'ubound_exclusive'):
+            if y>=options.ubound_exclusive:
+                oob = True
+        if oob:
+            if options.mask_oob_values:
+                unmasked = False
+                #print('y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+' is out of user-specified allowable bounds. Masking this point.')
+            else:
+                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
+    return unmasked

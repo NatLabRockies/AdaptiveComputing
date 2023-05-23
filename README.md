@@ -17,10 +17,9 @@ Target applications of AC at NREL include-
 Key capabilities-
 
 * Bayesian optimization
-* Gaussian process modeling
+* Surrogate model training (multi-fidelity Gaussian process model)
 * Continuous and discrete design parameters
 * Uncertainty quantification
-* Multi-fidelity modeling
 
 ## Package details
 
@@ -90,11 +89,11 @@ options.input_data_filenames = ['low_fidelity.csv','high_fidelity.csv']
 
 Available options:
 
-| Field name | Default |  Acceptable types |  Acceptable values | Description  |
+| Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
 | `input_data_filenames` | none | string, list of strings  | empty string or strings ending in `.csv`  |  file names to read existing data from. List length must equal the number of  simulations levels provided. See details of file format below. |
  `output_data_filenames` | none | string, list of strings | empty string or strings ending in `.csv`  |  file names to write final data to. This includes the data read from a file, from LHS sampling, and from Bayesian optimization. List length must equal the number of  simulations levels provided. See details of file format below. |
-| `acq_func`  | `'EI'`  |  string |  `'EI'`,`'LCB'`,`'SBO'`,`'MSD'` | Chose which acquisition function to use for the optimization. See descriptions below.  |
+| `acq_func`  | `'EI'`  |  string |  `'EI'`, `'LCB'`, `'SBO'`, `'MSD'` | Chose which acquisition function to use for the optimization. See descriptions below.  |
 | `n_iter`  | 15  | integer  |  positive or zero | Number of Bayesian Optimization iterations. |
 | `n_init_samp`  | `n_dim+1`  | integer  | positive or zero | Number of pseudo-random initial samples collected using Latin Hypercube Sampling used to initialize the Bayesian Optimization. |
 | `deterministic`  |  `True` | boolean | `True` or `False` |  True: random seeds for sampling are chosen deterministically so that results are reproducible. |
