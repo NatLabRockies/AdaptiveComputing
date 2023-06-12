@@ -1,0 +1,175 @@
+# bo.py
+import numpy as np
+#########################################################
+# Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
+def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
+    if bo_ops is None:
+        from .classes import BoOptions
+        bo_ops = BoOptions()
+    if ani_ops is not None:
+        from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
+        viz_init(ani_ops,model.n_dim) # Set up animations
+
+    # Check that there are enough initial samples to conduct Bayesian optimization
+    for i in range(model.n_fl):
+        if model.n_samp[i] <= model.n_dim:
+            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1 initial samples from one of the static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
+
+    # Multi-fidelity Bayesian optimization requires the cost to be specified for each fidelity level
+    if model.n_fl > 1:
+        if not hasattr(bo_ops, 'cpu_hrs_per_sim'):
+            raise Exception('In order to conduct multi-fidelity Bayesian optimization, the user must specify bo_ops.cpu_hrs_per_sim to be a list of length n_fl.')
+        if len(bo_ops.cpu_hrs_per_sim) != model.n_fl:
+            raise Exception('In order to conduct multi-fidelity Bayesian optimization, the user must specify bo_ops.cpu_hrs_per_sim to be a list of length n_fl.')
+        for hrs in bo_ops.cpu_hrs_per_sim:
+            if hrs <= 0:
+                raise Exception('cpu_hrs_per_sim must be > 0.')
+    else:
+        bo_ops.cpu_hrs_per_sim = [1]
+
+    from .acq_func import get_acq_func, minimize_acq_func
+    from .utils import check_nan_oob
+    from smt.sampling_methods import LHS
+    if model.mixed_type:
+        from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+
+    rand_state = np.random.RandomState()
+    for k in range(n_iter):
+        print('Beginning AC optimization iteration ' + str(k))
+
+        # First, train GPRs using only the x_data[unmasked], y_data[unmasked]
+        for i_fl in range(model.n_fl):
+            for ii_fl in range(i_fl):
+                model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
+            model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name
+            model.gprs[i_fl].train()
+
+        # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
+        for i_fl in range(model.n_fl):
+            for i in range(len(model.y_data[i_fl])):
+                if not model.unmasked_data[i_fl][i]:
+                    model.y_data[i_fl][i] = model.gprs[i_fl].predict_values(model.x_data[i_fl][i])
+
+        # Retrain GPR using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
+        for i_fl in range(model.n_fl):
+            for ii_fl in range(i_fl):
+                model.gprs[i_fl].set_training_values(model.x_data[ii_fl], model.y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
+            model.gprs[i_fl].set_training_values(model.x_data[i_fl], model.y_data[i_fl]) # highest-fidelity dataset does not get a name
+            model.gprs[i_fl].train()
+
+        #af_array = []
+        af_array = np.zeros([model.n_fl,1]) # acquisition function values for each fidelity level
+        for i in range(model.n_fl):
+            if model.options.deterministic:
+                # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+                rand_state = int(sum(model.n_samp) + (k+1)*(i+1))
+                #rand_state = i*(n_iter+1)+k+1 
+                # If just evaluating the acquisition function on the MF GPR, then don't need the i to change the seed for different fidelity levels
+                # rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+            if model.mixed_type:
+                sampling_opt = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
+            else:
+                sampling_opt = LHS(xlimits=model.xlimits, criterion='maximin', random_state=rand_state)
+            x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+            f_min_k = np.min(model.y_data[i])
+            obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k)
+            x_et_k = minimize_acq_func(obj_k, x_start, bo_ops, model.xlimits_num)
+            #af_array.append(obj_k(x_et_k)[0])
+            af_array[i] = obj_k(x_et_k)
+        ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T)
+        y_et_k = model.funcs[ind_which_lvl](x_et_k)
+        model.y_data[ind_which_lvl] = np.atleast_2d(np.append(model.y_data[ind_which_lvl],y_et_k)).T
+        model.unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(model.unmasked_data[ind_which_lvl],True)).T
+        model.x_data[ind_which_lvl] = np.append(model.x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
+        # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
+        if model.options.perform_lower_sims:
+            for i_fl in range(ind_which_lvl):
+                pt_exists = False 
+                for j_d_lower in range(model.n_samp[i_fl]): # for all data in the level below
+                    if np.array_equal(model.x_data[ind_which_lvl][-1,:],model.x_data[i_fl][j_d_lower,:]):
+                        pt_exists = True
+                if not pt_exists: # run the sim at the current level
+                    y_et_k = model.funcs[i_fl](x_et_k)
+                    model.y_data[i_fl] = np.atleast_2d(np.append(model.y_data[i_fl],y_et_k)).T
+                    model.unmasked_data[i_fl] = np.atleast_2d(np.append(model.unmasked_data[i_fl],True)).T
+                    model.unmasked_data[i_fl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.options)
+                    model.x_data[i_fl] = np.append(model.x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
+
+        # Check for NaNs and out of bounds y_data
+        model.unmasked_data[ind_which_lvl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.options)
+        
+        # if model.options.deterministic:
+        #     # rand_state = i*(n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+        #     # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
+        #     rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+        # if model.mixed_type:
+        #     sampling_opt = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
+        # else:
+        #     sampling_opt = LHS(xlimits=model.xlimits, criterion='maximin', random_state=rand_state)
+        # x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+        # f_min_k = np.min(model.y_data)
+        # obj_k = get_acq_func(bo_ops.acq_func,model.gprs[-1],f_min_k)
+        # x_et_k = minimize_acq_func(obj_k, x_start, model.options, model.xlimits_num)
+        # if model.multifidelity: # decide which fidelity level to evaluate the objective on.
+        #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels. Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
+        #     # A = [];
+        #     # for i_var_check in range(model.n_fl-1):
+        #     #     A.append(model.gprs[i_var_check].predict_variances(x_et_k))
+        #     # ind_which_lvl = 0
+        #     # y_et_k = model.funcs[ind_which_lvl](x_et_k)
+        #     # model.y_data[i] = np.atleast_2d(np.append(model.y_data,y_et_k)).T
+        #     # model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
+        #     # for i_var_check in range(model.n_fl-1):
+        #     #     if model.gprs[i_var_check + 1].predict_variances(x_et_k) > A[i_var_check]
+        #     ??
+        # else: # always use fidelity level 0
+        #     ind_which_lvl = 0
+        #     y_et_k = model.funcs[ind_which_lvl](x_et_k)
+        #     model.y_data[i] = np.atleast_2d(np.append(model.y_data,y_et_k)).T
+        #     model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
+
+        if ani_ops is not None:
+            viz_animate(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
+    
+    # Update the surrogate model with the last point added. This training only uses unmasked data.
+    # This training only uses unmasked data
+    i_fl = model.n_fl-1 # Only update the highest fidelity level since that is the only one that is outputted
+    for ii_fl in range(i_fl):
+        model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+    model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name        
+    model.gprs[i_fl].train()
+
+    if ani_ops is not None:
+        viz_finalize(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)
+        viz_show_plots(ani_ops,n_frames=n_iter)
+
+    model.n_samp = model.n_samp + n_iter
+
+#########################################################
+# Find the optimal point that has been evaluated by the high fidelity model
+def find_min(model):
+    ind_best = np.argmin(model.y_data[model.n_fl-1])
+    # # option 1: estimate the optimum using the high fidelity model
+    # x_opt = model.x_data[model.n_fl-1][ind_best,:]
+    # y_opt = model.y_data[model.n_fl-1][ind_best]
+    # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
+    x_opt = model.x_data[model.n_fl-1][ind_best,:]
+    y_opt = model.y_data[model.n_fl-1][ind_best]
+    opt_is_masked = False
+    if not model.unmasked_data[model.n_fl-1][ind_best]:
+        opt_is_masked = True
+    for i in range(model.n_fl-1):
+        y_min_i = np.min(model.gprs[-1].predict_values(model.x_data[i]))
+        if  y_min_i < y_opt:
+            ind_best_mf = np.argmin(model.gprs[-1].predict_values(model.x_data[i]))
+            y_opt = y_min_i
+            x_opt = model.x_data[i][ind_best_mf,:]
+            if not model.unmasked_data[i][ind_best_mf]:
+                opt_is_masked = True
+            else:
+                opt_is_masked = False
+    if opt_is_masked:
+        print('Warning: the minimum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
+    # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
+
+    return [x_opt, y_opt]

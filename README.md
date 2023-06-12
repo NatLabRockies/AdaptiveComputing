@@ -184,6 +184,20 @@ These correction functions are assumed to be low order polynomials. Their coeffi
 
 This framework is used recursively to support an arbitrary level of fidelity levels. For example, if there were a third (an even higher fidelity) level (`y_2`), then `y_BF2[x] = y_BF1[x] rho1[x] + delta1[x]`. And so on for higher fidelity levels.
 
+## Revised organization
+The key data structure is the Model object, which builds a surrogate model given a list of simulations of varying fidelities, a list of sample-space parameter objects, and some options. A Model is constructed as follows
+
+~~~{.bash}
+my_model = Model(simulations, params, options)
+~~~
+
+TODO explain the inputs ...
+
+Training data is provided to the model using add_lhs_samples, add_file_samples, add_bo_samples, add_batch_bo_samples, etc. methods. The surrogate model is re-trained when ever samples are added.
+
+The model is queried using the query and batch_query functions.
+
+  
 
 ## Package organization and file strucutre
 * The `opt` function is implmented in `ac_common/opt.py`. Other supporting functions can be found in `ac_common/`, which is the main directory for the AC common software stack.

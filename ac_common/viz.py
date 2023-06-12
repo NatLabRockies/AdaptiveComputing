@@ -27,11 +27,11 @@ def viz_init(options,n_dim):
     if options.animation_2d or options.plot_2d:
         if n_dim != 2:
             raise Exception('options.animation_2d and options.plot_2d should be False unless n_dim=2')
-        
+
     # create output directory
     if options.plot_1d or options.plot_2d or options.plot_nd or options.animation_1d or options.animation_2d or options.animation_nd:
         from pathlib import Path
-        Path(options.output_dir).mkdir(parents=True, exist_ok=True)
+        Path('./plots').mkdir(parents=True, exist_ok=True)
         plt.ioff()
 
     return
@@ -69,7 +69,7 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Current estimate of optimum'])
-        plt.savefig(options.output_dir + ('/frame_1D_%d' %k))
+        plt.savefig('./plots' + ('/frame_1D_%d' %k))
         plt.close(fig)
     
     if options.animation_2d:
@@ -85,7 +85,7 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         plt.xlabel('x0')
         plt.ylabel('x1')
         plt.legend()
-        plt.savefig(options.output_dir + ('/frame_2D_%d' %k))
+        plt.savefig('./plots' + ('/frame_2D_%d' %k))
         plt.close(fig)
 
     if options.animation_nd:
@@ -94,9 +94,10 @@ def viz_animate(options,xlimits,funcs,gpr,x_data,y_data,n_init,k):
     return
 #########################################################
 # After all iterations are complete make final plots and make any finishing touches
-def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
+def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init):
     # just plot the highest fidelity level
     ndoe = n_init[-1]
+    ind_best = np.argmin(y_data[-1][:])
     if options.plot_1d:
         x_plot = np.atleast_2d(np.linspace(xlimits[0][0], xlimits[0][1], 10000)).T
         y_plot = np.zeros_like(x_plot)
@@ -121,7 +122,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.legend(lines,['True function','Initial samples','Additional samples','GPR prediction','99 % confidence','Optimum found'])
-        plt.savefig(options.output_dir + ('/final_1D'))
+        plt.savefig('./plots' + ('/final_1D'))
         plt.close(fig)
         
     if options.plot_2d:
@@ -135,7 +136,7 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         plt.ylabel('x1')
         plt.colorbar(sm,label='Objective function')
         plt.legend()
-        plt.savefig(options.output_dir + ('/final_2D'))
+        plt.savefig('./plots' + ('/final_2D'))
         plt.close(fig)
     
     if options.plot_nd:
@@ -162,20 +163,20 @@ def viz_finalize(options,xlimits,funcs,gpr,x_data,y_data,n_init,ind_best):
         plt.xlabel('$||\\vec{x}-\\vec{x}_{opt}||_2$')
         plt.ylabel('Objective function')
         plt.legend()
-        plt.savefig(options.output_dir + ('/final_ND'))
+        plt.savefig('./plots' + ('/final_ND'))
         plt.close(fig)
 
     return
 #########################################################
 # Show the plots and play the animations
-def viz_show_plots(options):
-    print('Displaying plots and animations in', options.output_dir)
+def viz_show_plots(options,n_frames=None):
+    print('Displaying plots and animations in', './plots')
     if options.plot_1d:
         fig = plt.figure(figsize=[10,10])
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
-        image_pt = mpimg.imread(options.output_dir + ('/final_1D') + '.png')
+        image_pt = mpimg.imread('./plots' + ('/final_1D') + '.png')
         im = plt.imshow(image_pt)
         plt.show()
 
@@ -184,7 +185,7 @@ def viz_show_plots(options):
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
-        image_pt = mpimg.imread(options.output_dir + ('/final_2D') + '.png')
+        image_pt = mpimg.imread('./plots' + ('/final_2D') + '.png')
         im = plt.imshow(image_pt)
         plt.show()
 
@@ -193,7 +194,7 @@ def viz_show_plots(options):
         ax = plt.gca()
         ax.axes.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
-        image_pt = mpimg.imread(options.output_dir + ('/final_ND') + '.png')
+        image_pt = mpimg.imread('./plots' + ('/final_ND') + '.png')
         im = plt.imshow(image_pt)
         plt.show()
     
@@ -203,8 +204,8 @@ def viz_show_plots(options):
         ax.axes.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
         ims = []
-        for k in range(options.n_iter):
-            image_pt = mpimg.imread(options.output_dir + ('/frame_1D_%d' %k) + '.png')
+        for k in range(n_frames):
+            image_pt = mpimg.imread('./plots' + ('/frame_1D_%d' %k) + '.png')
             im = plt.imshow(image_pt)
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
@@ -214,7 +215,7 @@ def viz_show_plots(options):
         else:
             plt.show() # display a movie
         writergif = animation.PillowWriter(fps=1) 
-        ani.save(options.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
+        ani.save('./plots' + '/movie_1D' + '.gif', writer=writergif, dpi=500)
 
     if options.animation_2d:
         fig = plt.figure(figsize=[10,10])
@@ -222,8 +223,8 @@ def viz_show_plots(options):
         ax.axes.get_xaxis().set_visible(False)
         ax.axes.get_yaxis().set_visible(False)
         ims = []
-        for k in range(options.n_iter):
-            image_pt = mpimg.imread(options.output_dir + ('/frame_2D_%d' %k) + '.png')
+        for k in range(n_frames):
+            image_pt = mpimg.imread('./plots' + ('/frame_2D_%d' %k) + '.png')
             im = plt.imshow(image_pt)
             ims.append([im])
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
@@ -233,7 +234,7 @@ def viz_show_plots(options):
         else:
             plt.show() # display a movie
         writergif = animation.PillowWriter(fps=1) 
-        ani.save(options.output_dir + '/movie_2D' + '.gif', writer=writergif, dpi=500)
+        ani.save('./plots' + '/movie_2D' + '.gif', writer=writergif, dpi=500)
         
     if options.animation_nd:
         pass # XXX implement this

@@ -72,24 +72,19 @@ def driver_mixed_type_3d():
     x2.categories = ['a','b','c','d']
 
     params = [x0, x1, x2]
-    """```
-
-    Define the options for surrogate modeling and optimization
-
-    ```python"""
+    
+    # Define the options for surrogate modeling and optimization
     options = Options()
-    options.plot_nd = True
-    options.n_init_samp = 8 # must be >= ndim+1
-    options.n_iter = 25 # number of BayesOpt iterations
-    options.acq_func = 'EI'
-    """```
 
-    Perform the optimization
-
-    ```python"""
+    # Perform the optimization
     import time
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
+    my_model = Model(func_mt, params, options)
+    my_model.add_lhs_samples(8)
+    ani_ops = AnimationOptions()
+    ani_ops.plot_nd=True
+    my_model.add_bo_samples(25,ani_ops=ani_ops)
+    [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

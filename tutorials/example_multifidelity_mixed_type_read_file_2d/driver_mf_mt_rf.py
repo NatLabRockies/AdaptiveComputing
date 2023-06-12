@@ -81,20 +81,26 @@ def driver_mf_mt_rf():
 
     # Define the options for surrogate modeling and optimization
     options = Options()
-    # options.animation_1d = True
-    # options.plot_1d = True
-    # options.input_data_filenames = ['lf_input_data.csv','hf_input_data.csv']
-    options.input_data_filenames = ['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv']
-    options.output_data_filenames = ['lf_output_data.csv','hf_output_data.csv']
-    options.n_iter = 20 # zero BayesOpt iterations implies this is just design of experiments and Kriging without any iterative sample acquisition
-    options.acq_func = 'EI'
-    options.cpu_hrs_per_sim = [1, 5]
 
     # Compute the multi-fidelity model
-    options.n_init_samp = [4, 0]
     import time
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
+    my_model = Model(simulations, params, options)
+    # my_model.add_file_samples(['lf_input_data.csv','hf_input_data.csv'])
+    my_model.add_file_samples(['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv'])
+    my_model.add_lhs_samples([4, 0])
+    ani_ops = AnimationOptions()
+    ani_ops.plot_2d=True
+    bo_ops = BoOptions()
+    bo_ops.cpu_hrs_per_sim = [1, 5]
+    my_model.add_bo_samples(20,bo_ops=bo_ops,ani_ops=ani_ops)
+    my_model.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
+    [x_opt, y_opt] = my_model.find_min()
+
+    x_queries = np.array([[2,'a'],[3.5,'c'],[1,'b']])
+    y_queries = my_model.query(x_queries)
+    print(y_queries)
+
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = -1.02074 at the location [x0, x1] = [0.757249, b]')

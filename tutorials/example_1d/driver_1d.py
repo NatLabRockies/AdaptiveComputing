@@ -44,16 +44,16 @@ def driver_1d():
 
     # Define the options for surrogate modeling and optimization
     options = Options()
-    options.animation_1d = True
-    # options.plot_1d = True
-    options.n_init_samp = 2 # must be >= ndim+1
-    options.n_iter = 7 # number of BayesOpt iterations
-    options.acq_func = 'EI'
 
     # Perform the optimization
     import time
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_1d, params, options)
+    my_model = Model(func_1d, params, options)
+    my_model.add_lhs_samples(2)
+    ani_ops = AnimationOptions()
+    ani_ops.animation_1d=True
+    my_model.add_bo_samples(7,ani_ops=ani_ops)
+    [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')

@@ -48,16 +48,18 @@ def get_acq_func(IC,gpr,f_min_k):
         obj_k = lambda x: LCB(gpr,np.atleast_2d(x))
     elif IC == 'MSD':
         obj_k = lambda x: MSD(gpr,np.atleast_2d(x))
+    else:
+        raise Exception('Unrecognized acq_func specified.')
     return obj_k
 #########################################################
 # find the minimum of the acquisition function using several initial guesses and the minimize function from scipy
-def minimize_acq_func(obj_k, x_start, options, xlimits_num):
+def minimize_acq_func(obj_k, x_start, bo_ops, xlimits_num):
     # naive random sampling:
-    #x_start = np.zeros([options.n_opt_pts,n_dim])
+    #x_start = np.zeros([bo_ops.n_opt_pts,n_dim])
     #for i_r in range(n_dim):
-    #    x_start[:,i_r] = np.random.rand(options.n_opt_pts)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
+    #    x_start[:,i_r] = np.random.rand(bo_ops.n_opt_pts)*(xlimits[i_r][1]-xlimits[i_r][0])+xlimits[i_r][0]
     opt_all = np.array([])
-    for i_s in range(options.n_opt_pts):
+    for i_s in range(bo_ops.n_opt_pts):
         # minimization_method values that are sometimes appropriate:
         # Powell: slow for continuous. Works for virtualEngineering. Warns initial guess not in specified bounds for mixed types
         # SLSQP: fast for continuous. works for mixed types. `x0` violates bound constraints for virtualEngineering
@@ -67,7 +69,7 @@ def minimize_acq_func(obj_k, x_start, options, xlimits_num):
         # CG, BFGS, Newton-CG, COBYLA: can not handle bounds. Nelder-Mead: version on Eagle can not handle bounds
         # trust-constr: warnings from approximate Hessian
         # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
-        opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=options.minimization_method, bounds=xlimits_num))
+        opt_all = np.append(opt_all,minimize(lambda x: float(obj_k(x)), x_start[i_s,:], method=bo_ops.minimization_method, bounds=xlimits_num))
     opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]] # gets only the enties of opt_all that have 'success'=True. Note: opt_all is a dictionary, so opt_all[0]['success'] is equivalent to pt_all[0].success
     obj_success = np.array([opt_i['fun'] for opt_i in opt_success]) # create an array of the function values for all of the successful optimization points
     ind_min = np.argmin(obj_success) # which initial guess was best (led to the deepest min value)
