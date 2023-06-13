@@ -32,9 +32,7 @@ Define the objective functions for the low and high fidelity models
 def lf_simulation(x):
     import numpy as np
     return (
-        0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
-        + (x - 0.5) * 10.0
-        - 5
+        0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2) + (x - 0.5) * 10.0 - 5
     )
 
 # high fidelity model
@@ -57,12 +55,6 @@ def driver_mf_1d():
 
     # Define the options for surrogate modeling and optimization
     options = Options()
-    # options.animation_1d = True
-    # options.plot_1d = True
-    options.n_iter = 10
-    # options.acq_func = 'MSD'
-    options.acq_func = 'EI'
-    options.cpu_hrs_per_sim = [1, 5]
     options.perform_lower_sims = False
 
     # Compute the low and high fidelity models as baselines
@@ -104,23 +96,38 @@ def driver_mf_1d():
     # print(gpr.predict_variances(x_data[0]).T)
 
     # Compute the multi-fidelity model
-    options.n_init_samp = [5,3]
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(simulations, params, options)
+    my_model = Model(simulations, params, options)
+    my_model.add_lhs_samples([5, 3])
+    bo_ops = BoOptions()
+    bo_ops.cpu_hrs_per_sim = [1, 5]
+    my_model.add_bo_samples(10,bo_ops=bo_ops)
+    [x_opt, y_opt] = my_model.find_min()
+    
+    # Query the multifidelity GP at its high fidelity level
+    x_queries_hf = np.array([[0],[0.3],[0.5]])
+    y_queries_hf = my_model.query(x_queries_hf,fidelity_level=1)
+    print(y_queries_hf)
+
+    # Query the multifidelity GP at its low fidelity level
+    x_queries_lf = np.array([[0],[0.3],[0.5]])
+    y_queries_lf = my_model.query(x_queries_lf,fidelity_level=0)
+    print(y_queries_lf)
+
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
     print('The minimum found is [', x_opt[0], ',', y_opt,']')
 
-    x_LF = x_data[0]
-    y_LF = y_data[0]
+    x_LF = my_model.x_data[0]
+    y_LF = my_model.y_data[0]
     plt.scatter(x_LF, y_LF, marker="*", color="c", label="Low-fidelity samples")
-    x_HF = x_data[1]
-    y_HF = y_data[1]
+    x_HF = my_model.x_data[1]
+    y_HF = my_model.y_data[1]
     plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
-    plt.plot(x, gpr.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
-    sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
-    sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
+    plt.plot(x, my_model.gprs[-1].predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
+    sig_plus = my_model.gprs[-1].predict_values(x)+3*np.sqrt(my_model.gprs[-1].predict_variances(x))
+    sig_moins = my_model.gprs[-1].predict_values(x)-3*np.sqrt(my_model.gprs[-1].predict_variances(x))
     un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
 
     plt.legend(loc=0)

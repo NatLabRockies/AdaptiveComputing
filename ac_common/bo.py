@@ -12,8 +12,8 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
 
     # Check that there are enough initial samples to conduct Bayesian optimization
     for i in range(model.n_fl):
-        if model.n_samp[i] <= model.n_dim:
-            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1 initial samples from one of the static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
+        if model.n_samp[i] <= model.n_dim+i:
+            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1+fidelity_level initial samples from one of the static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
 
     # Multi-fidelity Bayesian optimization requires the cost to be specified for each fidelity level
     if model.n_fl > 1:
@@ -57,27 +57,27 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
             model.gprs[i_fl].set_training_values(model.x_data[i_fl], model.y_data[i_fl]) # highest-fidelity dataset does not get a name
             model.gprs[i_fl].train()
 
-        #af_array = []
         af_array = np.zeros([model.n_fl,1]) # acquisition function values for each fidelity level
         for i in range(model.n_fl):
             if model.options.deterministic:
                 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
                 rand_state = int(sum(model.n_samp) + (k+1)*(i+1))
+                # a different way to set the random seed deterministically
                 #rand_state = i*(n_iter+1)+k+1 
                 # If just evaluating the acquisition function on the MF GPR, then don't need the i to change the seed for different fidelity levels
-                # rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
+                # rand_state = k+1
             if model.mixed_type:
                 sampling_opt = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
             else:
                 sampling_opt = LHS(xlimits=model.xlimits, criterion='maximin', random_state=rand_state)
+            # x_start is an array of initial guess used in the search for the minimum of the acquisition function
             x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-            f_min_k = np.min(model.y_data[i])
-            obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k)
+            f_min_k = np.min(model.y_data[i]) # this is an argument needed by the EI acquisition function
+            obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k) # this is the acquistion function which will be minimized
             x_et_k = minimize_acq_func(obj_k, x_start, bo_ops, model.xlimits_num)
-            #af_array.append(obj_k(x_et_k)[0])
-            af_array[i] = obj_k(x_et_k)
-        ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T)
-        y_et_k = model.funcs[ind_which_lvl](x_et_k)
+            af_array[i] = obj_k(x_et_k) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
+        ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
+        y_et_k = model.funcs[ind_which_lvl](x_et_k) # the value of the user-defined objective function at the location where the acquisition function is minimal
         model.y_data[ind_which_lvl] = np.atleast_2d(np.append(model.y_data[ind_which_lvl],y_et_k)).T
         model.unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(model.unmasked_data[ind_which_lvl],True)).T
         model.x_data[ind_which_lvl] = np.append(model.x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
@@ -98,6 +98,7 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
         # Check for NaNs and out of bounds y_data
         model.unmasked_data[ind_which_lvl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.options)
         
+        # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if model.options.deterministic:
         #     # rand_state = i*(n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
         #     # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
@@ -132,12 +133,7 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
             viz_animate(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
     
     # Update the surrogate model with the last point added. This training only uses unmasked data.
-    # This training only uses unmasked data
-    i_fl = model.n_fl-1 # Only update the highest fidelity level since that is the only one that is outputted
-    for ii_fl in range(i_fl):
-        model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-    model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name        
-    model.gprs[i_fl].train()
+    model.retrain()
 
     if ani_ops is not None:
         viz_finalize(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)

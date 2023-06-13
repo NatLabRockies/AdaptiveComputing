@@ -97,7 +97,7 @@ def driver_mf_mt_rf():
     my_model.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
     [x_opt, y_opt] = my_model.find_min()
 
-    x_queries = np.array([[2,'a'],[3.5,'c'],[1,'b']])
+    x_queries = np.array([[0,'a'],[0.3,'c'],[0.5,'b']], dtype=object)
     y_queries = my_model.query(x_queries)
     print(y_queries)
 

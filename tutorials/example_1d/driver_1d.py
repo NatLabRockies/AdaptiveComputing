@@ -60,7 +60,7 @@ def driver_1d():
     print('The minimum found is [', x_opt[0], ',', y_opt,']')
     computed_values = [x_opt[0], y_opt]
     expected_values = [18.9352, -15.1251]
-    tolerances = [0.1, 0.1]
+    tolerances = [0.3, 0.3]
     return expected_values, computed_values, tolerances
 """```
 

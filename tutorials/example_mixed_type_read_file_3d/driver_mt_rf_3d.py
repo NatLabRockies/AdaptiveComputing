@@ -82,7 +82,7 @@ def driver_mt_rf_3d():
     import time
     t = time.time()
     my_model = Model(func_mt, params, options)
-    my_model.add_lhs_samples(0)
+    # my_model.add_lhs_samples(0)
     # my_model.add_file_samples('input_data.csv')
     my_model.add_file_samples('input_data_parameters_only.csv')
     ani_ops = AnimationOptions()

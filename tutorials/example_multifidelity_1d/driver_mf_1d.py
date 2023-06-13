@@ -32,9 +32,7 @@ Define the objective functions for the low and high fidelity models
 def lf_simulation(x):
     import numpy as np
     return (
-        0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
-        + (x - 0.5) * 10.0
-        - 5
+        0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2) + (x - 0.5) * 10.0 - 5
     )
 
 # high fidelity model
@@ -105,6 +103,17 @@ def driver_mf_1d():
     bo_ops.cpu_hrs_per_sim = [1, 5]
     my_model.add_bo_samples(10,bo_ops=bo_ops)
     [x_opt, y_opt] = my_model.find_min()
+    
+    # Query the multifidelity GP at its high fidelity level
+    x_queries_hf = np.array([[0],[0.3],[0.5]])
+    y_queries_hf = my_model.query(x_queries_hf,fidelity_level=1)
+    print(y_queries_hf)
+
+    # Query the multifidelity GP at its low fidelity level
+    x_queries_lf = np.array([[0],[0.3],[0.5]])
+    y_queries_lf = my_model.query(x_queries_lf,fidelity_level=0)
+    print(y_queries_lf)
+
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')

@@ -44,11 +44,11 @@ def driver_mask_1d():
 
     # Define the options for surrogate modeling and optimization
     options = Options()
-    options.animation_1d = True
+    # options.animation_1d = True
     # options.plot_1d = True
-    options.n_init_samp = 2 # must be >= ndim+1
-    options.n_iter = 10 # number of BayesOpt iterations
-    options.acq_func = 'EI'
+    # options.n_init_samp = 2 # must be >= ndim+1
+    # options.n_iter = 10 # number of BayesOpt iterations
+    # options.acq_func = 'EI'
     options.ubound_inclusive = 8
     options.mask_nans = True
     options.mask_oob_values = True
@@ -56,7 +56,13 @@ def driver_mask_1d():
     # Perform the optimization
     import time
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mask_1d, params, options)
+    my_model = Model(func_mask_1d, params, options)
+    my_model.add_lhs_samples(2)
+    ani_ops = AnimationOptions()
+    ani_ops.animation_1d=True
+    my_model.add_bo_samples(10,ani_ops=ani_ops)
+    my_model.write_samples_csv('output_data.csv')
+    [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')

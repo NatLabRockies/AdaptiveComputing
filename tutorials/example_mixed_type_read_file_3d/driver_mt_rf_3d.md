@@ -77,18 +77,19 @@ def driver_mt_rf_3d():
 
     # Define the options for surrogate modeling and optimization
     options = Options()
-    options.plot_nd = True
-    # options.input_data_filenames = 'input_data.csv'
-    options.input_data_filenames = 'input_data_parameters_only.csv'
-    options.output_data_filenames = 'output_data.csv'
-    options.n_init_samp = 0 # must be >= ndim+1, left unspecified, or set to zero if sufficient samples are provided in a .csv
-    options.n_iter = 25 # number of BayesOpt iterations
-    options.acq_func = 'EI'
 
     # Perform the optimization
     import time
     t = time.time()
-    x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(func_mt, params, options)
+    my_model = Model(func_mt, params, options)
+    # my_model.add_lhs_samples(0)
+    # my_model.add_file_samples('input_data.csv')
+    my_model.add_file_samples('input_data_parameters_only.csv')
+    ani_ops = AnimationOptions()
+    ani_ops.plot_nd=True
+    my_model.add_bo_samples(25,ani_ops=ani_ops)
+    my_model.write_samples_csv('output_data.csv')
+    [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

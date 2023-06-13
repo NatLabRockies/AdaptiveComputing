@@ -28,16 +28,16 @@ class Model:
         for i in range(self.n_fl):
             if self.mixed_type:
                 func_int = lambda x, i=i: self.simulations[i](args_str_2_enum(x,self.params))
-                self.funcs.append(lambda v: catch_valerr(func_int,v))
+                self.funcs.append(lambda v, func_int=func_int: catch_valerr(func_int,v))
             else:
                 func_int = lambda x, i=i: self.simulations[i](x)
-                self.funcs.append(lambda v: catch_valerr(func_int,v))
+                self.funcs.append(lambda v, func_int=func_int: catch_valerr(func_int,v))
 
         # Define xlimits, the domain for the design parameters
         if self.mixed_type:
             from smt.applications.mixed_integer import (FLOAT, ORD, ENUM)
             self.xtypes = []
-            self.xlimits = [] # this is the domain for the user defined self.simulations[] (which may include mixed types)
+            self.xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
             self.xlimits_num = [] # this is the domain for self.funcs[] which assumes the categoricals and integers have been converted to continuous types
             for i in range(self.n_dim):
                 if self.params[i].type == 'continuous':
@@ -85,6 +85,10 @@ class Model:
             if self.mixed_type:
                 self.gprs[i_fl] = MixedIntegerSurrogateModel(surrogate=self.gprs[i_fl], xtypes=self.xtypes, xlimits=self.xlimits)
 
+    def retrain(self):
+        from ac_common.static_sampling import retrain
+        retrain(self)
+    
     def add_lhs_samples(self,n_lhs_samp):
         from ac_common.static_sampling import add_lhs_samples
         add_lhs_samples(self,n_lhs_samp)
@@ -105,9 +109,9 @@ class Model:
         from ac_common.utils import write_samples_csv
         return write_samples_csv(self,filenames)
     
-    def query(self,x_queries):
+    def query(self,x_queries,fidelity_level=-1):
         from ac_common.query import query
-        return query(self,x_queries)
+        return query(self,x_queries,fidelity_level)
 
 #########################################################
 def catch_valerr(func,x):

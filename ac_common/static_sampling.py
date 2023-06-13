@@ -22,7 +22,8 @@ def add_lhs_samples(model,n_lhs_samp):
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
     for i in range(model.n_fl):
         if n_lhs_samp[i] > 0: 
-            # assert(n_lhs_samp[i] >= model.n_dim + 1) # this is only required if BayesOpt is used?
+            if n_lhs_samp[i] < model.n_dim + 1:
+                raise Exception('LatinHypercubeSampler requires n_lhs_samp >= n_dim+1')
             rand_state = np.random.RandomState()
             if model.options.deterministic:
                 # rand_state = i*(model.options.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
@@ -43,7 +44,7 @@ def add_lhs_samples(model,n_lhs_samp):
 
     perform_lower_sims(model)
     check_all_nan_oob(model)
-    #retrain(model)
+    retrain(model)
 
 #########################################################
 # Read user-provided function evaluations from a .csv file
@@ -58,19 +59,25 @@ def add_file_samples(model,filenames):
             model.n_samp[i] = model.n_samp[i] + len(y_data_file[i])
     perform_lower_sims(model)
     check_all_nan_oob(model)
-    #retrain(model)
+    retrain(model)
 
 #########################################################
-# Mask data that is NaN or outside allowable bounds
+# Update the surrogate model with the last point added. This training only uses unmasked data (i.e. not-NaN and within the user-specified allowable bounds).
 def retrain(model):
-    # Check that there is enough initial samples to train a GP model
+    # Check that there are enough samples to train a GP model
     for i in range(model.n_fl):
         if np.count_nonzero(model.unmasked_data[i]) < model.n_dim + 1:
             raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(model.unmasked_data[i]))+' < n_dim+1 initial values that are non-NaN and within user-specified bounds.  Either specify more in input file or increase the number of pseudo-randomly sampled points n_init_samp.')
+        # print a warning if there are more higher fidelity samples than lower fidelity samples
         if i > 0:
             if np.count_nonzero(model.unmasked_data[i]) >= np.count_nonzero(model.unmasked_data[i-1]):
                 print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(np.count_nonzero(model.unmasked_data[i]))+', which is >= '+str(np.count_nonzero(model.unmasked_data[i-1]))+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active. Note: that only values that are non-NaN and within user-specified allowable bounds are included in these counts.')
-    #XXX retrain ...
+    
+    for i_fl in range(model.n_fl):
+        for ii_fl in range(i_fl):
+            model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+        model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name        
+        model.gprs[i_fl].train()
 
 #########################################################
 # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
