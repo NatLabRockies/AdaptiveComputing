@@ -186,7 +186,7 @@ Bayesian optimization options are set with `BoOptions()`, which is another optio
 <!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions
-The follow is a list of supported acquisition functions. These determine which function evaluation will be made on the present iteration. Note that `EI`, `LCB`, and `SBO` are written to find the global minimum, so the objective function should be negated if the maximum is sought.
+The following is a list of supported acquisition functions. These determine which function evaluation will be made on the present iteration. Note that `EI`, `LCB`, and `SBO` are written to find the global minimum, so the objective function should be negated if the maximum is sought.
 
 * Set `bo_ops.acq_func = EI` to use the Expected Improvement algorithm. [Click here](https://www.cse.wustl.edu/~garnett/cse515t/spring_2015/files/) for a description of the algorithm. As this acquisition function is widely used and generally recommended, it is the default value.
 * `bo_ops.acq_func = LCB` to use the Lower Confidence Bound algorithm. This queries the point in the design space where the surrogate's mean minus 3 times its variance is minimal. Thus, it probes the point where the 99% conficence interval is lowest. This acquisition function can converge quickly but is not particularly robust.
