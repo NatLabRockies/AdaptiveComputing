@@ -80,20 +80,20 @@ def driver_mf_mt_rf():
     params = [x0, x1]
 
     # Define the options for surrogate modeling and optimization
-    options = Options()
+    mod_ops = ModelOptions()
 
     # Compute the multi-fidelity model
     import time
     t = time.time()
-    my_model = Model(simulations, params, options)
+    my_model = Model(simulations, params, mod_ops)
     # my_model.add_file_samples(['lf_input_data.csv','hf_input_data.csv'])
     my_model.add_file_samples(['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv'])
     my_model.add_lhs_samples([4, 0])
-    ani_ops = AnimationOptions()
-    ani_ops.plot_2d=True
+    viz_ops = VizOptions()
+    viz_ops.plot_2d=True
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]
-    my_model.add_bo_samples(20,bo_ops=bo_ops,ani_ops=ani_ops)
+    my_model.add_bo_samples(20,bo_ops=bo_ops,viz_ops=viz_ops)
     my_model.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
     [x_opt, y_opt] = my_model.find_min()
 

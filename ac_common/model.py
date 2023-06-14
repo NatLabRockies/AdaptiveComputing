@@ -3,7 +3,7 @@ import numpy as np
 from .classes import validate_params
 
 class Model:
-    def __init__(self, simulations, params, options):
+    def __init__(self, simulations, params, mod_ops):
         # Check the number of fidelity levels
         self.simulations = np.atleast_1d(simulations)
         self.n_fl = len(self.simulations) # number of fidelity levels
@@ -15,7 +15,7 @@ class Model:
         assert(validate_params(self.params))
         self.n_dim = len(self.params)
 
-        self.options = options
+        self.mod_ops = mod_ops
         
         # Check if there are mixed types
         self.mixed_type = False
@@ -97,9 +97,9 @@ class Model:
         from ac_common.static_sampling import add_file_samples
         add_file_samples(self,filenames)
 
-    def add_bo_samples(self,n_iter,bo_ops=None,ani_ops=None):
+    def add_bo_samples(self,n_iter,bo_ops=None,viz_ops=None):
         from ac_common.bo import add_bo_samples
-        add_bo_samples(self,n_iter,bo_ops,ani_ops)
+        add_bo_samples(self,n_iter,bo_ops,viz_ops)
 
     def find_min(self):
         from ac_common.bo import find_min

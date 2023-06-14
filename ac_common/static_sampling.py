@@ -4,29 +4,20 @@ from .utils import check_nan_oob
 #########################################################
 # Pseudo-random initial sampling
 def add_lhs_samples(model,n_lhs_samp):
-    # n_lhs_samp_min = model.n_dim + 1
-    # if not hasattr(options, 'n_init_samp'):
-    #     n_lhs_samp = [n_lhs_samp_min] * model.n_fl
     n_lhs_samp = np.atleast_1d(n_lhs_samp)
     if len(n_lhs_samp) != model.n_fl:
         raise Exception('Must list the number of initial samples for each function provided in funcs_in.')
-    # change n_init_samp if it is less that the allowable minimum
-    # for i in range(n_fl):
-    #     if n_lhs_samp[i] > 0:
-    #         if n_lhs_samp[i] < n_lhs_samp_min:
-    #             print('Warning: The number of requested initial samples n_init_samp for fidelity level ' + str(i) + ' is being overwritten to be its minimum allowable non-zero value of ' + str(n_lhs_samp_min) + str('.'))
-    #             n_lhs_samp[i] = n_lhs_samp_min
 
     from smt.sampling_methods import LHS
     if model.mixed_type:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
     for i in range(model.n_fl):
         if n_lhs_samp[i] > 0: 
-            if n_lhs_samp[i] < model.n_dim + 1:
-                raise Exception('LatinHypercubeSampler requires n_lhs_samp >= n_dim+1')
+            if n_lhs_samp[i] <= 1:
+                raise Exception('LatinHypercubeSampler requires n_lhs_samp ==0 or >=2')
             rand_state = np.random.RandomState()
-            if model.options.deterministic:
-                # rand_state = i*(model.options.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
+            if model.mod_ops.deterministic:
+                # rand_state = i*(model.mod_ops.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
                 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
                 rand_state = int(sum(model.n_samp)+1.0)
             
@@ -66,8 +57,8 @@ def add_file_samples(model,filenames):
 def retrain(model):
     # Check that there are enough samples to train a GP model
     for i in range(model.n_fl):
-        if np.count_nonzero(model.unmasked_data[i]) < model.n_dim + 1:
-            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(model.unmasked_data[i]))+' < n_dim+1 initial values that are non-NaN and within user-specified bounds.  Either specify more in input file or increase the number of pseudo-randomly sampled points n_init_samp.')
+        if np.count_nonzero(model.unmasked_data[i]) < model.n_dim + 1 + i:
+            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(model.unmasked_data[i]))+' < n_dim+1+fidelity_level initial values that are non-NaN and within user-specified bounds.  Either specify more in input file or increase the number of pseudo-randomly sampled points n_lhs_samp.')
         # print a warning if there are more higher fidelity samples than lower fidelity samples
         if i > 0:
             if np.count_nonzero(model.unmasked_data[i]) >= np.count_nonzero(model.unmasked_data[i-1]):
@@ -82,7 +73,7 @@ def retrain(model):
 #########################################################
 # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
 def perform_lower_sims(model):
-    if model.options.perform_lower_sims:
+    if model.mod_ops.perform_lower_sims:
         for i_fl in range(model.n_fl-1,0,-1): # for all levels greater than zero, counting backwards
             for j_d_upper in range(model.n_samp[i_fl]): # for all data points in this level
                 # check if this point exists on the next lowest level
@@ -102,7 +93,7 @@ def check_all_nan_oob(model):
     for ind_which_lvl in range(model.n_fl):
         model.unmasked_data[ind_which_lvl] = np.full([len(model.y_data[ind_which_lvl]),1], True)
         for i in range(len(model.y_data[ind_which_lvl])):
-            model.unmasked_data[ind_which_lvl][i] = check_nan_oob(model.y_data[ind_which_lvl][i],model.options)
+            model.unmasked_data[ind_which_lvl][i] = check_nan_oob(model.y_data[ind_which_lvl][i],model.mod_ops)
 
 
 

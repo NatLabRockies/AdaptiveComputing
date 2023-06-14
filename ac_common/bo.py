@@ -2,18 +2,18 @@
 import numpy as np
 #########################################################
 # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
-def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
+def add_bo_samples(model,n_iter,bo_ops=None,viz_ops=None):
     if bo_ops is None:
         from .classes import BoOptions
         bo_ops = BoOptions()
-    if ani_ops is not None:
+    if viz_ops is not None:
         from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
-        viz_init(ani_ops,model.n_dim) # Set up animations
+        viz_init(viz_ops,model.n_dim) # Set up animations
 
     # Check that there are enough initial samples to conduct Bayesian optimization
     for i in range(model.n_fl):
         if model.n_samp[i] <= model.n_dim+i:
-            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1+fidelity_level initial samples from one of the static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
+            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1+fidelity_level initial samples from static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
 
     # Multi-fidelity Bayesian optimization requires the cost to be specified for each fidelity level
     if model.n_fl > 1:
@@ -59,7 +59,7 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
 
         af_array = np.zeros([model.n_fl,1]) # acquisition function values for each fidelity level
         for i in range(model.n_fl):
-            if model.options.deterministic:
+            if model.mod_ops.deterministic:
                 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
                 rand_state = int(sum(model.n_samp) + (k+1)*(i+1))
                 # a different way to set the random seed deterministically
@@ -82,7 +82,7 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
         model.unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(model.unmasked_data[ind_which_lvl],True)).T
         model.x_data[ind_which_lvl] = np.append(model.x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
         # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
-        if model.options.perform_lower_sims:
+        if model.mod_ops.perform_lower_sims:
             for i_fl in range(ind_which_lvl):
                 pt_exists = False 
                 for j_d_lower in range(model.n_samp[i_fl]): # for all data in the level below
@@ -92,14 +92,14 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
                     y_et_k = model.funcs[i_fl](x_et_k)
                     model.y_data[i_fl] = np.atleast_2d(np.append(model.y_data[i_fl],y_et_k)).T
                     model.unmasked_data[i_fl] = np.atleast_2d(np.append(model.unmasked_data[i_fl],True)).T
-                    model.unmasked_data[i_fl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.options)
+                    model.unmasked_data[i_fl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.mod_ops)
                     model.x_data[i_fl] = np.append(model.x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
 
         # Check for NaNs and out of bounds y_data
-        model.unmasked_data[ind_which_lvl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.options)
+        model.unmasked_data[ind_which_lvl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.mod_ops)
         
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
-        # if model.options.deterministic:
+        # if model.mod_ops.deterministic:
         #     # rand_state = i*(n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
         #     # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
         #     rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
@@ -110,7 +110,7 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
         # x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
         # f_min_k = np.min(model.y_data)
         # obj_k = get_acq_func(bo_ops.acq_func,model.gprs[-1],f_min_k)
-        # x_et_k = minimize_acq_func(obj_k, x_start, model.options, model.xlimits_num)
+        # x_et_k = minimize_acq_func(obj_k, x_start, model.mod_ops, model.xlimits_num)
         # if model.multifidelity: # decide which fidelity level to evaluate the objective on.
         #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels. Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
         #     # A = [];
@@ -129,15 +129,15 @@ def add_bo_samples(model,n_iter,bo_ops=None,ani_ops=None):
         #     model.y_data[i] = np.atleast_2d(np.append(model.y_data,y_et_k)).T
         #     model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
 
-        if ani_ops is not None:
-            viz_animate(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
+        if viz_ops is not None:
+            viz_animate(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
     
     # Update the surrogate model with the last point added. This training only uses unmasked data.
     model.retrain()
 
-    if ani_ops is not None:
-        viz_finalize(ani_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)
-        viz_show_plots(ani_ops,n_frames=n_iter)
+    if viz_ops is not None:
+        viz_finalize(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)
+        viz_show_plots(viz_ops,n_frames=n_iter)
 
     model.n_samp = model.n_samp + n_iter
 

@@ -107,34 +107,34 @@ def write_samples_csv(model,filenames):
     return
 
 #########################################################
-def check_nan_oob(y,options):
+def check_nan_oob(y,mod_ops):
     unmasked = True
     if np.isnan(y):
-        if options.mask_nans:
+        if mod_ops.mask_nans:
             unmasked = False
             #print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+'. Masking this point.')
         else:
-            raise Exception('NaN returned by user-defined simulation. Consider setting options.mask_nans=True to ignore NaNs.')
+            raise Exception('NaN returned by user-defined simulation. Consider setting mod_ops.mask_nans=True to ignore NaNs.')
     else:
         oob = False
-        if hasattr(options, 'lbound_inclusive'):
-            if y<options.lbound_inclusive:
+        if hasattr(mod_ops, 'lbound_inclusive'):
+            if y<mod_ops.lbound_inclusive:
                 oob = True
-        if hasattr(options, 'ubound_inclusive'):
-            if y>options.ubound_inclusive:
+        if hasattr(mod_ops, 'ubound_inclusive'):
+            if y>mod_ops.ubound_inclusive:
                 oob = True
-        if hasattr(options, 'lbound_exclusive'):
-            if y<=options.lbound_exclusive:
+        if hasattr(mod_ops, 'lbound_exclusive'):
+            if y<=mod_ops.lbound_exclusive:
                 oob = True
-        if hasattr(options, 'ubound_exclusive'):
-            if y>=options.ubound_exclusive:
+        if hasattr(mod_ops, 'ubound_exclusive'):
+            if y>=mod_ops.ubound_exclusive:
                 oob = True
         if oob:
-            if options.mask_oob_values:
+            if mod_ops.mask_oob_values:
                 unmasked = False
                 #print('y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+' is out of user-specified allowable bounds. Masking this point.')
             else:
-                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting options.mask_oob_values=True to ignore such values.')
+                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting mod_ops.mask_oob_values=True to ignore such values.')
     return unmasked
 
 #########################################################

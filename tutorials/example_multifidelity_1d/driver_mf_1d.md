@@ -54,50 +54,17 @@ def driver_mf_1d():
     params = [x0]
 
     # Define the options for surrogate modeling and optimization
-    options = Options()
-    options.perform_lower_sims = False
+    mod_ops = ModelOptions()
+    mod_ops.perform_lower_sims = False
 
     # Compute the low and high fidelity models as baselines
     plt.figure()
     x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
     plt.plot(x, hf_simulation(x), color="k", label="Exact function")
 
-    # compute the high fidelity model
-    # options.n_init_samp = 3 # must be >= n_dim+1
-    # t = time.time()
-    # x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(hf_simulation, params, options)
-    # t = time.time() - t
-    # print('Elapsed time = ', t, ' s')
-    # print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-    # print('The minimum found is [', x_opt[0], ',', y_opt,']')
-    # plt.scatter(x_data, y_data, marker="o", color="c", label="High-fidelity samples")
-    # plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="HF under-sampled GPR")
-    # print(x_data)
-    # print(gpr.predict_variances(x_data[0]).T)
-
-    # compute the low fidelity model
-    # options.n_init_samp = 7
-    # t = time.time()
-    # x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(lf_simulation, params, options)
-    # t = time.time() - t
-    # print('Elapsed time = ', t, ' s')
-    # print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
-    # print('The minimum found is [', x_opt[0], ',', y_opt,']')
-    # #plt.plot(x, lf_simulation(x), color="k", label="Exact function")
-    # plt.scatter(x_data, y_data, marker="o", color="c", label="Low-fidelity samples")
-    # plt.plot(x, gpr.predict_values(x), linestyle="-.", color= 'c', label="LF GPR")
-    # sig_plus = gpr.predict_values(x)+3*np.sqrt(gpr.predict_variances(x))
-    # sig_moins = gpr.predict_values(x)-3*np.sqrt(gpr.predict_variances(x))
-    # un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='c')
-    # mean_LF = gpr.predict_values(x)
-    # gpr_LF = gpr
-    #print('max LF var = ',max(gpr.predict_variances(x)))
-    # print(x_data)
-    # print(gpr.predict_variances(x_data[0]).T)
-
     # Compute the multi-fidelity model
     t = time.time()
-    my_model = Model(simulations, params, options)
+    my_model = Model(simulations, params, mod_ops)
     my_model.add_lhs_samples([5, 3])
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]

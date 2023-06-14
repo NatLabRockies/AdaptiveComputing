@@ -39,9 +39,9 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_multifidelity_1d` train a GPR using high fidelity and low fidelity function evaluations. Note: this function is not iterative yet. It uses pseudo-random sampling to find the minimum.
 * `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except it adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
 
-The following tutorial(s) are coming soon:
+<!-- The following tutorial(s) are coming soon: -->
 
-* `example_step_1d` uses the MSD acquistion function to place points to minimize variance estimated in the surrogate model rather than searching for a minimum of the predicted mean of the model.
+<!-- * `example_step_1d` uses the MSD acquistion function to place points to minimize variance estimated in the surrogate model rather than searching for a minimum of the predicted mean of the model. -->
 
 ### Explanation of the `Model` class
 The workhorse of the AC package is the `Model` class. It contains the simulation sample points and the surrogate model (Gaussian Process model) which is trained on those sample points.
@@ -49,10 +49,10 @@ The workhorse of the AC package is the `Model` class. It contains the simulation
 A model is created with the constructor
 
 ~~~{.bash}
-my_model = Model(simulations, params, options)
+my_model = Model(simulations, params, mod_ops)
 ~~~
 
-These arguments are defined in detail below, but breifly, they define the simulations (or objective functions) of interest, the sample space parameters which are the inputs to the simulations, and some options.
+These arguments are defined in detail below. They define the simulations (or objective functions) of interest, the sample space parameters which are the inputs to the simulations, and the surrogate model options.
 
 Training data is provided to the model using add_lhs_samples, add_file_samples, add_bo_samples, add_batch_bo_samples, etc. methods. The surrogate model is re-trained whenever samples are added.
 
@@ -140,17 +140,17 @@ The user-defined simulations can have arguments of three different types:
 * `categorical` parameters are represent a discrete list of possibilties. Instead of specifying `min_val` and `max_val`, the `categories` field lists the discrete string values that the variable can take. This type should be used when the order of values in `categories` is arbitrary (this is what makes this type different from representing options with ordered integers).
 
 ### Options
-The `Model` constructor requires the `Options` object as an argument. After initializeing the object, its default fields can be overwritten and optional fields can be set.
+The `Model` constructor requires the `ModelOptions` object as an argument. After initializeing the object, its default fields can be overwritten and optional fields can be set.
 
 ~~~{.bash}
-options = Options()
+mod_ops = ModelOptions()
 # example of overwriting a default field:
-options.deterministic = False
+mod_ops.deterministic = False
 # example of setting an optional field:
-options.lbound_inclusive = 3.5
+mod_ops.lbound_inclusive = 3.5
 ~~~
 
-Model options `Options()`:
+Fields of `ModelOptions()`:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
@@ -161,7 +161,7 @@ Model options `Options()`:
 | `lbound_inclusive`, `ubound_inclusive`, `lbound_exclusive`, `ubound_exclusive` | none | float | any | Define the allowable bounds for simulation returns. See details on masking below. |
 
 
-`AnimationOptions()` is an optional argument to `add_bo_samples`, which controls plotting:
+`VizOptions()` controls plotting and is an optional argument to `add_bo_samples`. The fields of `VizOptions()` are:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
@@ -170,12 +170,10 @@ Model options `Options()`:
 | `plot_1d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 1. |
 | `plot_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
 | `plot_nd`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
+| `output_dir`  | `./plots` | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. |
 
 
-<!-- | `output_dir`  | none | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. | -->
-
-
-Bayesian optimization options are set with `BoOptions`, which is another optional argument for `add_bo_samples`:
+Bayesian optimization options are set with `BoOptions()`, which is another optional argument for `add_bo_samples`. The fields of `BoOptions` are:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
@@ -212,7 +210,7 @@ If you would like AC to compute the objective function for you, leave out the la
 | 7 | 3 | d |
 
 #### More information on masking NaN and out of bounds (unallowable) simulation values
-Anytime a simulation returns a `NaN` value, that data point will be flagged. Similarly, the user can also define a range of allowable simulation values and all simulation return values outside this range will be flagged. By default, the flagged values are then masked, to prevent them from contaminating the surrogate model (details described below). If the user prefers not to use masking, the calculation can be terminated immediately upon discovering a `NaN` or out of bounds value by setting `options.mask_nans=False` or `options.mask_oob_values=False`, respectively. 
+Anytime a simulation returns a `NaN` value, that data point will be flagged. Similarly, the user can also define a range of allowable simulation values and all simulation return values outside this range will be flagged. By default, the flagged values are then masked, to prevent them from contaminating the surrogate model (details described below). If the user prefers not to use masking, the calculation can be terminated immediately upon discovering a `NaN` or out of bounds value by setting `mod_ops.mask_nans=False` or `mod_ops.mask_oob_values=False`, respectively. 
 
 Lower and upper bounds can be inclusive or exclusive. Upper and/or lower bounds should be omitted if semi-infinite or infinite bounds are needed. The simulation return value f(x) must obey all specified constraints in order to be classified as allowable:
 

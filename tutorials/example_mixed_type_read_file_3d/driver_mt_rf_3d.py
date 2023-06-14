@@ -76,18 +76,18 @@ def driver_mt_rf_3d():
     params = [x0, x1, x2]
 
     # Define the options for surrogate modeling and optimization
-    options = Options()
+    mod_ops = ModelOptions()
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_mt, params, options)
+    my_model = Model(func_mt, params, mod_ops)
     # my_model.add_lhs_samples(0)
     # my_model.add_file_samples('input_data.csv')
     my_model.add_file_samples('input_data_parameters_only.csv')
-    ani_ops = AnimationOptions()
-    ani_ops.plot_nd=True
-    my_model.add_bo_samples(25,ani_ops=ani_ops)
+    viz_ops = VizOptions()
+    viz_ops.plot_nd=True
+    my_model.add_bo_samples(25,viz_ops=viz_ops)
     my_model.write_samples_csv('output_data.csv')
     [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t

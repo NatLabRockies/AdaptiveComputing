@@ -99,7 +99,7 @@ params = [x0, x1, x2, x3, x4, x5, x6, x7]
 Define the options for surrogate modeling and optimization
 
 ```python"""
-options = Options()
+mod_ops = ModelOptions()
 #options.plot_nd = True
 options.n_init_samp = 0 # must be >= ndim+1
 options.n_iter = 8 # number of BayesOpt iterations
@@ -115,7 +115,7 @@ Perform the optimization
 ```python"""
 import time
 t = time.time()
-x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(ve, params, options)
+x_opt, y_opt, ind_best, x_data, y_data, gpr = opt(ve, params, mod_ops)
 t = time.time() - t
 print('Elapsed time = ', t, ' s')
 print('The minimum found is y = ', y_opt, ' at the location', x_opt)
