@@ -35,9 +35,10 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_2d` finds the minimum of a 2D paraboloid.
 * `example_3d` finds the minimum of a 3D paraboloid.
 * `example_mixed_type` is similar to `example_3d` except that two of the variables are replaced with ordered integer and categorical types.
-* `example_read_file` same as `example_mixed_type` except that it reads data from a csv file instead of using pseudo-random initial sampling.
+* `example_read_file` same as `example_mixed_type` except that the former reads data from a csv file instead of using pseudo-random initial sampling.
 * `example_multifidelity_1d` train a GPR using high fidelity and low fidelity function evaluations. Note: this function is not iterative yet. It uses pseudo-random sampling to find the minimum.
-* `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except it adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
+* `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except the former adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
+* `example_mask_1d` same as `example_1d` except the objective function has been modified to return `NaN` for some input arguments to enumlate an objective function that is ill behaved is some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
 
 <!-- The following tutorial(s) are coming soon: -->
 
@@ -74,8 +75,8 @@ Input arguments:
 |---|---|---|---|---|
 | `input_data_filenames` | none | string, list of strings  | empty string or strings ending in `.csv`  |  file names to read existing data from. List length must equal the number of  simulations levels provided. See details of file format below. |
  `output_data_filenames` | none | string, list of strings | empty string or strings ending in `.csv`  |  file names to write final data to. This includes the data read from a file, from LHS sampling, and from Bayesian optimization. List length must equal the number of  simulations levels provided. See details of file format below. |
-| `n_iter`  | 15  | integer  |  positive or zero | Number of Bayesian Optimization iterations. |
-| `n_lhs_samp`  | `n_dim+1`  | integer  | positive or zero | Number of pseudo-random initial samples collected using Latin Hypercube Sampling used to initialize the Bayesian Optimization. |
+| `n_iter`  | none  | integer  |  positive or zero | Number of Bayesian Optimization iterations. |
+| `n_lhs_samp`  | none  | integer  | >= 2 or =zero | Number of pseudo-random initial samples collected using Latin Hypercube Sampling used to initialize the Bayesian Optimization. |
 
 The model can be queried using the query function:
 
