@@ -60,12 +60,10 @@ def add_bo_samples(model,n_iter,bo_ops=None,viz_ops=None):
         af_array = np.zeros([model.n_fl,1]) # acquisition function values for each fidelity level
         for i in range(model.n_fl):
             if model.mod_ops.deterministic:
-                # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
-                rand_state = int(sum(model.n_samp) + (k+1)*(i+1))
-                # a different way to set the random seed deterministically
-                #rand_state = i*(n_iter+1)+k+1 
-                # If just evaluating the acquisition function on the MF GPR, then don't need the i to change the seed for different fidelity levels
-                # rand_state = k+1
+                # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+                # Note: that the sampler will increment the rand_state for each sample
+                rand_state = int(sum(model.n_samp+1) + (k+1)*(i+1)*bo_ops.n_opt_pts)
+
             if model.mixed_type:
                 sampling_opt = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
             else:

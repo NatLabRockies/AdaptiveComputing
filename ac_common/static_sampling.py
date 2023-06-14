@@ -17,9 +17,9 @@ def add_lhs_samples(model,n_lhs_samp):
                 raise Exception('LatinHypercubeSampler requires n_lhs_samp ==0 or >=2')
             rand_state = np.random.RandomState()
             if model.mod_ops.deterministic:
-                # rand_state = i*(model.mod_ops.n_iter+1) # ensurses the fidelity levels all have unique seeds on all optimization iterations
-                # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
-                rand_state = int(sum(model.n_samp)+1.0)
+                # Ensurses the fidelity levels all have unique seeds.
+                # Note: that the sampler will increment the rand_state for each sample
+                rand_state = int(sum(model.n_samp)+1.0 + sum(n_lhs_samp[:i]))
             
             if model.mixed_type:
                 sampling = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
