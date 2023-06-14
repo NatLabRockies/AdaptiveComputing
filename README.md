@@ -189,14 +189,14 @@ Bayesian optimization options are set with `BoOptions()`, which is another optio
 The following is a list of supported acquisition functions. These determine which function evaluation will be made on the present iteration. Note that `EI`, `LCB`, and `SBO` are written to find the global minimum, so the objective function should be negated if the maximum is sought.
 
 * Set `bo_ops.acq_func = EI` to use the Expected Improvement algorithm. [Click here](https://www.cse.wustl.edu/~garnett/cse515t/spring_2015/files/) for a description of the algorithm. As this acquisition function is widely used and generally recommended, it is the default value.
-* `bo_ops.acq_func = LCB` to use the Lower Confidence Bound algorithm. This queries the point in the design space where the surrogate's mean minus 3 times its variance is minimal. Thus, it probes the point where the 99% conficence interval is lowest. This acquisition function can converge quickly but is not particularly robust.
+* `bo_ops.acq_func = LCB` to use the Lower Confidence Bound algorithm. This queries the point in the design space where the surrogate's mean minus 3 times its variance is minimal. Thus, it probes the point where the 99% confidence interval is lowest. This acquisition function can converge quickly but is not particularly robust.
 * `bo_ops.acq_func = SBO` to use the Surrogate-Based Optimization algorithm. This queries the point in the design space where the surrogate's mean is minimal. This acquisition function is generally only useful for finding local minima and is not particularly robust though it can converge quickly.
 * `bo_ops.acq_func = MSD` to use the Maximal Standard Deviation algorithm. This queries the point in the design space that has the largest standard deviation estimated by the surrogate model. 
 
 #### Input and output data file format
-The entries in the list `input_data_filenames` are comma separated value `.csv` files. The first N columns represent the N parameters of the design space. The last column is the value of the objective function. This column is optional in the input file. The rows represent the data points. The first row is reserved for the data type labels. These indicate the data type of each column (design parameter). So each entry is either `continuous`, `ordered`, or `categorical`. The entry in objective function column's first row should be `y`.
+The entries in the list `input_data_filenames` are comma separated value `.csv` files. In each file, the first N columns represent the N parameters of the design space. The last column is the value of the objective function. This column is optional in the input file. The rows represent the data points. The first row is reserved for the data type labels. These indicate the data type of each column (design parameter). So each entry is either `continuous`, `ordered`, or `categorical`. The entry in objective function column's first row should be `y`.
 
-Example `.csv` file with two data points. This file specifies the three design parameters (which are of three different data types). The fourth column specifies corresponding objective function values `y`.
+Example `.csv` file with two data points. This file specifies the three design parameters (which are of three different data types). The fourth column specifies corresponding objective function value, `y`.
 
 | continuous | ordered | categorical | y |
 |---|---|---|---|
@@ -224,7 +224,7 @@ The surrogate model is trained using all unmasked data (non-NaN, within allowabl
 
 * A precursor surrogate model is trained using all unmasked data.
 * The values for masked data points are estimated using the precursor surrogate model.
-* A surrogate model is retraining using unmasked data and the estimates for masked data points.
+* A surrogate model is retrained using unmasked data and the estimates for masked data points.
 * This second surrogate model is used for evaluating the acquistion function.
 
 This two-step training is performed at every iteration, and the precursor surrogate model is returned at the end of all iterations. This algorithm effectively fills in masked holes in the objective function using the present value of the surrogate model.  
