@@ -1,4 +1,5 @@
-# Run the example_1d tutorial
+# Run all tutorials
+# To run this script, call "pytest" from the "AdaptiveComputing/" directory
 import os
 import sys
 import matplotlib.pyplot as plt
@@ -40,7 +41,7 @@ def tutorial_tester(monkeypatch,dir_name,py_name):
     monkeypatch.setattr(plt, 'show', lambda: None) # close all plots
     initial_wd = os.getcwd()
     print(os.getcwd())
-    os.chdir('../tutorials/' + dir_name)
+    os.chdir('./tutorials/' + dir_name)
     print(os.getcwd())
     print('Testing ' + dir_name + '/' + py_name + '.py:')
     #sys.path.insert(0, '.') # add the path to the current directory. For some reason this doesn't work when multiple tests are run in parallel
