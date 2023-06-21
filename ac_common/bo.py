@@ -2,7 +2,7 @@
 import numpy as np
 #########################################################
 # Perform the Bayesian optimization: that is, iteratively select new sample points according to the acquisition function and update the GP with the new data
-def add_bo_samples(model,n_iter,bo_ops=None,viz_ops=None):
+def add_bo_samples(model,n_iter,bo_ops,viz_ops):
     if bo_ops is None:
         from .classes import BoOptions
         bo_ops = BoOptions()
