@@ -73,12 +73,12 @@ def driver_mf_1d():
     
     # Query the multifidelity GP at its high fidelity level
     x_queries_hf = np.array([[0],[0.3],[0.5]])
-    y_queries_hf = my_model.query(x_queries_hf,fidelity_level=1)
+    y_queries_hf, _ = my_model.query(x_queries_hf,fidelity_level=1)
     print(y_queries_hf)
 
     # Query the multifidelity GP at its low fidelity level
     x_queries_lf = np.array([[0],[0.3],[0.5]])
-    y_queries_lf = my_model.query(x_queries_lf,fidelity_level=0)
+    y_queries_lf, _ = my_model.query(x_queries_lf,fidelity_level=0)
     print(y_queries_lf)
 
     t = time.time() - t

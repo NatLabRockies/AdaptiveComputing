@@ -98,7 +98,7 @@ def driver_mf_mt_rf():
     [x_opt, y_opt] = my_model.find_min()
 
     x_queries = np.array([[0,'a'],[0.3,'c'],[0.5,'b']], dtype=object)
-    y_queries = my_model.query(x_queries)
+    y_queries, _ = my_model.query(x_queries)
     print(y_queries)
 
     t = time.time() - t

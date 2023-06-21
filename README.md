@@ -83,7 +83,7 @@ The model can be queried using the query function:
 ~~~{.bash}
 # 3 queries (x0, x1) of a two parameter model (x0 is continuous type, x1 is a categorical type)
 x_queries = np.array([[0,'a'],[0.3,'c'],[0.5,'b']], dtype=object)
-y_queries = my_model.query(x_queries)
+y_queries_mean_values, y_queries_variances = my_model.query(x_queries)
 ~~~
 
 Note that since mixed type is used in this example, the queries must be stored in a numpy array of `dtype=object` so that the entries of the array can have different types.

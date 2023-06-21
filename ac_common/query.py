@@ -3,7 +3,7 @@ import numpy as np
 #########################################################
 # Query the highest level multifidelity GP at a numpy array of points specified by the sample space coordinates x_queries
 # Queries the highest fidelity level (-1) unless a different level is specified
-# Returns y_queries
+# Returns y_queries, y_queries_var
 def query(model,x_queries,fidelity_level=-1):
     if len(x_queries.shape) == 1: # if x_queries is a 1d array
         x_queries = x_queries[:, np.newaxis]
@@ -13,6 +13,7 @@ def query(model,x_queries,fidelity_level=-1):
     # XXX this could be added but isn't necessary since the surrogate model is defined for all x
 
     y_queries = np.zeros([n_queries,1])
+    y_queries_var = np.zeros([n_queries,1])
 
     for i in range(n_queries):
         # Bounds checking for the queries
@@ -38,7 +39,8 @@ def query(model,x_queries,fidelity_level=-1):
         
         # Evaluate the surrogate model
         y_queries[i] = model.gprs[fidelity_level].predict_values(x_query_num)
+        y_queries_var[i] = model.gprs[fidelity_level].predict_variances(x_query_num)
 
-    return y_queries
+    return y_queries, y_queries_var
 
 #########################################################
