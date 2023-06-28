@@ -62,7 +62,7 @@ def read_sample_csv(model,filenames):
                     y_data[f][i,0] = model.funcs[f](x_data[f][i,:])
                 elif a[i+1][model.n_dim] == '': # elif the user has specified some objective function values, but not the present row's objective function value
                     y_data[f][i,0] = model.funcs[f](x_data[f][i,:])
-                else: # fir the user has specified the parameters and the corresponding objective function evaluations
+                else: # the user has specified the parameters and the corresponding objective function evaluations
                     y_data[f][i,0] = a[i+1][model.n_dim]
 
     return [x_data, y_data]

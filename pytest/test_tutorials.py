@@ -4,6 +4,10 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
+def test_example_query(monkeypatch):
+    tutorial_tester(monkeypatch,'example_query','driver_query')
+    return
+
 def test_example_1d(monkeypatch):
     tutorial_tester(monkeypatch,'example_1d','driver_1d')
     return
@@ -35,7 +39,6 @@ def test_example_multifidelity_1d(monkeypatch):
 def test_example_multifidelity_mixed_type_read_file_2d(monkeypatch):
     tutorial_tester(monkeypatch,'example_multifidelity_mixed_type_read_file_2d','driver_mf_mt_rf')
     return
-
 
 def tutorial_tester(monkeypatch,dir_name,py_name):
     monkeypatch.setattr(plt, 'show', lambda: None) # close all plots

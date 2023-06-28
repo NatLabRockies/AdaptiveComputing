@@ -109,9 +109,9 @@ class Model:
         from ac_common.utils import write_samples_csv
         return write_samples_csv(self,filenames)
     
-    def query(self,x_queries,fidelity_level=-1):
+    def query(self,x_queries,fidelity_level=-1,threshold_std=None):
         from ac_common.query import query
-        return query(self,x_queries,fidelity_level)
+        return query(self,x_queries,fidelity_level,threshold_std)
 
 #########################################################
 def catch_valerr(func,x):

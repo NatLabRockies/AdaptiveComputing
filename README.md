@@ -38,7 +38,8 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_read_file` same as `example_mixed_type` except that the former reads data from a csv file instead of using pseudo-random initial sampling.
 * `example_multifidelity_1d` train a GPR using high fidelity and low fidelity function evaluations. Note: this function is not iterative yet. It uses pseudo-random sampling to find the minimum.
 * `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except the former adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
-* `example_mask_1d` same as `example_1d` except the objective function has been modified to return `NaN` for some input arguments to enumlate an objective function that is ill behaved is some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
+* `example_mask_1d` is similar to `example_1d` except that the objective function has been modified to return `NaN` for some input arguments to emulate an objective function that is ill behaved in some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
+* `example_query` is similar to `example_1d` but after training the surrogate, it calls `query()` to evaluate the surrogate and dynamically run more simulations (and retrain) if the standard deviation (uncertainty) exceeds the user-specified limit.
 
 <!-- The following tutorial(s) are coming soon: -->
 
@@ -87,6 +88,18 @@ y_queries_mean_values, y_queries_variances = my_model.query(x_queries)
 ~~~
 
 Note that since mixed type is used in this example, the queries must be stored in a numpy array of `dtype=object` so that the entries of the array can have different types.
+
+Input arguments:
+
+| Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
+|---|---|---|---|---|
+| `x_queries` | none | numpy array of length = # queries. Each entry is a list of simulation arguments | Bounds and argument data types are set by `Model` constructor | The locations in the sample space where the surrogate model is queried. |
+| `fidelity_level` | -1 | integer | valid index for an array of length `0:n_fl` | Which fidelity level surrogate model to use for all queries. Defaults to highest level. |
+| `threshold_std` | `None` (optional) | float | `> 0.0` | For each `x_query` of fidelity level`i`, if the surrogate model's standard deviation at the queried point exceeds the user-specified threshold, a simulation of fidelity level `i` is conducted at `x_query`. |
+
+~~~{.bash}   
+y_queries, y_queries_var = my_model.query(x_queries,threshold_std=0.4)
+~~~
 
 ### Bayesian optimization
 
