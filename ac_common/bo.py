@@ -40,8 +40,12 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         # First, train GPRs using only the x_data[unmasked], y_data[unmasked]
         for i_fl in range(model.n_fl):
             for ii_fl in range(i_fl):
-                model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
-            model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name
+                model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()],
+                                                     model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl)
+                # Note: other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
+            model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()],
+                                                 model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
+            # Note: highest-fidelity dataset does not get a name
             model.gprs[i_fl].train()
 
         # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
@@ -110,7 +114,8 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         # obj_k = get_acq_func(bo_ops.acq_func,model.gprs[-1],f_min_k)
         # x_et_k = minimize_acq_func(obj_k, x_start, model.mod_ops, model.xlimits_num)
         # if model.multifidelity: # decide which fidelity level to evaluate the objective on.
-        #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels. Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
+        #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels.
+        #     # Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
         #     # A = [];
         #     # for i_var_check in range(model.n_fl-1):
         #     #     A.append(model.gprs[i_var_check].predict_variances(x_et_k))

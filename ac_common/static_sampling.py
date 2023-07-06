@@ -58,16 +58,30 @@ def retrain(model):
     # Check that there are enough samples to train a GP model
     for i in range(model.n_fl):
         if np.count_nonzero(model.unmasked_data[i]) < model.n_dim + 1 + i:
-            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(model.unmasked_data[i]))+' < n_dim+1+fidelity_level initial values that are non-NaN and within user-specified bounds.  Either specify more in input file or increase the number of pseudo-randomly sampled points n_lhs_samp.')
+            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(model.unmasked_data[i]))+
+                            ' < n_dim+1+fidelity_level initial values that are non-NaN and within user-specified bounds.'+
+                            ' Either specify more in input file or increase the number of pseudo-randomly sampled points'+
+                            ' n_lhs_samp.')
         # print a warning if there are more higher fidelity samples than lower fidelity samples
         if i > 0:
             if np.count_nonzero(model.unmasked_data[i]) >= np.count_nonzero(model.unmasked_data[i-1]):
-                print('Warning: the number of initial data for fidelity level '+str(i)+' is '+str(np.count_nonzero(model.unmasked_data[i]))+', which is >= '+str(np.count_nonzero(model.unmasked_data[i-1]))+', the number of initial data for (lower) fidelity level '+str(i-1)+'. This can lead to poor performance and is typically not an efficient way to initialize the Bayesian Optimization. This includes data read from files, LHS sampling, and perform_lower_sims if active. Note: that only values that are non-NaN and within user-specified allowable bounds are included in these counts.')
+                print('Warning: the number of initial data for fidelity level '+str(i)+' is '+
+                      str(np.count_nonzero(model.unmasked_data[i]))+
+                      ', which is >= '+str(np.count_nonzero(model.unmasked_data[i-1]))+
+                      ', the number of initial data for (lower) fidelity level '+str(i-1)+
+                      '. This can lead to poor performance and is typically not an efficient way to '+
+                      'initialize the Bayesian Optimization. This includes data read from files, LHS'+
+                      ' sampling, and perform_lower_sims if active. Note: that only values that are '+
+                      'non-NaN and within user-specified allowable bounds are included in these counts.')
     
     for i_fl in range(model.n_fl):
         for ii_fl in range(i_fl):
-            model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()], model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl) # other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-        model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()], model.y_data[i_fl][model.unmasked_data[i_fl].flatten()]) # highest-fidelity dataset does not get a name        
+            model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()],
+                                                 model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl)
+            # Note: other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
+        model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()],
+                                             model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
+        # Note: highest-fidelity dataset does not get a name        
         model.gprs[i_fl].train()
 
 #########################################################

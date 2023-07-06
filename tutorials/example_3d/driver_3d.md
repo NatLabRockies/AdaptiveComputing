@@ -10,7 +10,9 @@ Kevin Griffin
 
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
-<ol> - The 3D objective function is analytically defined as $f(x_0,x_1,x_2) = (x_0-3)^2+(x_1-4)^2+(x_2-1)^3$. The domain considered is $x_0 \in [0, 8]$, $x_1 \in [0, 10]$, and $x_2 \in [0, 9]$. The global minimum of $f = 0$ occurs at $[x_0, x_1, x_2] = [3, 4, 1]$. </ol>
+<ol> - The 3D objective function is analytically defined as $f(x_0,x_1,x_2) = (x_0-3)^2+(x_1-4)^2+(x_2-1)^3$.
+The domain considered is $x_0 \in [0, 8]$, $x_1 \in [0, 10]$, and $x_2 \in [0, 9]$.
+The global minimum of $f = 0$ occurs at $[x_0, x_1, x_2] = [3, 4, 1]$. </ol>
 </div>
 
 ```python

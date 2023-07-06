@@ -65,7 +65,7 @@ def viz_animate(viz_ops,xlimits,funcs,gpr,x_data,y_data,n_init,k):
         ind_best = np.argmin(y_data[-1][:ndoe+k])
         est = ax.scatter(x_data[-1][ind_best],y_data[-1][ind_best],s=100,marker='s',color='b')
         lines = [true_fun,data,gp,un_gp,opt,est]
-        ax.set_title('$x \sin{x}$ function')
+        ax.set_title('$x sin(x)$ function')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.legend(lines,['True function','Data','GPR prediction','99 % confidence','Next point to evaluate','Current estimate of optimum'])
@@ -118,7 +118,7 @@ def viz_finalize(viz_ops,xlimits,funcs,gpr,x_data,y_data,n_init):
         sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
         un_gp = ax.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='g')
         lines = [true_fun,data_init,data,gp,un_gp,opt]
-        ax.set_title('$x \sin{x}$ function')
+        ax.set_title('$x sin(x)$ function')
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.legend(lines,['True function','Initial samples','Additional samples','GPR prediction','99 % confidence','Optimum found'])

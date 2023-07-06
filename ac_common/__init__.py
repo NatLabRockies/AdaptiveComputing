@@ -1,9 +1,10 @@
 #__all__ = ["is_notebook"]
-from . import utils
-from . import viz
-from .classes import * # this means we can use Param instead of classes.Param #
-from .model import * # this means we can use model instead of model.Model
+#from . import utils
+#from . import viz
+# .classes (instead of . classes) allows us to use Param instead of classes.Param #
+from .classes import Param, ModelOptions, VizOptions, BoOptions 
+from .model import Model
 from . import static_sampling
-from . import bo
-from . import acq_func
+#from . import bo
+#from . import acq_func
 

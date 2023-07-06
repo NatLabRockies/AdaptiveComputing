@@ -9,7 +9,8 @@ Kevin Griffin
 
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
-<ol> - The 2D objective function is analytically defined as $f(x) = (x*6 - 2)^2 * sin(x*12 - 4) + s$, where $s$ is defined as $s({'a','b','c','d'}) = {10,5,7.5,6}. The global minimum over the domain $x \in [0, 1]$ is $f\approx -1.02074$, which occurs at the parameter value of $x \approx 0.757249$. </ol>
+<ol> - The 2D objective function is analytically defined as $f(x) = (x*6 - 2)^2 * sin(x*12 - 4) + s$, where $s$ is defined as $s({'a','b','c','d'}) = {10,5,7.5,6}.
+The global minimum over the domain $x \in [0, 1]$ is $f\approx -1.02074$, which occurs at the parameter value of $x \approx 0.757249$. </ol>
 <ol> - The low fidelity model multiplied by 0.5 and shifted by $a*x+b$.</ol>
 <ol> - The optimization is programmed by calling SMT's Gaussian Process model.</ol>
 </div>
