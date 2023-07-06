@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from .acq_func import EI
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
-#from IPython.display import HTML  # github actions CI crashes if display is used. Would need to add pip install ipython
+from IPython.display import HTML
 from matplotlib import cm
 from . import utils
 #########################################################
@@ -211,8 +211,7 @@ def viz_show_plots(viz_ops,n_frames=None):
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
         # display a javascript animation if this is running in a jupyter notebook
         if utils.is_notebook():
-            #display(HTML(ani.to_jshtml())) # github actions CI crashes if display is used, so using show instead
-            plt.show() # display a movie
+            display(HTML(ani.to_jshtml())) # noqa: F821
         else:
             plt.show() # display a movie
         writergif = animation.PillowWriter(fps=1) 
@@ -231,8 +230,7 @@ def viz_show_plots(viz_ops,n_frames=None):
         ani = animation.ArtistAnimation(fig, ims,interval=1000)
         # display a javascript animation if this is running in a jupyter notebook
         if utils.is_notebook():
-            # display(HTML(ani.to_jshtml())) # github actions CI crashes if display is used, so using show instead
-            plt.show() # display a movie
+            display(HTML(ani.to_jshtml())) # noqa: F821
         else:
             plt.show() # display a movie
         writergif = animation.PillowWriter(fps=1) 

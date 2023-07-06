@@ -61,7 +61,8 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
             model.gprs[i_fl].set_training_values(model.x_data[i_fl], model.y_data[i_fl]) # highest-fidelity dataset does not get a name
             model.gprs[i_fl].train()
 
-        af_array = np.zeros([model.n_fl,1]) # acquisition function values for each fidelity level
+        af_array = np.zeros([model.n_fl,1]) # acquisition function min values for each fidelity level
+        x_et_k_array = np.zeros([model.n_fl,model.n_dim]) # acquisition function argmin for each fidelity level
         for i in range(model.n_fl):
             if model.mod_ops.deterministic:
                 # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
@@ -76,9 +77,13 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
             x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
             f_min_k = np.min(model.y_data[i]) # this is an argument needed by the EI acquisition function
             obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k) # this is the acquistion function which will be minimized
-            x_et_k = minimize_acq_func(obj_k, x_start, bo_ops, model.xlimits_num)
-            af_array[i] = obj_k(x_et_k) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
+            x_et_k_array[i,:] = minimize_acq_func(obj_k, x_start, bo_ops, model.xlimits_num)
+            af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
         ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
+        # Option 1: Always select the location of sample point from the high fidelity model
+        x_et_k = x_et_k_array[-1,:]
+        # Option 2: Select the location of sample point from the fidelity level with the deepest acq func minimum
+        #x_et_k = x_et_k_array[ind_which_lvl,:]
         y_et_k = model.funcs[ind_which_lvl](x_et_k) # the value of the user-defined objective function at the location where the acquisition function is minimal
         model.y_data[ind_which_lvl] = np.atleast_2d(np.append(model.y_data[ind_which_lvl],y_et_k)).T
         model.unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(model.unmasked_data[ind_which_lvl],True)).T

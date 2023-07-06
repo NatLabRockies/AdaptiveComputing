@@ -23,8 +23,8 @@ Key capabilities-
 
 ## Accessing the Repo and Installing
 
-* Contact Marc Day or Ryan King to be added to the Adaptive Computing github team. You can verify that you have been added by attempting to visit this site: [https://github.nrel.gov/orgs/AC/teams](https://github.nrel.gov/orgs/AC/teams)
-* Next you will need to setup github ssh keys. Be sure to use your [github.nrel.gov](github.nrel.gov) account rather than your [github.com](github.com) account (if applicable). Instructions are available [at this link](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
+* Contact Marc Day or Kevin Griffin to be added to the Adaptive Computing github repo. You can verify that you have been added by attempting to visit this site: [https://github.com/NREL/AdaptiveComputing](https://github.com/NREL/AdaptiveComputing)
+* Next you may need to setup github ssh keys if you encounter password issues when attempting to clone the repositiory as described below. To set up ssh keys, be sure to use your [github.com](github.com) account rather than your [github.nrel.gov](github.nrel.gov) account (if applicable). Instructions are available [at this link](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
 * See the installation instructions below.
 
 ## Package details
@@ -275,7 +275,7 @@ PEP8 style is used for capitalization. That is:
 ### Download the source code
 
 ~~~{.bash}
-git@github.nrel.gov:AC/AdaptiveComputing.git
+git clone https://github.com/NREL/AdaptiveComputing.git
 ~~~
 
 ### Environment and dependencies
