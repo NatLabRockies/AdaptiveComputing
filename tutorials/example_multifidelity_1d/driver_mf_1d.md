@@ -95,7 +95,7 @@ def driver_mf_1d():
     plt.plot(x, my_model.gprs[-1].predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
     sig_plus = my_model.gprs[-1].predict_values(x)+3*np.sqrt(my_model.gprs[-1].predict_variances(x))
     sig_moins = my_model.gprs[-1].predict_values(x)-3*np.sqrt(my_model.gprs[-1].predict_variances(x))
-    un_gp = plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
+    plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
 
     plt.legend(loc=0)
     plt.ylim(-10, 17)

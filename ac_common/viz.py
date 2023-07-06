@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from .acq_func import EI
 import matplotlib.image as mpimg
 import matplotlib.animation as animation
-#from IPython.display import HTML  # github actions CI crashes if display is used
+#from IPython.display import HTML  # github actions CI crashes if display is used. Would need to add pip install ipython
 from matplotlib import cm
 from . import utils
 #########################################################
@@ -47,7 +47,7 @@ def viz_animate(viz_ops,xlimits,funcs,gpr,x_data,y_data,n_init,k):
             Y_plot[i] = funcs[-1](X_plot[i])
         Y_GP_plot = gpr.predict_values(X_plot)
         Y_GP_plot_var  =  gpr.predict_variances(X_plot)
-        Y_EI_plot = -EI(gpr,X_plot,np.min(y_data[-1]))
+        #Y_EI_plot = -EI(gpr,X_plot,np.min(y_data[-1]))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
@@ -105,7 +105,7 @@ def viz_finalize(viz_ops,xlimits,funcs,gpr,x_data,y_data,n_init):
             y_plot[i] = funcs[-1](x_plot[i])
         y_gp_plot = gpr.predict_values(x_plot)
         y_gp_plot_var  =  gpr.predict_variances(x_plot)
-        y_ei_plot = -EI(gpr,x_plot,np.min(y_data[-1]))
+        #y_ei_plot = -EI(gpr,x_plot,np.min(y_data[-1]))
         fig = plt.figure(figsize=[10,10])
         ax = fig.add_subplot(111)
         true_fun, = ax.plot(x_plot,y_plot)
