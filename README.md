@@ -280,8 +280,10 @@ git clone https://github.com/NREL/AdaptiveComputing.git
 
 ### Environment and dependencies
 
-* Python (tested with Python 3.9.13 installed with a recent conda distribution)
-* The surrogate modeling toolbox (SMT)
+* Python (tested with versions 3.9, 3.10, and 3.11 on Mac and Ubuntu)
+* The surrogate modeling toolbox (SMT) version 1.3 (version 2 not supported)
+* IPython
+* Matplotlib
 * Optional: Jupyter notebooks and Jupytext
 
 #### Option 1: Install locally using a package manager
@@ -289,7 +291,7 @@ For example, on mac
 
 ~~~{.bash}
 brew install conda 
-pip install smt
+pip install smt==1.3
 # optional:
 pip install jupytext
 ~~~
