@@ -1,9 +1,9 @@
 # query.py
 import numpy as np
-from .static_sampling import perform_lower_sims, check_all_nan_oob
 #########################################################
 # Query the highest level multifidelity GP at a numpy array of points specified by the sample space coordinates x_queries
 # Queries the highest fidelity level (-1) unless a different level is specified
+# Each x_query is a list of variables with each having the data type specified by user's list of Params
 # Returns y_queries, y_queries_var
 def query(model,x_queries,fidelity_level,threshold_std):
     if len(x_queries.shape) == 1: # if x_queries is a 1d array
@@ -16,45 +16,30 @@ def query(model,x_queries,fidelity_level,threshold_std):
 
     y_queries = np.zeros([n_queries,1])
     y_queries_var = np.zeros([n_queries,1])
+    x_queries_num = np.zeros([n_queries,model.n_dim])
 
     for i in range(n_queries):
         # Bounds checking for the queries
-        for j in range(model.n_dim):
-            if model.params[j].type == 'categorical':
-                if x_queries[i,j] not in model.params[j].categories:
-                    raise Exception('Query ' + str(j) + ' of parameter x' + str(i) + ' = '+str(x_queries[i,j])+' is not a valid value for categorical parameter.')
-            elif (model.params[j].type == 'continuous') or (model.params[j].type == 'ordered'):
-                if x_queries[i,j] < model.params[j].min_val or x_queries[i,j] > model.params[j].max_val:
-                    raise Exception('Query ' + str(j) + ' is out of bounds with the value of parameter x' + str(i) + ' = '+str(x_queries[i,j])+' .')
-            else:
-                raise Exception('Unrecognized type for parameter x'+str(i))
+        model.bounds_check_xnative(x_queries[i,:])
 
         # Convert any categorical entries in x_query to be numbers
-        x_query_num = np.zeros([1,model.n_dim])
-        for j in range(model.n_dim):
-            if model.params[j].type == 'categorical':
-                x_query_num[0,j] = model.params[j].categories.index(x_queries[i,j])
-            elif (model.params[j].type == 'continuous') or (model.params[j].type == 'ordered'):
-                x_query_num[0,j] = x_queries[i,j]
-            else:
-                raise Exception('Unrecognized type for parameter '+str(i))   
+        x_queries_num[i,:] = model.native_to_num(x_queries[i,:])  
 
         # Evaluate the surrogate model
-        y_queries[i] = model.gprs[fidelity_level].predict_values(x_query_num)
-        y_queries_var[i] = model.gprs[fidelity_level].predict_variances(x_query_num)
+        y_queries[i] = model.gprs[fidelity_level].predict_values(np.atleast_2d(x_queries_num[i]))[0]
+        y_queries_var[i] = model.gprs[fidelity_level].predict_variances(np.atleast_2d(x_queries_num[i]))[0]
 
-        # Run simulation if standard deviation >= threshold
+        # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std:
-                y_eval = model.funcs[fidelity_level](x_query_num)
-                model.x_data[fidelity_level] = np.append(model.x_data[fidelity_level], x_query_num)
-                model.y_data[fidelity_level] = np.append(model.y_data[fidelity_level], y_eval)
-                perform_lower_sims(model)
-                check_all_nan_oob(model)
-                model.retrain()
-                # update the query
-                y_queries[i] = model.gprs[fidelity_level].predict_values(x_query_num)
-                y_queries_var[i] = model.gprs[fidelity_level].predict_variances(x_query_num)
+                # conduct a simulation and retrain the GPR using this data
+                model.add_sim_xnum(fidelity_level,x_queries_num[i])
+        
+    # Re-evaluate the surrogate model because some new simulations may have been conducted
+    if threshold_std is not None:
+        for i in range(n_queries):    
+            y_queries[i] = model.gprs[fidelity_level].predict_values(x_queries_num[i])
+            y_queries_var[i] = model.gprs[fidelity_level].predict_variances(x_queries_num[i])
 
     return y_queries, y_queries_var
 

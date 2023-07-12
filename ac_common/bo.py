@@ -28,38 +28,25 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         bo_ops.cpu_hrs_per_sim = [1]
 
     from .acq_func import get_acq_func, minimize_acq_func
-    from .utils import check_nan_oob
     from smt.sampling_methods import LHS
     if model.mixed_type:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+
+    # Train GPRs using only the x_data[unmasked], y_data[unmasked]
+    model.train_on_unmasked_data()
 
     rand_state = np.random.RandomState()
     for k in range(n_iter):
         print('Beginning AC optimization iteration ' + str(k))
 
-        # First, train GPRs using only the x_data[unmasked], y_data[unmasked]
-        for i_fl in range(model.n_fl):
-            for ii_fl in range(i_fl):
-                model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()],
-                                                     model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl)
-                # Note: other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
-            model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()],
-                                                 model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
-            # Note: highest-fidelity dataset does not get a name
-            model.gprs[i_fl].train()
-
         # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
         for i_fl in range(model.n_fl):
             for i in range(len(model.y_data[i_fl])):
                 if not model.unmasked_data[i_fl][i]:
-                    model.y_data[i_fl][i] = model.gprs[i_fl].predict_values(model.x_data[i_fl][i])
+                    model.y_data[i_fl][i] = model.gprs[i_fl].predict_values(np.atleast_2d(model.x_data[i_fl][i]))[0]
 
         # Retrain GPR using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
-        for i_fl in range(model.n_fl):
-            for ii_fl in range(i_fl):
-                model.gprs[i_fl].set_training_values(model.x_data[ii_fl], model.y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
-            model.gprs[i_fl].set_training_values(model.x_data[i_fl], model.y_data[i_fl]) # highest-fidelity dataset does not get a name
-            model.gprs[i_fl].train()
+        model.train_on_all_data()
 
         af_array = np.zeros([model.n_fl,1]) # acquisition function min values for each fidelity level
         x_et_k_array = np.zeros([model.n_fl,model.n_dim]) # acquisition function argmin for each fidelity level
@@ -84,26 +71,10 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         x_et_k = x_et_k_array[-1,:]
         # Option 2: Select the location of sample point from the fidelity level with the deepest acq func minimum
         #x_et_k = x_et_k_array[ind_which_lvl,:]
-        y_et_k = model.funcs[ind_which_lvl](x_et_k) # the value of the user-defined objective function at the location where the acquisition function is minimal
-        model.y_data[ind_which_lvl] = np.atleast_2d(np.append(model.y_data[ind_which_lvl],y_et_k)).T
-        model.unmasked_data[ind_which_lvl] = np.atleast_2d(np.append(model.unmasked_data[ind_which_lvl],True)).T
-        model.x_data[ind_which_lvl] = np.append(model.x_data[ind_which_lvl],np.atleast_2d(x_et_k),axis=0)
-        # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
-        if model.mod_ops.perform_lower_sims:
-            for i_fl in range(ind_which_lvl):
-                pt_exists = False 
-                for j_d_lower in range(model.n_samp[i_fl]): # for all data in the level below
-                    if np.array_equal(model.x_data[ind_which_lvl][-1,:],model.x_data[i_fl][j_d_lower,:]):
-                        pt_exists = True
-                if not pt_exists: # run the sim at the current level
-                    y_et_k = model.funcs[i_fl](x_et_k)
-                    model.y_data[i_fl] = np.atleast_2d(np.append(model.y_data[i_fl],y_et_k)).T
-                    model.unmasked_data[i_fl] = np.atleast_2d(np.append(model.unmasked_data[i_fl],True)).T
-                    model.unmasked_data[i_fl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.mod_ops)
-                    model.x_data[i_fl] = np.append(model.x_data[i_fl],np.atleast_2d(x_et_k),axis=0)
-
-        # Check for NaNs and out of bounds y_data
-        model.unmasked_data[ind_which_lvl][-1] = check_nan_oob(model.y_data[ind_which_lvl][-1],model.mod_ops)
+        
+        # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
+        # This computes the value of the user-defined objective function at the location where the acquisition function is minimal
+        model.add_sim_xnum(ind_which_lvl,x_et_k)
         
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if model.mod_ops.deterministic:
@@ -139,9 +110,6 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
 
         if viz_ops is not None:
             viz_animate(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
-    
-    # Update the surrogate model with the last point added. This training only uses unmasked data.
-    model.retrain()
 
     if viz_ops is not None:
         viz_finalize(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)

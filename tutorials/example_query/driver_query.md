@@ -57,7 +57,7 @@ def driver_query():
     my_model = Model(func_1d, params, mod_ops)
     my_model.add_lhs_samples(2)
     viz_ops = VizOptions()
-    viz_ops.plot_1d=True
+    # viz_ops.plot_1d=True
     my_model.add_bo_samples(2,viz_ops=viz_ops)
 
     # Query without a threshold. This just probes the surrogate at 3 locations.

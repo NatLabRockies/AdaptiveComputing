@@ -85,9 +85,13 @@ class Model:
             if self.mixed_type:
                 self.gprs[i_fl] = MixedIntegerSurrogateModel(surrogate=self.gprs[i_fl], xtypes=self.xtypes, xlimits=self.xlimits)
 
-    def retrain(self):
-        from ac_common.static_sampling import retrain
-        retrain(self)
+    def train_on_unmasked_data(self):
+        from ac_common.static_sampling import train_on_unmasked_data
+        train_on_unmasked_data(self)
+    
+    def train_on_all_data(self):
+        from ac_common.static_sampling import train_on_all_data
+        train_on_all_data(self)
     
     def add_lhs_samples(self,n_lhs_samp):
         from ac_common.static_sampling import add_lhs_samples
@@ -100,6 +104,18 @@ class Model:
     def add_bo_samples(self,n_iter,bo_ops=None,viz_ops=None):
         from ac_common.bo import add_bo_samples
         add_bo_samples(self,n_iter,bo_ops,viz_ops)
+
+    def add_sim_xnum(self,fidelity_level,x_eval_num,y_eval=None):
+        from ac_common.static_sampling import add_sim_xnum
+        add_sim_xnum(self,fidelity_level,x_eval_num,y_eval)
+
+    def native_to_num(self,x_eval_native):
+        from ac_common.static_sampling import native_to_num
+        return native_to_num(self,x_eval_native)
+
+    def bounds_check_xnative(self,x_eval_native):
+        from ac_common.static_sampling import bounds_check_xnative
+        bounds_check_xnative(self,x_eval_native) 
 
     def find_min(self):
         from ac_common.bo import find_min
