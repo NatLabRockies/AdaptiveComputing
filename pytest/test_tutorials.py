@@ -4,8 +4,12 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-def test_example_query(monkeypatch):
-    tutorial_tester(monkeypatch,'example_query','driver_query')
+def test_example_pickle_1d(monkeypatch):
+    tutorial_tester(monkeypatch,'example_pickle_1d','driver_pickle_1d')
+    return
+
+def test_example_query_1d(monkeypatch):
+    tutorial_tester(monkeypatch,'example_query_1d','driver_query_1d')
     return
 
 def test_example_1d(monkeypatch):

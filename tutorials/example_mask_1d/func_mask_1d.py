@@ -5,8 +5,8 @@
 # The output is a single value but returned as an element of a 2d array, since SMT works with column vectors which are 2d
 import numpy as np
 def func_mask_1d(x): 
-    val = np.atleast_2d((x-3.5)*np.sin((x-3.5)/(np.pi)))
-    if x > 1.5 and x < 5:
+    val = np.atleast_2d((x[0]-3.5)*np.sin((x[0]-3.5)/(np.pi)))
+    if x[0] > 1.5 and x[0] < 5:
         val = 10 # an unallowable value
     # if x > 14 and x < 16:
     #    val = np.NaN

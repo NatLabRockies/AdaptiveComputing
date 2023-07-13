@@ -1,6 +1,7 @@
 """<div class="jumbotron text-left"><b>
     
-This tutorial describes how to use AC to do Bayesian Optimization (EGO method) for optimal parameter selection for a simple 1D function
+This tutorial demonstrates how to pickle/upickle a model object which is useful for problems
+ that use HPC and the driver program can not stay active while waiting for simulation results.
 <div>
     
 Kevin Griffin
@@ -14,6 +15,7 @@ Kevin Griffin
 </div>
 
 ```python"""
+import pickle
 import sys
 sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
 import numpy as np
@@ -24,50 +26,59 @@ import matplotlib.pyplot as plt
 """```
 
 
-Import the objective function defined in func_mask_1d.py
+Import the objective function defined in func_1d.py
 
 
 ```python"""
-from func_mask_1d import func_mask_1d # import each of the simulation scripts
+from func_1d import func_1d # import each of the simulation scripts
 # put each of these simulation function names in an array (without quotes). The first one is treated as the ground truth for UQ
 """```
 
 Define the design parameters (inputs to the objective function)
 
 ```python"""
-def driver_mask_1d():
+def driver_pickle_1d():
     x0 = Param()
-    x0.min_val = -5
-    x0.max_val = 23
+    x0.min_val = 0
+    x0.max_val = 25
     params = [x0]
 
     # Define the options for surrogate modeling and optimization
     mod_ops = ModelOptions()
-    mod_ops.ubound_inclusive = 8
-    mod_ops.mask_nans = True
-    mod_ops.mask_oob_values = True
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_mask_1d, params, mod_ops)
+    my_model = Model(func_1d, params, mod_ops)
     my_model.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.animation_1d=True
-    my_model.add_bo_samples(10,viz_ops=viz_ops)
-    my_model.write_samples_csv('output_data.csv')
+
+    # Pickle the object
+    with open('data.pkl', 'wb') as file:
+        pickle.dump(my_model, file)
+
+    my_model.add_bo_samples(7,viz_ops=viz_ops)
     [x_opt, y_opt] = my_model.find_min()
+
+    # Unpickle the object
+    with open('data.pkl', 'rb') as file:
+        unpickled_model = pickle.load(file)
+    
+    unpickled_model.add_bo_samples(7,viz_ops=viz_ops)
+    [x_opt_up, y_opt_up] = my_model.find_min()
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
-    print('The minimum found is [', x_opt[0], ',', y_opt,']')
-    computed_values = [x_opt[0], y_opt[0]]
-    expected_values = [18.9352, -15.1251]
-    tolerances = [0.2]*len(expected_values)
+    print('The minimum found without pickling is [', x_opt[0], ',', y_opt,']')
+    print('The minimum found with pickling is [', x_opt_up[0], ',', y_opt_up,']')
+    computed_values = [x_opt_up[0], y_opt_up]
+    expected_values = [x_opt[0], y_opt]
+    tolerances = [1e-6]*2
     return expected_values, computed_values, tolerances
 """```
 
 ```python"""
 if __name__ == '__main__':
-    driver_mask_1d()
+    driver_pickle_1d()
 """```"""

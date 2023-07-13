@@ -11,7 +11,6 @@ Kevin Griffin
 <p>In this notebook, </p>
 <ol> - The 1D objective function is analytically defined as $f(x) = (x*6 - 2)^2 * sin(x*12 - 4)$. The global minimum over the domain $x \in [0, 1]$ is $f\approx -6.02074$, which occurs at the parameter value of $x \approx 0.757249$. </ol>
 <ol> - The low fidelity model multiplied by 0.5 and shifted by $a*x+b$.</ol>
-<ol> - The optimization is programmed by calling SMT's Gaussian Process model.</ol>
 </div>
 
 ```python"""
@@ -32,13 +31,13 @@ Define the objective functions for the low and high fidelity models
 def lf_simulation(x):
     import numpy as np
     return (
-        0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2) + (x - 0.5) * 10.0 - 5
+        0.5 * ((x[0] * 6 - 2) ** 2) * np.sin((x[0] * 6 - 2) * 2) + (x[0] - 0.5) * 10.0 - 5
     )
 
 # high fidelity model
 def hf_simulation(x):
     import numpy as np
-    return ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
+    return ((x[0] * 6 - 2) ** 2) * np.sin((x[0] * 6 - 2) * 2)
 
 simulations = [lf_simulation,hf_simulation]
 
@@ -60,7 +59,7 @@ def driver_mf_1d():
     # Compute the low and high fidelity models as baselines
     plt.figure()
     x = np.linspace(0, 1, 101, endpoint=True).reshape(-1, 1)
-    plt.plot(x, hf_simulation(x), color="k", label="Exact function")
+    plt.plot(x, hf_simulation([x]), color="k", label="Exact function")
 
     # Compute the multi-fidelity model
     t = time.time()

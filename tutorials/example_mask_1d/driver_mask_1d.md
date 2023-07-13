@@ -10,7 +10,6 @@ Kevin Griffin
 <div class="alert alert-info fade in" id="d110">
 <p>In this notebook, </p>
 <ol> - The 1D objective function is analytically defined as $f(x) = (x-3.5) sin((x-3.5)/\pi)$. The global minimum over the domain $x \in [0, 25]$ is $f\approx-15.1251$, which occurs at the parameter value of $x \approx 18.9352$. </ol>
-<ol> - The optimization is programmed by calling opt.py which uses SMT's Gaussian Process model.</ol>
 <ol> - An animation of the iterations of the optimization is included to visually explain the algorithm.</ol>
 </div>
 

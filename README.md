@@ -39,7 +39,8 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_multifidelity_1d` train a GPR using high fidelity and low fidelity function evaluations. Note: this function is not iterative yet. It uses pseudo-random sampling to find the minimum.
 * `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except the former adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
 * `example_mask_1d` is similar to `example_1d` except that the objective function has been modified to return `NaN` for some input arguments to emulate an objective function that is ill behaved in some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
-* `example_query` is similar to `example_1d` but after training the surrogate, it calls `query()` to evaluate the surrogate and dynamically run more simulations (and retrain) if the standard deviation (uncertainty) exceeds the user-specified limit.
+* `example_query_1d` is similar to `example_1d` but after training the surrogate, it calls `query()` to evaluate the surrogate and dynamically run more simulations (and retrain) if the standard deviation (uncertainty) exceeds the user-specified limit.
+* `example_pickle_1d` is similar to `example_1d` but it saves the model as a pickle and then unpickles it. This is useful if you need to train a model and then load into memory at a later time. It pickles the model and all simulation evaluations.
 
 <!-- The following tutorial(s) are coming soon: -->
 

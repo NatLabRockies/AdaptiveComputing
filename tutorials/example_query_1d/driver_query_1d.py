@@ -1,4 +1,4 @@
-
+"""
 <div class="jumbotron text-left"><b>
     
 This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection when some of the objective function evaluations have been precomputed and stored in a .csv file.
@@ -21,7 +21,7 @@ Kevin Griffin
 </div>
 
 ```python
-
+"""
 import sys
 sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
 import numpy as np
@@ -29,22 +29,22 @@ from ac_common import *
 if utils.is_notebook():
     get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
-```
+"""```
 
 
 Define the objective function
 
 
-```python
+```python"""
 # define the function
 def func_1d(x):
     return (x[0]-3.5)*np.sin((x[0]-3.5)/(np.pi))
-```
+"""```
 
 Define the design parameters (inputs to the objective function)
 
-```python
-def driver_query():
+```python"""
+def driver_query_1d():
     x0 = Param()
     x0.type = 'continuous'
     x0.min_val = 0
@@ -82,9 +82,9 @@ def driver_query():
     expected_values = [0.0, 0.0, 0.0]
     tolerances = [1e-12]*len(expected_values)
     return expected_values, computed_values, tolerances
-```
+"""```
 
-```python
+```python"""
 if __name__ == '__main__':
-    driver_query()
-```
+    driver_query_1d()
+"""```"""

@@ -26,12 +26,7 @@ class Model:
 
         self.funcs =[]
         for i in range(self.n_fl):
-            if self.mixed_type:
-                func_int = lambda x, i=i: self.simulations[i](args_str_2_enum(x,self.params))
-                self.funcs.append(lambda v, func_int=func_int: catch_valerr(func_int,v))
-            else:
-                func_int = lambda x, i=i: self.simulations[i](x)
-                self.funcs.append(lambda v, func_int=func_int: catch_valerr(func_int,v))
+            self.funcs.append(ComposedFunction(self.simulations[i],self.params))
 
         # Define xlimits, the domain for the design parameters
         if self.mixed_type:
@@ -130,25 +125,46 @@ class Model:
         return query(self,x_queries,fidelity_level,threshold_std)
 
 #########################################################
-def catch_valerr(func,x):
-    try:
-        val = func(x)
-    except ValueError:
-        print('Caught a ValueError in user-defined simulation and setting to NaN.')
-        val = np.NaN
-    return val
+# In order to pickle the Model object, no local functions
+# can be defined inside the Model, so funcs is set using
+# class functions. In fact, composite class functions.
+# simulation_i is the user-defined implementation of the simulations
+# catch_valerr catches ValueErrors that may occur in g
+# num_to_native converts the arguments of the SMT data types to the user-defined data types
+class ComposedFunction:
+    def __init__(self, simulation_i, params):
+        self.simulation_i = simulation_i
+        self.params = params
+
+    def __call__(self, x):
+        return self.catch_valerr(self.simulation_i, num_to_native(x, self.params))
+    
+    # Wrap error catching around the user-defined simulation functions.
+    def catch_valerr(self,func,x):
+        try:
+            val = func(x)
+        except ValueError:
+            print('Caught a ValueError in user-defined simulation and setting to NaN.')
+            val = np.NaN
+        return val
+
 #########################################################
-def args_str_2_enum(x,params):
-    # for mixed type functions, the user defined function may have 
-    # categorical args which are strings. But SMT represents these
-    # as enumerated types (integers). Need to convert enumerated
-    # args to strings.
-    # Also, need to cast enumerataed args to ints, which shouldn't be necessary, but is helping
+# For mixed type functions, need to convert SMT's internal representation
+# of the data to be compatible with the data types in user-defined functions
+# SMT stores ordered types as floats, so this function casts them to ints
+# SMT stores categorical types as floats, so this function converts them to strings
+def num_to_native(x,params):
     n_dim = len(params)
-    x = x.tolist()
+    #x = x.tolist()
+    x_return = [] #np.empty_like(x, dtype=object)
     for i in range(n_dim):
         if params[i].type == 'ordered':
-            x[i] = int(x[i]) # the int cast is needed because SMT stores ordered variables as floats
+            x_return.append(x[i].astype(int)) # the int cast is needed because SMT stores ordered variables as floats
         elif params[i].type == 'categorical':
-            x[i] = params[i].categories[int(x[i])] # the int cast is needed because SMT stores enums as floats
-    return x
+            x_return.append(params[i].categories[x[i].astype(int)]) # the int cast is needed because SMT stores enums as floats
+        elif params[i].type == 'continuous':
+            x_return.append(x[i])
+        else:
+            raise Exception("Unrecognized parameter type.")
+    return x_return
+#########################################################
