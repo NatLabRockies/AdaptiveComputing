@@ -68,12 +68,13 @@ def native_to_num(model,x_eval_native):
 #########################################################
 # Add a sim to the model's training set and retrain the model using all unmasked data.
 # The x_eval_num argument has variable types converted to floats as SMT expects
-def add_sim_xnum(model,fidelity_level,x_eval_num,y_eval):
+def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id):
     if y_eval is None:
         y_eval = model.funcs[fidelity_level](x_eval_num)
     model.x_data[fidelity_level] = np.append(model.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
     model.y_data[fidelity_level] = np.atleast_2d(np.append(model.y_data[fidelity_level], y_eval)).T
-    
+    model.n_samp[fidelity_level] += 1
+
     # Check for NaNs and out of bounds y_data
     model.unmasked_data[fidelity_level] = np.atleast_2d(np.append(model.unmasked_data[fidelity_level],True)).T
     model.unmasked_data[fidelity_level][-1] = check_nan_oob(model.y_data[fidelity_level][-1],model.mod_ops)
@@ -87,7 +88,12 @@ def add_sim_xnum(model,fidelity_level,x_eval_num,y_eval):
                 if np.array_equal(model.x_data[fidelity_level][-1,:],model.x_data[im1_fl][j_d_lower,:]):
                     pt_exists = True
             if not pt_exists: # add the sim at the im1_fl level
-                model.add_sim_xnum(im1_fl,x_eval_num)
+                model.add_xnum_sample(im1_fl,x_eval_num)
+
+    # Visualize the next point to add and the GPR that has not yet been trained on this point
+    if viz_ops is not None:
+        from .viz import viz_animate
+        viz_animate(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,frame_id)
 
     model.train_on_unmasked_data()
 
@@ -97,7 +103,7 @@ def add_sim_xnum(model,fidelity_level,x_eval_num,y_eval):
 # # If y_eval is not speicified, a simulation is conducted
 # def add_sim_xnative(model,fidelity_level,x_eval_native,y_eval=None):
 #     x_eval_num = native_to_num(x_eval_native)
-#     model.add_sim_xnum(fidelity_level,x_eval_num,y_eval)
+#     model.add_xnum_sample(fidelity_level,x_eval_num,y_eval)
 
 #########################################################
 # Check if the x_eval_native follows the user specified bounds in the list of Params

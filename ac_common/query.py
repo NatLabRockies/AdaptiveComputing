@@ -33,7 +33,7 @@ def query(model,x_queries,fidelity_level,threshold_std):
         if threshold_std is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std:
                 # conduct a simulation and retrain the GPR using this data
-                model.add_sim_xnum(fidelity_level,x_queries_num[i])
+                model.add_xnum_sample(fidelity_level,x_queries_num[i])
         
     # Re-evaluate the surrogate model because some new simulations may have been conducted
     if threshold_std is not None:

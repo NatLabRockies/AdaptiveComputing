@@ -87,7 +87,7 @@ def driver_mt_rf_3d():
     my_model.add_file_samples('input_data_parameters_only.csv')
     viz_ops = VizOptions()
     viz_ops.plot_nd=True
-    my_model.add_bo_samples(25,viz_ops=viz_ops)
+    my_model.add_bo_samples(32,viz_ops=viz_ops)
     my_model.write_samples_csv('output_data.csv')
     [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t

@@ -100,9 +100,9 @@ class Model:
         from ac_common.bo import add_bo_samples
         add_bo_samples(self,n_iter,bo_ops,viz_ops)
 
-    def add_sim_xnum(self,fidelity_level,x_eval_num,y_eval=None):
-        from ac_common.static_sampling import add_sim_xnum
-        add_sim_xnum(self,fidelity_level,x_eval_num,y_eval)
+    def add_xnum_sample(self,fidelity_level,x_eval_num,y_eval=None,viz_ops=None,frame_id=None):
+        from ac_common.static_sampling import add_xnum_sample
+        add_xnum_sample(self,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id)
 
     def native_to_num(self,x_eval_native):
         from ac_common.static_sampling import native_to_num

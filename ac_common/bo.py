@@ -7,7 +7,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         from .classes import BoOptions
         bo_ops = BoOptions()
     if viz_ops is not None:
-        from .viz import viz_init, viz_animate, viz_finalize, viz_show_plots
+        from .viz import viz_init, viz_finalize, viz_show_plots
         viz_init(viz_ops,model.n_dim) # Set up animations
 
     # Check that there are enough initial samples to conduct Bayesian optimization
@@ -35,6 +35,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
     # Train GPRs using only the x_data[unmasked], y_data[unmasked]
     model.train_on_unmasked_data()
 
+    # Beginning of the bayesian optimization iterations (each iteration computes a new simulation sample)
     rand_state = np.random.RandomState()
     for k in range(n_iter):
         print('Beginning AC optimization iteration ' + str(k))
@@ -74,7 +75,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         
         # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
         # This computes the value of the user-defined objective function at the location where the acquisition function is minimal
-        model.add_sim_xnum(ind_which_lvl,x_et_k)
+        model.add_xnum_sample(ind_which_lvl,x_et_k,y_eval=None,viz_ops=viz_ops,frame_id=k)
         
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if model.mod_ops.deterministic:
@@ -108,14 +109,9 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         #     model.y_data[i] = np.atleast_2d(np.append(model.y_data,y_et_k)).T
         #     model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
 
-        if viz_ops is not None:
-            viz_animate(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp,k)
-
     if viz_ops is not None:
-        viz_finalize(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,model.n_samp)
+        viz_finalize(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,n_iter-1)
         viz_show_plots(viz_ops,n_frames=n_iter)
-
-    model.n_samp = model.n_samp + n_iter
 
 #########################################################
 # Find the optimal point that has been evaluated by the high fidelity model
