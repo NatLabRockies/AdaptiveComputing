@@ -93,7 +93,7 @@ def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id):
     # Visualize the next point to add and the GPR that has not yet been trained on this point
     if viz_ops is not None:
         from .viz import viz_animate
-        viz_animate(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,frame_id)
+        viz_animate(model,viz_ops,frame_id)
 
     model.train_on_unmasked_data()
 

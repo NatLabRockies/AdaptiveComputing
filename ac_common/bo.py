@@ -110,7 +110,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         #     model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
 
     if viz_ops is not None:
-        viz_finalize(viz_ops,model.xlimits_num,model.funcs,model.gprs[-1],model.x_data,model.y_data,n_iter-1)
+        viz_finalize(model,viz_ops,n_iter-1)
         viz_show_plots(viz_ops,n_frames=n_iter)
 
 #########################################################
