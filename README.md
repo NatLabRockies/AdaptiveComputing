@@ -154,6 +154,8 @@ The user-defined simulations can have arguments of three different types:
 * `ordered` parameters are integers. Such a parameter can take any value from `min_val` to `max_val` (inclusive). The `min_val` and `max_val` fields must be specifed. Use an ordered integer when the order of the discrete values has significance, that is, we expect neigboring values to have simulation output values that are correlated.
 * `categorical` parameters are represent a discrete list of possibilties. Instead of specifying `min_val` and `max_val`, the `categories` field lists the discrete string values that the variable can take. This type should be used when the order of values in `categories` is arbitrary (this is what makes this type different from representing options with ordered integers).
 
+Any parameters of `continuous` type must occur first in the params list followed by any `categorical` or `ordered` types (in any order).
+
 ### Options
 The `Model` constructor requires the `ModelOptions` object as an argument. After initializeing the object, its default fields can be overwritten and optional fields can be set.
 

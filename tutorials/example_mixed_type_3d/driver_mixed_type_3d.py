@@ -92,7 +92,7 @@ def driver_mixed_type_3d():
     computed_values = [x_opt[0], x_opt[1], x_opt[2], y_opt[0]]
     expected_values = [5.0, 4.0, 1.0, 0.0] # Note: 1 maps to 'b' for x2
     assert(x2.categories[int(x_opt[2])]=='b')
-    tolerances = [0.2, 1e-12, 1e-12, 0.2]
+    tolerances = [0.1, 1e-12, 1e-12, 0.1]
     return expected_values, computed_values, tolerances
 """```
 

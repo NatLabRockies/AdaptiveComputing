@@ -65,8 +65,9 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
             x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
             f_min_k = np.min(model.y_data[i]) # this is an argument needed by the EI acquisition function
             obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k) # this is the acquistion function which will be minimized
-            x_et_k_array[i,:] = minimize_acq_func(obj_k, x_start, bo_ops, model.xlimits_num)
+            x_et_k_array[i,:] = minimize_acq_func(model,obj_k,x_start,bo_ops)
             af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
+            # print(f'x_opt = {x_et_k_array[i,:]}, obj = {af_array[i]}.')
         ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
         # Option 1: Always select the location of sample point from the high fidelity model
         x_et_k = x_et_k_array[-1,:]

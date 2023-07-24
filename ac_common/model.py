@@ -15,6 +15,12 @@ class Model:
         assert(validate_params(self.params))
         self.n_dim = len(self.params)
 
+        # Store the number of continous parameters
+        self.n_cont_vars = 0
+        for i in range(self.n_dim):
+            if params[i].type == 'continuous':
+                self.n_cont_vars += 1
+
         self.mod_ops = mod_ops
         
         # Check if there are mixed types
@@ -33,7 +39,7 @@ class Model:
             from smt.applications.mixed_integer import (FLOAT, ORD, ENUM)
             self.xtypes = []
             self.xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
-            self.xlimits_num = [] # this is the domain for self.funcs[] which assumes the categoricals and integers have been converted to continuous types
+            self.xlimits_num = [] # this is the domain for self.funcs[] which assumes the categoricals and integers have been converted to continuous types. Categoricals are a list of floats.
             for i in range(self.n_dim):
                 if self.params[i].type == 'continuous':
                     self.xtypes.append(FLOAT)
