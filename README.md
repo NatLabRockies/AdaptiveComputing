@@ -97,6 +97,8 @@ Input arguments:
 | `x_queries` | none | numpy array of length = # queries. Each entry is a list of simulation arguments | Bounds and argument data types are set by `Model` constructor | The locations in the sample space where the surrogate model is queried. |
 | `fidelity_level` | -1 | integer | valid index for an array of length `0:n_fl` | Which fidelity level surrogate model to use for all queries. Defaults to highest level. |
 | `threshold_std` | `None` (optional) | float | `> 0.0` | For each `x_query` of fidelity level`i`, if the surrogate model's standard deviation at the queried point exceeds the user-specified threshold, a simulation of fidelity level `i` is conducted at `x_query`. |
+| `threshold_std_mean` | `None` (optional) | float | `> 0.0` | For each `x_query` of fidelity level`i`, if the surrogate model's standard deviation divided by it's mean at the queried point exceeds the user-specified threshold, a simulation of fidelity level `i` is conducted at `x_query`. |
+| `threshold_std_tv` | `None` (optional) | float | `> 0.0` | For each `x_query` of fidelity level`i`, if the surrogate model's standard deviation at the queried point divided by the total variation of the function of the domain exceeds the user-specified threshold, a simulation of fidelity level `i` is conducted at `x_query`. The total variation is computed as `model.find_max() - model.find_min()`. |
 
 ~~~{.bash}   
 y_queries, y_queries_var = my_model.query(x_queries,threshold_std=0.4)

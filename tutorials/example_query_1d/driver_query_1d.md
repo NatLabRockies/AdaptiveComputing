@@ -60,23 +60,43 @@ def driver_query_1d():
     viz_ops.plot_1d=True
     my_model.add_bo_samples(2,viz_ops=viz_ops)
 
+    # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
+    x_queries = np.array([[13],[13.5]])
+    threshold_std_mean = 1.0
+    y_queries, y_queries_var = my_model.query(x_queries,threshold_std_mean=threshold_std_mean)
+    print(y_queries)
+    print(np.sqrt(y_queries_var))
+
+    # Visualize the final result
+    my_model.add_bo_samples(0,viz_ops=viz_ops)
+
+    # Query with a std/total_variation threshold. Conducts simulations if the standard deviation is too high.
+    x_queries = np.array([[14],[14.5]])
+    threshold_std_tv = 1.0
+    y_queries, y_queries_var = my_model.query(x_queries,threshold_std_tv=threshold_std_tv)
+    print(y_queries)
+    print(np.sqrt(y_queries_var))
+
+    # Visualize the final result
+    my_model.add_bo_samples(0,viz_ops=viz_ops)
+    
     # Query without a threshold. This just probes the surrogate at 3 locations.
     x_queries = np.array([[12],[18],[12.5]])
     y_queries, y_queries_var = my_model.query(x_queries)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
-    # query with a threshold. Conducts simulations if the standard deviation is too high.
+    # Query with a std threshold. Conducts simulations if the standard deviation is too high.
     x_queries = np.array([[12],[18],[12.5]])
     threshold_std = 1.0
     y_queries, y_queries_var = my_model.query(x_queries,threshold_std=threshold_std)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
-    # visualize the final result
+    # Visualize the final result
     my_model.add_bo_samples(0,viz_ops=viz_ops)
 
-    # verify that the standard deviation at all queried points is less than the threshold
+    # Verify that the standard deviation at all queried points is less than the threshold
     # observed_std < threshold_std
     computed_values = np.clip(y_queries_var[:,0]-threshold_std, a_min = 0.0, a_max = None)
     expected_values = [0.0, 0.0, 0.0]

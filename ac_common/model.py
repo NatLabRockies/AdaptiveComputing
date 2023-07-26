@@ -122,13 +122,17 @@ class Model:
         from ac_common.bo import find_min
         return find_min(self)
     
+    def find_max(self):
+        from ac_common.bo import find_max
+        return find_max(self)
+    
     def write_samples_csv(self,filenames):
         from ac_common.utils import write_samples_csv
         return write_samples_csv(self,filenames)
     
-    def query(self,x_queries,fidelity_level=-1,threshold_std=None):
+    def query(self,x_queries,fidelity_level=-1,threshold_std=None,threshold_std_mean=None,threshold_std_tv=None):
         from ac_common.query import query
-        return query(self,x_queries,fidelity_level,threshold_std)
+        return query(self,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv)
 
 #########################################################
 # In order to pickle the Model object, no local functions

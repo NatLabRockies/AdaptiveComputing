@@ -117,15 +117,19 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
 #########################################################
 # Find the optimal point that has been evaluated by the high fidelity model
 def find_min(model):
-    ind_best = np.argmin(model.y_data[model.n_fl-1])
     # # option 1: estimate the optimum using the high fidelity model
-    # x_opt = model.x_data[model.n_fl-1][ind_best,:]
-    # y_opt = model.y_data[model.n_fl-1][ind_best]
+    # ind_best = np.argmin(model.y_data[-1])
+    # x_opt = model.x_data[-1][ind_best,:]
+    # y_opt = model.y_data[-1][ind_best]
     # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
-    x_opt = model.x_data[model.n_fl-1][ind_best,:]
-    y_opt = model.y_data[model.n_fl-1][ind_best]
+    # Begin with the x_data where the highest fidelity model has been evaluated
+    ind_best = np.argmin(model.gprs[-1].predict_values(model.x_data[-1]))
+    x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
+    y_opt = model.gprs[-1].predict_values(x_opt)
+    x_opt = x_opt[0]
+    y_opt = y_opt[0]
     opt_is_masked = False
-    if not model.unmasked_data[model.n_fl-1][ind_best]:
+    if not model.unmasked_data[-1][ind_best]:
         opt_is_masked = True
     for i in range(model.n_fl-1):
         y_min_i = np.min(model.gprs[-1].predict_values(model.x_data[i]))
@@ -140,5 +144,36 @@ def find_min(model):
     if opt_is_masked:
         print('Warning: the minimum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
     # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
+
+    return [x_opt, y_opt]
+
+#########################################################
+# Find the optimal point that has been evaluated by the high fidelity model
+def find_max(model):
+    # # option 1: estimate the optimum using the high fidelity model
+    # ind_best = np.argmax(model.y_data[-1])
+    # x_opt = model.x_data[-1][ind_best,:]
+    # y_opt = model.y_data[-1][ind_best]
+    # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
+    # Begin with the x_data where the highest fidelity model has been evaluated
+    ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1]))
+    x_opt = model.x_data[-1][ind_best,:]
+    y_opt = model.gprs[-1].predict_values(x_opt)
+    opt_is_masked = False
+    if not model.unmasked_data[-1][ind_best]:
+        opt_is_masked = True
+    for i in range(model.n_fl-1):
+        y_max_i = np.max(model.gprs[-1].predict_values(model.x_data[i]))
+        if  y_max_i < y_opt:
+            ind_best_mf = np.argmax(model.gprs[-1].predict_values(model.x_data[i]))
+            y_opt = y_max_i
+            x_opt = model.x_data[i][ind_best_mf,:]
+            if not model.unmasked_data[i][ind_best_mf]:
+                opt_is_masked = True
+            else:
+                opt_is_masked = False
+    if opt_is_masked:
+        print('Warning: the maximum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
+    # option 3: could implement a maximization on the GPR surface though this introduces additional uncertainty
 
     return [x_opt, y_opt]
