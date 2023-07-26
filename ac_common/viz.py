@@ -43,7 +43,7 @@ def viz_animate(model,viz_ops,frame_id):
     if n_fl == 1:
         ndoe = len(model.y_data[0])-(frame_id+1)
         if viz_ops.animation_1d:
-            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
+            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
                 y_plot[i] = model.funcs[0](x_plot[i])
@@ -57,7 +57,8 @@ def viz_animate(model,viz_ops,frame_id):
             # else:    
             #     ax1 = ax.twinx()
             #     ei, = ax1.plot(x_plot,y_ei_plot,color='red')
-            plt.plot(x_plot,y_plot,label='True function')
+            if viz_ops.show_exact:
+                plt.plot(x_plot,y_plot,label='True function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             plt.scatter(model.x_data[0][ndoe:-1],model.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
@@ -90,7 +91,7 @@ def viz_animate(model,viz_ops,frame_id):
             raise Exception('viz_ops.animation_nd is not supported. Use viz_ops.plot_nd instead.')
     elif n_fl == 2:
         if viz_ops.animation_1d:
-            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
+            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
                 y_plot[i] = model.funcs[-1](x_plot[i])
@@ -104,7 +105,8 @@ def viz_animate(model,viz_ops,frame_id):
             # else:    
             #     ax1 = ax.twinx()
             #     ei, = ax1.plot(x_plot,y_ei_plot,color='red')
-            plt.plot(x_plot,y_plot,label='True function')
+            if viz_ops.show_exact:
+                plt.plot(x_plot,y_plot,label='True function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='black',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')
@@ -145,7 +147,7 @@ def viz_finalize(model,viz_ops,frame_id):
     if n_fl == 1:
         ndoe = len(model.y_data[0])-(frame_id+1)
         if viz_ops.plot_1d:
-            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
+            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
                 y_plot[i] = model.funcs[0](x_plot[i])
@@ -153,7 +155,8 @@ def viz_finalize(model,viz_ops,frame_id):
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            plt.plot(x_plot,y_plot,label='True function')
+            if viz_ops.show_exact:
+                plt.plot(x_plot,y_plot,label='True function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             plt.scatter(model.x_data[0][ndoe:],model.y_data[0][ndoe:],marker='o',color='orange',label='Additional samples')
@@ -207,7 +210,7 @@ def viz_finalize(model,viz_ops,frame_id):
             plt.close(fig)
     elif n_fl == 2:
         if viz_ops.plot_1d:
-            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
+            x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
                 y_plot[i] = model.funcs[-1](x_plot[i])
@@ -215,7 +218,8 @@ def viz_finalize(model,viz_ops,frame_id):
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            plt.plot(x_plot,y_plot,label='True function')
+            if viz_ops.show_exact:
+                plt.plot(x_plot,y_plot,label='True function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='k',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')

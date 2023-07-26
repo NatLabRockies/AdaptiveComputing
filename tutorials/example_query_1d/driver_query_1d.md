@@ -58,6 +58,7 @@ def driver_query_1d():
     my_model.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.plot_1d=True
+    viz_ops.show_exact = True
     my_model.add_bo_samples(2,viz_ops=viz_ops)
 
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.

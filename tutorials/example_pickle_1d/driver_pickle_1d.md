@@ -53,6 +53,7 @@ def driver_pickle_1d():
     my_model.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.animation_1d=True
+    viz_ops.show_exact = True
 
     # Pickle the object
     with open('data.pkl', 'wb') as file:

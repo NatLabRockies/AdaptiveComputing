@@ -190,6 +190,7 @@ Fields of `ModelOptions()`:
 | `plot_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
 | `plot_nd`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
 | `output_dir`  | `./plots` | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. |
+| `show_exact`  | `False` | boolean | `True` or `False` |  True: evaluate the simulation at 100 uniformly spaced points and plots this curve. |
 
 
 Bayesian optimization options are set with `BoOptions()`, which is another optional argument for `add_bo_samples`. The fields of `BoOptions` are:

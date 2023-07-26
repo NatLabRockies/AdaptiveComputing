@@ -54,6 +54,7 @@ def driver_mask_1d():
     my_model.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.animation_1d=True
+    viz_ops.show_exact = True
     my_model.add_bo_samples(10,viz_ops=viz_ops)
     my_model.write_samples_csv('output_data.csv')
     [x_opt, y_opt] = my_model.find_min()
