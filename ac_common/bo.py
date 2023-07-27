@@ -68,6 +68,16 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
             x_et_k_array[i,:] = minimize_acq_func(model,obj_k,x_start,bo_ops)
             af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
             # print(f'x_opt = {x_et_k_array[i,:]}, obj = {af_array[i]}.')
+        # We will divide af_array by the computational cost array and then take a min. So this only applies a penalty to expensive simulations if the acquisition function
+        # is guaranteed to be <0. For LCB and SBO, this is not the case. So these acqusition functions are not appropriate.
+        if model.n_fl > 1:
+            if bo_ops.acq_func == 'LCB' or bo_ops.acq_func == 'SBO':
+                raise Exception('SBO and LCB are not appropriate for multifidelity problems')
+                # Since it is unclear how to weight these acquisition functions by cost and
+                # the lower fidelity surrogates may have errors that without correcting by the bridging functions
+                # will invalidates the direct comparison of acq funcs across fidelity levels
+            if np.any(af_array>0.0):
+                raise Exception('The method for choosing ind_which_lvl requires the acquisition function to be defined so that it is always negative.')
         ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
         # Option 1: Always select the location of sample point from the high fidelity model
         x_et_k = x_et_k_array[-1,:]
