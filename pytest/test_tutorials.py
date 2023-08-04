@@ -44,6 +44,10 @@ def test_example_multifidelity_mixed_type_read_file_2d(monkeypatch):
     tutorial_tester(monkeypatch,'example_multifidelity_mixed_type_read_file_2d','driver_mf_mt_rf')
     return
 
+def test_example_multifidelity_mixed_type_read_file_mask_2d(monkeypatch):
+    tutorial_tester(monkeypatch,'example_multifidelity_mixed_type_read_file_mask_2d','driver_mf_mt_rf_mask')
+    return
+
 def tutorial_tester(monkeypatch,dir_name,py_name):
     monkeypatch.setattr(plt, 'show', lambda: None) # close all plots
     initial_wd = os.getcwd()

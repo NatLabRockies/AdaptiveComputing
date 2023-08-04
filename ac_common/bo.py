@@ -157,7 +157,26 @@ def find_min(model):
             else:
                 opt_is_masked = False
     if opt_is_masked:
-        print('Warning: the minimum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
+        print('Warning: the minimum value of the surrogate is in a region of masked data (the simulation returned NaN or out of allowable bounds values).')
+        print(f'This masked (NaN/unallowable) minimum is x_opt={x_opt}, y_opt={y_opt}')
+        print('Recomputing and returning minimum using only the unmasked data.')
+        ind_best = np.argmin(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
+        orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]
+        ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
+        x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
+        y_opt = model.gprs[-1].predict_values(x_opt)
+        x_opt = x_opt[0]
+        y_opt = y_opt[0]
+        assert(model.unmasked_data[-1][ind_best])
+        for i in range(model.n_fl-1):
+            y_min_i = np.min(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+            if  y_min_i < y_opt:
+                ind_best_mf = np.argmin(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+                orig_indices_of_unmasked = np.where(model.unmasked_data[i].flatten())[0]
+                ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
+                y_opt = y_min_i
+                x_opt = model.x_data[i][ind_best_mf,:]
+                assert(model.unmasked_data[i][ind_best_mf])
     # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
 
     return [x_opt, y_opt]
@@ -172,8 +191,10 @@ def find_max(model):
     # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
     # Begin with the x_data where the highest fidelity model has been evaluated
     ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1]))
-    x_opt = model.x_data[-1][ind_best,:]
+    x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
     y_opt = model.gprs[-1].predict_values(x_opt)
+    x_opt = x_opt[0]
+    y_opt = y_opt[0]
     opt_is_masked = False
     if not model.unmasked_data[-1][ind_best]:
         opt_is_masked = True
@@ -188,7 +209,26 @@ def find_max(model):
             else:
                 opt_is_masked = False
     if opt_is_masked:
-        print('Warning: the maximum value returned is in a region of masked data (the simulation returned NaN or out of allowable bounds values), so there is significant uncertainty in this solution.')
+        print('Warning: the maximum value of the surrogate is in a region of masked data (the simulation returned NaN or out of allowable bounds values).')
+        print(f'This masked (NaN/unallowable) maximum is x_opt={x_opt}, y_opt={y_opt}')
+        print('Recomputing and returning maximum using only the unmasked data.')
+        ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
+        orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]
+        ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
+        x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
+        y_opt = model.gprs[-1].predict_values(x_opt)
+        x_opt = x_opt[0]
+        y_opt = y_opt[0]
+        assert(model.unmasked_data[-1][ind_best])
+        for i in range(model.n_fl-1):
+            y_max_i = np.max(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+            if  y_max_i < y_opt:
+                ind_best_mf = np.argmax(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+                orig_indices_of_unmasked = np.where(model.unmasked_data[i].flatten())[0]
+                ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
+                y_opt = y_max_i
+                x_opt = model.x_data[i][ind_best_mf,:]
+                assert(model.unmasked_data[i][ind_best_mf])
     # option 3: could implement a maximization on the GPR surface though this introduces additional uncertainty
 
     return [x_opt, y_opt]
