@@ -41,7 +41,7 @@ def read_sample_csv(model,filenames):
                 a = []
                 for row in reader:
                     if (len(row) != model.n_dim+1) and (len(row) != model.n_dim):
-                        raise Exception('Rows of csv must have length equal to n_dim or n_dim+1.')
+                        raise Exception('Number of columns in csv must be >= the number of parameters (n_dim) and <= n_dim+1.')
                     a.append(row)
             n_samples = len(a) - 1 # first row is header
             if n_samples < 1:

@@ -31,6 +31,11 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
     from smt.sampling_methods import LHS
     if model.mixed_type:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+        if n_iter >= 1:
+            print('Warning: The optimization of discrete parameters uses scipy.brute.'
+                  +' This evaluates the acquisition function for all possible values of'
+                  +' categorical and ordered types. For continuous variables, scipy.minimize'
+                  +' is used, which uses a more efficient multistart gradient descent algorithm.')
 
     # Train GPRs using only the x_data[unmasked], y_data[unmasked]
     model.train_on_unmasked_data()
