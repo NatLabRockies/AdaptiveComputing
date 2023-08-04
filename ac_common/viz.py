@@ -51,23 +51,24 @@ def viz_animate(model,viz_ops,frame_id):
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            #y_ei_plot = -EI(model.gprs[-1],x_plot,np.min(model.y_data[0]))
-            # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
-            #     ei, = ax.plot(x_plot,y_ei_plot,color='red')
-            # else:    
-            #     ax1 = ax.twinx()
-            #     ei, = ax1.plot(x_plot,y_ei_plot,color='red')
+            if viz_ops.show_EI:
+                x_ei_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
+                y_ei_plot = -EI(model.gprs[-1],x_ei_plot,np.min(model.y_data[0][:-1]))
+                ax1 = ax.twinx()
+                ax1.plot(x_ei_plot,y_ei_plot,color='red',label='-EI')
+                ax1.set_ylabel('-EI')
+                ax1.legend()
             if viz_ops.show_exact:
-                plt.plot(x_plot,y_plot,label='True function')
-            plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
-            plt.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
-            plt.scatter(model.x_data[0][ndoe:-1],model.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
-            plt.scatter(model.x_data[0][-1],model.gprs[-1].predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
-            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='model.gprs[-1] prediction')
+                ax.plot(x_plot,y_plot,label='Exact function')
+            ax.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
+            ax.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
+            ax.scatter(model.x_data[0][ndoe:-1],model.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
+            ax.scatter(model.x_data[0][-1],model.gprs[-1].predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
+            ax.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='GP mean')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
-            plt.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.25,color='g',label='99 % confidence')
-            plt.legend()
+            ax.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.25,color='g',label='99 % confidence')
+            ax.legend()
             ax.set_xlabel('x')
             ax.set_ylabel('y')
             plt.savefig(viz_ops.output_dir + ('/frame_1D_%d' %frame_id))
@@ -106,7 +107,7 @@ def viz_animate(model,viz_ops,frame_id):
             #     ax1 = ax.twinx()
             #     ei, = ax1.plot(x_plot,y_ei_plot,color='red')
             if viz_ops.show_exact:
-                plt.plot(x_plot,y_plot,label='True function')
+                plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='black',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')
@@ -156,7 +157,7 @@ def viz_finalize(model,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:
-                plt.plot(x_plot,y_plot,label='True function')
+                plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             plt.scatter(model.x_data[0][ndoe:],model.y_data[0][ndoe:],marker='o',color='orange',label='Additional samples')
@@ -219,7 +220,7 @@ def viz_finalize(model,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:
-                plt.plot(x_plot,y_plot,label='True function')
+                plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='k',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')
@@ -317,13 +318,14 @@ def viz_show_plots(viz_ops,n_frames=None):
             image_pt = mpimg.imread(viz_ops.output_dir + ('/frame_1D_%d' %k) + '.png')
             im = plt.imshow(image_pt)
             ims.append([im])
-        ani = animation.ArtistAnimation(fig, ims,interval=3000)
+        frame_interval = 5000
+        ani = animation.ArtistAnimation(fig, ims,interval=frame_interval)
         # display a javascript animation if this is running in a jupyter notebook
         if utils.is_notebook():
             display(HTML(ani.to_jshtml())) # noqa: F821
         else:
             plt.show() # display a movie
-        writergif = animation.PillowWriter(fps=1) 
+        writergif = animation.PillowWriter(fps=1000.0/frame_interval, bitrate=1800) 
         ani.save(viz_ops.output_dir + '/movie_1D' + '.gif', writer=writergif, dpi=500)
 
     if viz_ops.animation_2d:
@@ -336,13 +338,14 @@ def viz_show_plots(viz_ops,n_frames=None):
             image_pt = mpimg.imread(viz_ops.output_dir + ('/frame_2D_%d' %k) + '.png')
             im = plt.imshow(image_pt)
             ims.append([im])
-        ani = animation.ArtistAnimation(fig, ims,interval=1000)
+        frame_interval = 1000
+        ani = animation.ArtistAnimation(fig, ims,interval=frame_interval)
         # display a javascript animation if this is running in a jupyter notebook
         if utils.is_notebook():
             display(HTML(ani.to_jshtml())) # noqa: F821
         else:
             plt.show() # display a movie
-        writergif = animation.PillowWriter(fps=1) 
+        writergif = animation.PillowWriter(fps=1000.0/frame_interval, bitrate=1800)
         ani.save(viz_ops.output_dir + '/movie_2D' + '.gif', writer=writergif, dpi=500)
         
     if viz_ops.animation_nd:

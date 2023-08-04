@@ -68,6 +68,7 @@ class VizOptions:
     plot_nd = False
     output_dir = './plots'
     show_exact = False # True: evaluate the simulation at 100 uniformly spaced points and plots this curve.
+    show_EI = False # True: plot a curve for the expected improvement acquisition function.
 
 #########################################################
 class BoOptions:
