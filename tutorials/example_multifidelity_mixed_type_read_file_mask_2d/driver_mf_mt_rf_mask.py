@@ -68,13 +68,13 @@ def hf_simulation(x):
         return np.NaN
     return ((x[0] * 6.0 - 2.0) ** 2) * np.sin((x[0] * 6.0 - 2.0) * 2.0) + s
 
-simulations = [lf_simulation,hf_simulation]
 """```
 
 Define the design parameters (inputs to the objective function)
 
 ```python"""
 def driver_mf_mt_rf_mask():
+    simulations = [lf_simulation,hf_simulation]
     x0 = Param()
     x0.min_val = 0
     x0.max_val = 1

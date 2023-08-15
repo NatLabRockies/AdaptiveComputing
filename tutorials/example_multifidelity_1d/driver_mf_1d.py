@@ -39,14 +39,13 @@ def hf_simulation(x):
     import numpy as np
     return ((x[0] * 6 - 2) ** 2) * np.sin((x[0] * 6 - 2) * 2)
 
-simulations = [lf_simulation,hf_simulation]
-
 """```
 
 Define the design parameters (inputs to the objective function)
 
 ```python"""
 def driver_mf_1d():
+    simulations = [lf_simulation,hf_simulation]
     x0 = Param()
     x0.min_val = 0
     x0.max_val = 1
