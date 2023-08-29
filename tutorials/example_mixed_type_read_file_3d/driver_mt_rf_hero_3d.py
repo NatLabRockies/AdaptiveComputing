@@ -77,16 +77,25 @@ def driver_mt_rf_3d():
 
     # Define the options for surrogate modeling and optimization
     mod_ops = ModelOptions()
+    mod_ops.use_hero = True
 
     # Perform the optimization
     import time
     t = time.time()
     my_model = Model(func_mt, params, mod_ops)
-    # my_model.add_file_samples('input_data.csv')
-    my_model.add_file_samples('input_data_parameters_only.csv')
+    # my_model.add_lhs_samples(0)
+    my_model.add_file_samples('input_data.csv')
+    # my_model.add_file_samples('input_data_parameters_only.csv')
     viz_ops = VizOptions()
+    my_model.add_bo_samples(6,viz_ops=viz_ops)
+    my_model.wait_for_workers()
+    my_model.add_bo_samples(6,viz_ops=viz_ops)
+    my_model.wait_for_workers()
     viz_ops.plot_nd=True
-    my_model.add_bo_samples(32,viz_ops=viz_ops)
+    #wait for workers doesn't have viz ops arg but still is plotting?
+    my_model.add_bo_samples(20,viz_ops=viz_ops)
+    # my_model.add_bo_samples(5,viz_ops=viz_ops)
+    my_model.wait_for_workers()
     my_model.write_samples_csv('output_data.csv')
     [x_opt, y_opt] = my_model.find_min()
     t = time.time() - t

@@ -10,6 +10,9 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         from .viz import viz_init, viz_finalize, viz_show_plots
         viz_init(viz_ops,model.n_dim) # Set up animations
 
+    if model.mod_ops.use_hero:
+        model.wait_for_workers(None,True) # wait is recommended so that this batch uses the most up to date information
+
     # Check that there are enough initial samples to conduct Bayesian optimization
     for i in range(model.n_fl):
         if model.n_samp[i] <= model.n_dim+i:
@@ -36,20 +39,13 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
                   +' This evaluates the acquisition function for all possible values of'
                   +' categorical and ordered types. For continuous variables, scipy.minimize'
                   +' is used, which uses a more efficient multistart gradient descent algorithm.')
-
-    # Train GPRs using only the x_data[unmasked], y_data[unmasked]
-    model.train_on_unmasked_data()
+    
+    model.sync_hero_results(viz_ops)
 
     # Beginning of the bayesian optimization iterations (each iteration computes a new simulation sample)
     rand_state = np.random.RandomState()
     for k in range(n_iter):
         print('Beginning AC optimization iteration ' + str(k))
-
-        # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
-        for i_fl in range(model.n_fl):
-            for i in range(len(model.y_data[i_fl])):
-                if not model.unmasked_data[i_fl][i]:
-                    model.y_data[i_fl][i] = model.gprs[i_fl].predict_values(np.atleast_2d(model.x_data[i_fl][i]))[0]
 
         # Retrain GPR using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
         model.train_on_all_data()
@@ -80,7 +76,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
                 raise Exception('SBO and LCB are not appropriate for multifidelity problems')
                 # Since it is unclear how to weight these acquisition functions by cost and
                 # the lower fidelity surrogates may have errors that without correcting by the bridging functions
-                # will invalidates the direct comparison of acq funcs across fidelity levels
+                # will invalidate the direct comparison of acq funcs across fidelity levels
             if np.any(af_array>0.0):
                 raise Exception('The method for choosing ind_which_lvl requires the acquisition function to be defined so that it is always negative.')
         ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
@@ -91,7 +87,12 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         
         # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
         # This computes the value of the user-defined objective function at the location where the acquisition function is minimal
-        model.add_xnum_sample(ind_which_lvl,x_et_k,y_eval=None,viz_ops=viz_ops,frame_id=k)
+        # Add sample to the Hero queue instead of running it locally immediately
+        if model.mod_ops.use_hero:
+            model.queue_hero_sample(ind_which_lvl,x_et_k,viz_ops=viz_ops,frame_id=k)
+        # Run the simulation on the current process (blocking)
+        else:
+            model.add_xnum_sample(ind_which_lvl,x_et_k,y_eval=None,viz_ops=viz_ops,frame_id=k)
         
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if model.mod_ops.deterministic:
@@ -132,6 +133,12 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
 #########################################################
 # Find the optimal point that has been evaluated by the high fidelity model
 def find_min(model):
+    if model.mod_ops.use_hero:
+        # model.wait_for_workers(None,True)
+        total_in_queue = np.sum([np.sum(arr) for arr in model.hero_todo])
+        if total_in_queue > 0:
+            print(f'Warning: {total_in_queue} Hero tasks are incomplete. Consider calling wait_for_wrokers() before find_min().')
+    
     # # option 1: estimate the optimum using the high fidelity model
     # ind_best = np.argmin(model.y_data[-1])
     # x_opt = model.x_data[-1][ind_best,:]
@@ -157,8 +164,9 @@ def find_min(model):
             else:
                 opt_is_masked = False
     if opt_is_masked:
-        print('Warning: the minimum value of the surrogate is in a region of masked data (the simulation returned NaN or out of allowable bounds values).')
-        print(f'This masked (NaN/unallowable) minimum is x_opt={x_opt}, y_opt={y_opt}')
+        print('Warning: the minimum value of the surrogate is in a region of masked data (the data is a placeholder for'
+              +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
+        print(f'This masked minimum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning minimum using only the unmasked data.')
         ind_best = np.argmin(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
         orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]
@@ -184,6 +192,12 @@ def find_min(model):
 #########################################################
 # Find the optimal point that has been evaluated by the high fidelity model
 def find_max(model):
+    if model.mod_ops.use_hero:
+        # model.wait_for_workers(None,True)
+        total_in_queue = np.sum([np.sum(arr) for arr in model.hero_todo])
+        if total_in_queue > 0:
+            print(f'Warning: {total_in_queue} Hero tasks are incomplete. Consider calling wait_for_wrokers() before find_max().')
+    
     # # option 1: estimate the optimum using the high fidelity model
     # ind_best = np.argmax(model.y_data[-1])
     # x_opt = model.x_data[-1][ind_best,:]
@@ -209,8 +223,9 @@ def find_max(model):
             else:
                 opt_is_masked = False
     if opt_is_masked:
-        print('Warning: the maximum value of the surrogate is in a region of masked data (the simulation returned NaN or out of allowable bounds values).')
-        print(f'This masked (NaN/unallowable) maximum is x_opt={x_opt}, y_opt={y_opt}')
+        print('Warning: the maximum value of the surrogate is in a region of masked data (the data is a placeholder for'
+              +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
+        print(f'This masked maximum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning maximum using only the unmasked data.')
         ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
         orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]

@@ -178,6 +178,7 @@ Fields of `ModelOptions()`:
 | `mask_nans` | `True` | boolean | `True` or `False` | True: represent NaN simulation values with the surrogate model. See details on masking algorithm. False: NaNs trigger an error. |
 | `mask_oob_values` | `True` | boolean | `True` or `False` | True: represent simulation values that are out of allowable bounds with the surrogate model. See details on masking algorithm. False: out of bounds simulation values trigger an error. |
 | `lbound_inclusive`, `ubound_inclusive`, `lbound_exclusive`, `ubound_exclusive` | none | float | any | Define the allowable bounds for simulation returns. See details on masking below. |
+| `use_hero` | `False` | boolean | `True` or `False` | True: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. False: simulations are run locally and serially. The code can not advance until a simulations completes. |
 
 
 `VizOptions()` controls plotting and is an optional argument to `add_bo_samples`. The fields of `VizOptions()` are:

@@ -46,7 +46,8 @@ def viz_animate(model,viz_ops,frame_id):
             x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
-                y_plot[i] = model.funcs[0](x_plot[i])
+                #y_plot[i] = model.funcs[0](x_plot[i])
+                y_plot[i] = model.eval_xnum(0,x_plot[i])
             y_gp_plot = model.gprs[-1].predict_values(x_plot)
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
@@ -95,7 +96,8 @@ def viz_animate(model,viz_ops,frame_id):
             x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
-                y_plot[i] = model.funcs[-1](x_plot[i])
+                #y_plot[i] = model.funcs[-1](x_plot[i])
+                y_plot[i] = model.eval_xnum(-1,x_plot[i])
             y_gp_plot = model.gprs[-1].predict_values(x_plot)
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
@@ -151,7 +153,8 @@ def viz_finalize(model,viz_ops,frame_id):
             x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
-                y_plot[i] = model.funcs[0](x_plot[i])
+                #y_plot[i] = model.funcs[0](x_plot[i])
+                y_plot[i] = model.eval_xnum(0,x_plot[i])
             y_gp_plot = model.gprs[-1].predict_values(x_plot)
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
@@ -214,7 +217,8 @@ def viz_finalize(model,viz_ops,frame_id):
             x_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
             for i in range(len(x_plot)):
-                y_plot[i] = model.funcs[-1](x_plot[i])
+                #y_plot[i] = model.funcs[-1](x_plot[i])
+                y_plot[i] = model.eval_xnum(-1,x_plot[i])
             y_gp_plot = model.gprs[-1].predict_values(x_plot)
             y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])

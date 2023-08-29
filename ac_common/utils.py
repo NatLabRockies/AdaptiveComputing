@@ -13,59 +13,7 @@ def is_notebook() -> bool:
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
-#########################################################
-# # read a csv file and return the contents
-def read_sample_csv(model,filenames):
-    import numpy as np
-    import csv
-
-    filenames = np.atleast_1d(filenames)
-    if len(filenames) != model.n_fl:
-        raise Exception('If any filenames are provided, the length of the list of filenames must equal len(simulations). Use empty quotes as an entry in the list if no data should be loaded for a fidelity level.')
-    for filename in filenames:
-        if not filename.endswith('.csv'):
-            if filename != '':
-                raise Exception('csv filename must end in .csv or be an empty string')
-
-    x_data = []
-    y_data = []
-    for f in range(model.n_fl):
-        filename = filenames[f]
-        if filename == '':
-            print('No input data file specified for fidelity level ' + str(f) + '. Skipping read_input_data for this level.')
-            x_data.append([])
-            y_data.append([])
-        else:
-            with open(filename, newline='', encoding='utf-8-sig') as csvfile:
-                reader = csv.reader(csvfile, delimiter=',') # , quotechar='|'
-                a = []
-                for row in reader:
-                    if (len(row) != model.n_dim+1) and (len(row) != model.n_dim):
-                        raise Exception('Number of columns in csv must be >= the number of parameters (n_dim) and <= n_dim+1.')
-                    a.append(row)
-            n_samples = len(a) - 1 # first row is header
-            if n_samples < 1:
-                raise Exception('There is less than 1 row of data (not counting the header) in the csv for fidelity level ' + str(f) + '. Use an empty string as the file name instead.')
-            x_data.append(np.zeros([n_samples,model.n_dim]))
-            y_data.append(np.zeros([n_samples,1]))
-            
-            # move the data from a list of lists to a 2d np array
-            for i in range(n_samples):
-                for j in range(model.n_dim):
-                    if a[0][j] == 'categorical':
-                        x_data[f][i,j] = model.params[j].categories.index(a[i+1][j])
-                    elif (a[0][j] == 'continuous') or (a[0][j] == 'ordered'):
-                        x_data[f][i,j] = a[i+1][j]
-                    else:
-                        raise Exception('Unrecognized type for parameter '+str(i))    
-                if len(a[i+1]) == model.n_dim: # if the user has not specified any objective function values
-                    y_data[f][i,0] = model.funcs[f](x_data[f][i,:])
-                elif a[i+1][model.n_dim] == '': # elif the user has specified some objective function values, but not the present row's objective function value
-                    y_data[f][i,0] = model.funcs[f](x_data[f][i,:])
-                else: # the user has specified the parameters and the corresponding objective function evaluations
-                    y_data[f][i,0] = a[i+1][model.n_dim]
-
-    return [x_data, y_data]
+    
 #########################################################
 # # read a csv file and return the contents
 def write_samples_csv(model,filenames):
@@ -112,7 +60,7 @@ def check_nan_oob(y,mod_ops):
     if np.isnan(y):
         if mod_ops.mask_nans:
             unmasked = False
-            #print('NaN point found: y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+'. Masking this point.')
+            print('NaN point found. Masking this point.')
         else:
             raise Exception('NaN returned by user-defined simulation. Consider setting mod_ops.mask_nans=True to ignore NaNs.')
     else:
@@ -132,7 +80,7 @@ def check_nan_oob(y,mod_ops):
         if oob:
             if mod_ops.mask_oob_values:
                 unmasked = False
-                #print('y_data['+str(ind_which_lvl)+']['+str(len(unmasked_data[ind_which_lvl])-1)+'] = '+str(y_data[ind_which_lvl][-1])+' is out of user-specified allowable bounds. Masking this point.')
+                print('Data is out of user-specified allowable bounds. Masking this point.')
             else:
                 raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting mod_ops.mask_oob_values=True to ignore such values.')
     return unmasked
