@@ -34,11 +34,6 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
     from smt.sampling_methods import LHS
     if model.mixed_type:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
-        if n_iter >= 1:
-            print('Warning: The optimization of discrete parameters uses scipy.brute.'
-                  +' This evaluates the acquisition function for all possible values of'
-                  +' categorical and ordered types. For continuous variables, scipy.minimize'
-                  +' is used, which uses a more efficient multistart gradient descent algorithm.')
     
     model.sync_hero_results(viz_ops)
 

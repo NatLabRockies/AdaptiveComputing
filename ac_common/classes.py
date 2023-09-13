@@ -75,7 +75,9 @@ class VizOptions:
 class BoOptions:
     # set the default options
     acq_func = 'EI'
-    minimization_method = 'SLSQP'
+    mixedtype_minimization = 'differential_evolution' # other option is 'sep_cont_disc'
+    sep_disc_minimizer = 'brute' # if the discrete variables input space is not too large, 'brute' is typically faster than 'differential_evolution'
+    sep_cont_minimizer = 'SLSQP'
     # Relative speed of available minimization methods:
     # SLSQP: fast iterations, fast convergence
     # L-BFGS-B: fast iterations, fast convergence

@@ -41,6 +41,7 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_mask_1d` is similar to `example_1d` except that the objective function has been modified to return `NaN` for some input arguments to emulate an objective function that is ill behaved in some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
 * `example_query_1d` is similar to `example_1d` but after training the surrogate, it calls `query()` to evaluate the surrogate and dynamically run more simulations (and retrain) if the standard deviation (uncertainty) exceeds the user-specified limit.
 * `example_pickle_1d` is similar to `example_1d` but it saves the model as a pickle and then unpickles it. This is useful if you need to train a model and then load into memory at a later time. It pickles the model and all simulation evaluations.
+* `example_multifidelity_hero_1d` is similar to `example_multifidelity_1d` except that it uses the Hero task scheduler to run the low- and high-fidelity simulations on separate processes (and possibly on separate resources). See the section on Hero below for details.
 
 <!-- The following tutorial(s) are coming soon: -->
 
@@ -200,10 +201,11 @@ Bayesian optimization options are set with `BoOptions()`, which is another optio
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
 | `acq_func`  | `'EI'`  |  string |  `'EI'`, `'LCB'`, `'SBO'`, `'MSD'` | Chose which acquisition function to use for the optimization. See descriptions below.  |
-| `minimization_method` | `'SLSQP'` | string | `'SLSQP'` or `'Powell'` | See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details on the available optimization methods. Other options are discussed in `classes.py`. The specified method is used for continuous types. An exhaustive search `scipy.brute` is used for ordered and categorical types. |
+| `mixedtype_minimization` | `'differential_evolution'` | string | `'differential_evolution'` or `'sep_cont_disc'` | This option only affects problems with mixed data types. `'differential_evolution'`: use the differential evolution algorithm to minimize the acquisition function. `'sep_cont_disc'`: use separate methods to minimize the continuous and discrete data types as specified by the options `continuous_minimizer` and `discrete_minimizer`. DE is an evolutionary algorithm; see [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.differential_evolution.html) for details. Generally, there is a large performance penalty to using `'sep_cont_disc'`. |
+| `continuous_minimizer` | `'SLSQP'` | string | `'SLSQP'`, or `'Powell'` | Choose the method for minimizing the acquisition function over the continuous data types. See [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize) for details. Additional options are discussed in `classes.py` but not generally recommended. For problems with mixed types, this option is ignored if `mixedtype_minimization = 'differential_evolution'`. |
+| `discrete_minimizer` | `'brute'` | string | `'differential_evolution'` or `'brute'` | For mixed type problems that use `mixedtype_minimization = 'sep_cont_disc'`, this option chooses the method for minimizing the acquisition function over the discrete (categorical and ordered) data types. These are scipy.optimize methods. DE is an evolutionary algorithm; see [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.differential_evolution.html) for details. Brute is a brute force exhaustive search; see [this link](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.brute.html) for details. |
 | `n_opt_pts` | 20 | integer | `>= 0` | Number of initial guesses used to sample the acquisition function to find its minimum. These samples are placed in the parameter space using Latin Hypercube Sampling. |
 | `cpu_hrs_per_sim` | none | list of floats | `>0` | An estimate of the number of CPU (or cost-equivalent resource) hours required to compute a simulation at each fidelity level. The length of the list equals the number of user-defined simulations. This input is required if the number of user-defined simulations `n_fl > 1` and Bayesian optimization is used to select the next simulation point, that is `n_iter > 0`. |
-
 <!-- | `` |  |  |  |  | -->
 
 #### More information about acquisition functions
@@ -265,8 +267,13 @@ These correction functions are assumed to be low order polynomials. Their coeffi
 
 This framework is used recursively to support an arbitrary level of fidelity levels. For example, if there were a third (an even higher fidelity) level (`y_2`), then `y_BF2[x] = y_BF1[x] rho1[x] + delta1[x]`. And so on for higher fidelity levels.
 
-## Development notes
+## Hero task scheduler
 
+Without Hero, AC decides which simulations to run and runs them in place, serially, on the AC process. This is slow when there are many simulations and is inefficient if the simulations require specialized hardware (e.g., multiple nodes). Hero can be used to instead have AC add simulations to task queues that lives in the cloud (on AWS). The AC process does not have to wait for these tasks to complete. (Note: if user needs the AC process to wait for the task to complete, use the command `Model.wait_for_workers()`.) Meanwhile, separate processes called "workers" are launched. These access the queues and complete the tasks in them. Workers can run on separate machines (as long as they are connected to the internet) and there can be multiple of them servicing one or multiple queues. An example is available in `tutorials/example_multifidelity_hero_1d` and more details on Hero are available at
+(https://github.nrel.gov/Hero/hero)[https://github.nrel.gov/Hero/hero] and at
+(https://dev-hero.stratus.nrel.gov/docs/hero)[https://dev-hero.stratus.nrel.gov/docs/hero].
+
+## Development notes
 
 ### Python and Jupyter notebooks
 * Each example directory contains a driver (main) program with `.py` and `.md` extensions. These are identical except for formatting differences. The `.py` is a python script which can be run from the command line or in an IDE. The `.md` file is a Jupyter notebook. Note that with Jupytext, the markdown files can be used just like `.ipynb` notebook files, except that the output will not be saved when they are closed. This aids with version control using git.  	
@@ -293,6 +300,7 @@ git clone https://github.com/NREL/AdaptiveComputing.git
 * IPython
 * Matplotlib
 * Optional: Jupyter notebooks and Jupytext
+* Optional: Hero task scheduler (to run simulations on separate processes, e.g., to use HPC resources)
 
 #### Option 1: Install locally using a package manager
 For example, on mac
@@ -345,3 +353,44 @@ jupyter notebook
 ### Option 2b: Run using a Jupyter notebook
 
 * See the `conda_env_instructions.md`
+
+### Install Hero
+You can try `pip install git+https://github.nrel.gov/Hero/hero.git` but this hasn't been tested.
+
+* Install the Hero source code following the instructions at (https://github.nrel.gov/Hero/hero)[https://github.nrel.gov/Hero/hero]
+
+#### Add task to a Hero queue on Eagle
+
+* The following steps will confirm your installation.
+* `module load conda`
+* `cd` into the `hero` source directory
+
+~~~{.bash}
+source activate /env/bin/activate
+export HERO_PROJECT="adaptive-computing"
+export HERO_QUEUE="queue-1"
+export HERO_CLIENT_ID="f4om7c738a1um7fgjao6msve7"
+export HERO_CLIENT_SECRET="mbk361rg0eedkd6k34t5cujukl19clbv50qnteqi829gnpufkde"
+export HERO_QUEUE_VISIBILITY_TIMEOUT="60"
+export HERO_DATABASE_PASSWORD="8fc2a2e2-ed9e-413d-996a-72da94e11c5c"
+cd examples/basic/
+python hero_controller.py
+~~~
+
+#### Run the tasks on your local machine (assuming Mac)
+
+* `cd` into the `hero` source directory
+
+~~~{.bash}
+source env/bin/activate
+export HERO_PROJECT="adaptive-computing"
+export HERO_QUEUE="queue-1"
+export HERO_CLIENT_ID="f4om7c738a1um7fgjao6msve7"
+export HERO_CLIENT_SECRET="mbk361rg0eedkd6k34t5cujukl19clbv50qnteqi829gnpufkde"
+export HERO_QUEUE_VISIBILITY_TIMEOUT="60"
+export HERO_DATABASE_PASSWORD="8fc2a2e2-ed9e-413d-996a-72da94e11c5c"
+cd examples/basic/
+python hero_worker.py
+~~~
+
+The output should confirm that the worker finds the tasks submitted by the controller and marks them as complete.
