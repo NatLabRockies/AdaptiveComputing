@@ -48,13 +48,13 @@ def viz_animate(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[0](x_plot[i])
                 y_plot[i] = model.eval_xnum(0,x_plot[i])
-            y_gp_plot = model.gprs[-1].predict_values(x_plot)
-            y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
+            y_gp_plot = model.surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_EI:
                 x_ei_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
-                y_ei_plot = -EI(model.gprs[-1],x_ei_plot,np.min(model.y_data[0][:-1]))
+                y_ei_plot = -EI(model.surrogate,x_ei_plot,np.min(model.y_data[0][:-1]),-1)
                 ax1 = ax.twinx()
                 ax1.plot(x_ei_plot,y_ei_plot,color='red',label='-EI')
                 ax1.set_ylabel('-EI')
@@ -64,7 +64,7 @@ def viz_animate(model,viz_ops,frame_id):
             ax.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             ax.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             ax.scatter(model.x_data[0][ndoe:-1],model.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
-            ax.scatter(model.x_data[0][-1],model.gprs[-1].predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
+            ax.scatter(model.x_data[0][-1],model.surrogate.predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
             ax.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='GP mean')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
@@ -98,11 +98,11 @@ def viz_animate(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[-1](x_plot[i])
                 y_plot[i] = model.eval_xnum(-1,x_plot[i])
-            y_gp_plot = model.gprs[-1].predict_values(x_plot)
-            y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
+            y_gp_plot = model.surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            #y_ei_plot = -EI(model.gprs[-1],x_plot,np.min(model.y_data[-1]))
+            #y_ei_plot = -EI(model.surrogate,x_plot,np.min(model.y_data[-1]),-1)
             # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
             #     ei, = ax.plot(x_plot,y_ei_plot,color='red')
             # else:    
@@ -113,7 +113,7 @@ def viz_animate(model,viz_ops,frame_id):
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='black',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')
-            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='model.gprs[-1] prediction')
+            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
             plt.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.25,color='g',label='99 % confidence')
@@ -155,8 +155,8 @@ def viz_finalize(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[0](x_plot[i])
                 y_plot[i] = model.eval_xnum(0,x_plot[i])
-            y_gp_plot = model.gprs[-1].predict_values(x_plot)
-            y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
+            y_gp_plot = model.surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:
@@ -164,7 +164,7 @@ def viz_finalize(model,viz_ops,frame_id):
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             plt.scatter(model.x_data[0][ndoe:],model.y_data[0][ndoe:],marker='o',color='orange',label='Additional samples')
-            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='model.gprs[-1] prediction')
+            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
             plt.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.25,color='g',label='99 % confidence')
@@ -219,8 +219,8 @@ def viz_finalize(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[-1](x_plot[i])
                 y_plot[i] = model.eval_xnum(-1,x_plot[i])
-            y_gp_plot = model.gprs[-1].predict_values(x_plot)
-            y_gp_plot_var  =  model.gprs[-1].predict_variances(x_plot)
+            y_gp_plot = model.surrogate.predict_values(x_plot,-1)
+            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:
@@ -228,7 +228,7 @@ def viz_finalize(model,viz_ops,frame_id):
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             plt.scatter(model.x_data[0],model.y_data[0],marker='^',color='k',label='LF samples')
             plt.scatter(model.x_data[1],model.y_data[1],marker='o',color='orange',label='HF samples')
-            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='model.gprs[-1] prediction')
+            plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
             plt.fill_between(x_plot.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.25,color='g',label='99 % confidence')

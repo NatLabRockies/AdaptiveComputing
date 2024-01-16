@@ -30,14 +30,14 @@ def add_lhs_samples(model,n_lhs_samp):
             
             if model.mod_ops.use_hero:
                 for i_s in range (n_lhs_samp[i]):
-                    model.queue_hero_sample(i,x_data_lhs[i_s,:],y_gpr=False)
+                    model.queue_hero_sample(i,x_data_lhs[i_s,:],y_sur=False)
             else:
                 for i_s in range (n_lhs_samp[i]):
                     model.add_xnum_sample(i,x_data_lhs[i_s,:],train=False)
                     # Note: train=False since will perform a single training below, outside the loop
 
     if model.mod_ops.use_hero:
-        print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the GPR already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
+        print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the surrogate already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
         model.wait_for_workers(train=False)
     model.train_on_unmasked_data()
 
@@ -83,22 +83,22 @@ def add_file_samples(model,filenames):
                         raise Exception('Unrecognized type for parameter '+str(i))    
                 if len(a[i+1]) == model.n_dim: # if the user has not specified any objective function values
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_gpr=False)
+                        model.queue_hero_sample(f,x_cur,y_sur=False)
                     else:
                         model.add_xnum_sample(f,x_cur,train=False) # Note: train=False since will perform a single training below, outside the loop
                 elif a[i+1][model.n_dim] == '': # elif the user has specified some objective function values, but not the present row's objective function value
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_gpr=False)
+                        model.queue_hero_sample(f,x_cur,y_sur=False)
                     else:
                         model.add_xnum_sample(f,x_cur,train=False)
                 else: # the user has specified the parameters and the corresponding objective function evaluations
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_gpr=False)
+                        model.queue_hero_sample(f,x_cur,y_sur=False)
                     else:
                         model.add_xnum_sample(f,x_cur,y_eval=float(a[i+1][model.n_dim]),train=False)
 
     if model.mod_ops.use_hero:
-        print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the GPR already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
+        print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the surrogate already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
         model.wait_for_workers(train=False)
     model.train_on_unmasked_data()
 
@@ -116,7 +116,7 @@ def native_to_num(model,x_eval_native):
     return x_eval_num
 
 #########################################################
-# Add a sim to the model's training set, retrain the model using all unmasked data, and update the masked data using the new gpr
+# Add a sim to the model's training set, retrain the model using all unmasked data, and update the masked data using the new surrogate
 # The x_eval_num argument has variable types converted to floats as SMT expects
 def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,train):
     if y_eval is None:
@@ -143,7 +143,7 @@ def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,trai
             if not pt_exists: # add the sim at the im1_fl level
                 model.add_xnum_sample(im1_fl,x_eval_num,train=train)
 
-    # Visualize the next point to add and the GPR that has not yet been trained on this point
+    # Visualize the next point to add and the surrogate that has not yet been trained on this point
     if viz_ops is not None:
         from .viz import viz_animate
         viz_animate(model,viz_ops,frame_id)
@@ -157,12 +157,12 @@ def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,trai
 # queue of simulations to run and the function returns, storing a temporary result
 # in the mean time.
 # The x_eval_num argument has variable types converted to floats as SMT expects
-def queue_hero_sample(model,fidelity_level,x_eval_num,y_gpr,viz_ops,frame_id):
+def queue_hero_sample(model,fidelity_level,x_eval_num,y_sur,viz_ops,frame_id):
     model.x_data[fidelity_level] = np.append(model.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
-    # set a placeholder value using the GPR's prediction
-    assert(isinstance(y_gpr, bool))
-    if y_gpr:
-        y_eval = model.gprs[fidelity_level].predict_values(np.atleast_2d(x_eval_num))[0]
+    # set a placeholder value using the surrogate's prediction
+    assert(isinstance(y_sur, bool))
+    if y_sur:
+        y_eval = model.surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
         model.y_data[fidelity_level] = np.atleast_2d(np.append(model.y_data[fidelity_level], y_eval)).T
     else:
         model.y_data[fidelity_level] = np.atleast_2d(np.append(model.y_data[fidelity_level], np.NaN)).T
@@ -199,7 +199,7 @@ def queue_hero_sample(model,fidelity_level,x_eval_num,y_gpr,viz_ops,frame_id):
                 model.queue_hero_sample(im1_fl,x_eval_num)
 
 #########################################################
-# Collect data from any sims in the hero queue that have finished. Retrain the GPR.
+# Collect data from any sims in the hero queue that have finished. Retrain the surrogate.
 def sync_hero_results(model,viz_ops,train):
     # if viz_ops is not None:
     #     from .viz import viz_animate
@@ -215,7 +215,7 @@ def sync_hero_results(model,viz_ops,train):
                     # Check for NaNs and out of bounds y_data
                     model.unmasked_data[i_fl][i] = check_nan_oob(y_eval,model.mod_ops)
                     model.hero_todo[i_fl][i] = False
-                    # Visualize the next point to add and the GPR that has not yet been trained on this point
+                    # Visualize the next point to add and the surrogate that has not yet been trained on this point
                     # if viz_ops is not None:
                     #     viz_animate(model,viz_ops,frame_id)
 
@@ -282,22 +282,20 @@ def train_on_unmasked_data(model):
                       ' sampling, and perform_lower_sims if active. Note: that only values that are '+
                       'non-NaN and within user-specified allowable bounds are included in these counts.')
     
+    # Extract the unmasked data
+    x_data_unmasked = []
+    y_data_unmasked = []
     for i_fl in range(model.n_fl):
-        for ii_fl in range(i_fl):
-            model.gprs[i_fl].set_training_values(model.x_data[ii_fl][model.unmasked_data[ii_fl].flatten()],
-                                                 model.y_data[ii_fl][model.unmasked_data[ii_fl].flatten()], name=ii_fl)
-            # Note: other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
-        model.gprs[i_fl].set_training_values(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()],
-                                             model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
-        # Note: highest-fidelity dataset does not get a name        
-        model.gprs[i_fl].train()
+        x_data_unmasked.append(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()])
+        y_data_unmasked.append(model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
+    model.surrogate.train(x_data_unmasked, y_data_unmasked)
 
     # Update the values for the masked data
-    # Predict the mean value at all x_data[masked] values using GPR_unmasked (and store these in y_data[masked])
+    # Predict the mean value at all x_data[masked] values using surrogate_unmasked (and store these in y_data[masked])
     for i_fl in range(model.n_fl):
         for i in range(len(model.y_data[i_fl])):
             if not model.unmasked_data[i_fl][i]:
-                model.y_data[i_fl][i] = model.gprs[i_fl].predict_values(np.atleast_2d(model.x_data[i_fl][i]))[0]
+                model.y_data[i_fl][i] = model.surrogate.predict_values(np.atleast_2d(model.x_data[i_fl][i]), i_fl)[0]
 
 #########################################################
 # Train the surrogate model using x_data and y_data. This training uses masked and unmasked data.
@@ -321,11 +319,7 @@ def train_on_all_data(model):
                       ' sampling, and perform_lower_sims if active. Note: that only values that are '+
                       'non-NaN and within user-specified allowable bounds are included in these counts.')
                 
-    for i_fl in range(model.n_fl):
-        for ii_fl in range(i_fl):
-            model.gprs[i_fl].set_training_values(model.x_data[ii_fl], model.y_data[ii_fl], name=ii_fl) # other fidelities are accessed with names from 0 to model.n_fl-2 listed in order of increasing fidelity.
-        model.gprs[i_fl].set_training_values(model.x_data[i_fl], model.y_data[i_fl]) # highest-fidelity dataset does not get a name
-        model.gprs[i_fl].train()
+    model.surrogate.train(model.x_data, model.y_data)
 
 # #########################################################
 # # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too

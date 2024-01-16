@@ -30,8 +30,8 @@ def query(model,x_queries,fidelity_level,threshold_std,threshold_std_mean,thresh
         x_queries_num[i,:] = model.native_to_num(x_queries[i,:])  
 
         # Evaluate the surrogate model
-        y_queries[i] = model.gprs[fidelity_level].predict_values(np.atleast_2d(x_queries_num[i]))[0]
-        y_queries_var[i] = model.gprs[fidelity_level].predict_variances(np.atleast_2d(x_queries_num[i]))[0]
+        y_queries[i] = model.surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+        y_queries_var[i] = model.surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
 
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
@@ -55,8 +55,8 @@ def query(model,x_queries,fidelity_level,threshold_std,threshold_std_mean,thresh
     # Re-evaluate the surrogate model because some new simulations may have been conducted
     if (threshold_std is not None) or (threshold_std_mean is not None) or (threshold_std_tv is not None):
         for i in range(n_queries):    
-            y_queries[i] = model.gprs[fidelity_level].predict_values(x_queries_num[i])
-            y_queries_var[i] = model.gprs[fidelity_level].predict_variances(x_queries_num[i])
+            y_queries[i] = model.surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+            y_queries_var[i] = model.surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
 
     return y_queries, y_queries_var
 

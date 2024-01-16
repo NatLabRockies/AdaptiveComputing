@@ -42,7 +42,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
     for k in range(n_iter):
         print('Beginning AC optimization iteration ' + str(k))
 
-        # Retrain GPR using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
+        # Retrain surrogate using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
         model.train_on_all_data()
 
         af_array = np.zeros([model.n_fl,1]) # acquisition function min values for each fidelity level
@@ -60,7 +60,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
             # x_start is an array of initial guess used in the search for the minimum of the acquisition function
             x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
             f_min_k = np.min(model.y_data[i]) # this is an argument needed by the EI acquisition function
-            obj_k = get_acq_func(bo_ops.acq_func,model.gprs[i],f_min_k) # this is the acquistion function which will be minimized
+            obj_k = get_acq_func(bo_ops.acq_func,model.surrogate,f_min_k,i) # this is the acquistion function which will be minimized
             x_et_k_array[i,:] = minimize_acq_func(model,obj_k,x_start,bo_ops)
             af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
             # print(f'x_opt = {x_et_k_array[i,:]}, obj = {af_array[i]}.')
@@ -92,7 +92,7 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if model.mod_ops.deterministic:
         #     # rand_state = i*(n_iter+1)+k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations. 
-        #     # Since I am just evaluating the acquisition function on the MF GPR, I don't need the i to change the seed for different fidelity levels
+        #     # Since I am just evaluating the acquisition function on the MF surrogate, I don't need the i to change the seed for different fidelity levels
         #     rand_state = k+1 # ensurses the fidelity levels all have unique seeds on all optimization iterations
         # if model.mixed_type:
         #     sampling_opt = MixedIntegerSamplingMethod(model.xtypes, model.xlimits, LHS, criterion="maximin", random_state=rand_state)
@@ -100,20 +100,20 @@ def add_bo_samples(model,n_iter,bo_ops,viz_ops):
         #     sampling_opt = LHS(xlimits=model.xlimits, criterion='maximin', random_state=rand_state)
         # x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
         # f_min_k = np.min(model.y_data)
-        # obj_k = get_acq_func(bo_ops.acq_func,model.gprs[-1],f_min_k)
+        # obj_k = get_acq_func(bo_ops.acq_func,model.surrogate,f_min_k,-1)
         # x_et_k = minimize_acq_func(obj_k, x_start, model.mod_ops, model.xlimits_num)
         # if model.multifidelity: # decide which fidelity level to evaluate the objective on.
         #     # this is a work in progress... the algorithm is in my notes, but it has the issue that it compares variances across levels.
         #     # Should be non-dimensional since the multiplicative correction function can drastically change the variance across levels
         #     # A = [];
         #     # for i_var_check in range(model.n_fl-1):
-        #     #     A.append(model.gprs[i_var_check].predict_variances(x_et_k))
+        #     #     A.append(model.surrogate.predict_variances(x_et_k,i_var_check))
         #     # ind_which_lvl = 0
         #     # y_et_k = model.funcs[ind_which_lvl](x_et_k)
         #     # model.y_data[i] = np.atleast_2d(np.append(model.y_data,y_et_k)).T
         #     # model.x_data[i] = np.append(model.x_data[i],np.atleast_2d(x_et_k),axis=0)
         #     # for i_var_check in range(model.n_fl-1):
-        #     #     if model.gprs[i_var_check + 1].predict_variances(x_et_k) > A[i_var_check]
+        #     #     if model.surrogate.predict_variances(x_et_k,i_var_check + 1) > A[i_var_check]
         #     ??
         # else: # always use fidelity level 0
         #     ind_which_lvl = 0
@@ -138,20 +138,20 @@ def find_min(model):
     # ind_best = np.argmin(model.y_data[-1])
     # x_opt = model.x_data[-1][ind_best,:]
     # y_opt = model.y_data[-1][ind_best]
-    # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
+    # option 2: estimate the optimum using the highest fidelity surrogate and every sampled location with any fidelity level
     # Begin with the x_data where the highest fidelity model has been evaluated
-    ind_best = np.argmin(model.gprs[-1].predict_values(model.x_data[-1]))
+    ind_best = np.argmin(model.surrogate.predict_values(model.x_data[-1]))
     x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
-    y_opt = model.gprs[-1].predict_values(x_opt)
+    y_opt = model.surrogate.predict_values(x_opt,-1)
     x_opt = x_opt[0]
     y_opt = y_opt[0]
     opt_is_masked = False
     if not model.unmasked_data[-1][ind_best]:
         opt_is_masked = True
-    for i in range(model.n_fl-1):
-        y_min_i = np.min(model.gprs[-1].predict_values(model.x_data[i]))
+    for i in range(model.n_fl-1): # check the highest fidelity surrogate model evaluated at the points where lower fidelity sims have been conducted
+        y_min_i = np.min(model.surrogate.predict_values(model.x_data[i],-1))
         if  y_min_i < y_opt:
-            ind_best_mf = np.argmin(model.gprs[-1].predict_values(model.x_data[i]))
+            ind_best_mf = np.argmin(model.surrogate.predict_values(model.x_data[i],-1))
             y_opt = y_min_i
             x_opt = model.x_data[i][ind_best_mf,:]
             if not model.unmasked_data[i][ind_best_mf]:
@@ -163,24 +163,25 @@ def find_min(model):
               +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
         print(f'This masked minimum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning minimum using only the unmasked data.')
-        ind_best = np.argmin(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
+        ind_best = np.argmin(model.surrogate.predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()],-1)) # this index is of only the unmasked data
         orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]
         ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
         x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
-        y_opt = model.gprs[-1].predict_values(x_opt)
+        y_opt = model.surrogate.predict_values(x_opt,-1)
         x_opt = x_opt[0]
         y_opt = y_opt[0]
         assert(model.unmasked_data[-1][ind_best])
         for i in range(model.n_fl-1):
-            y_min_i = np.min(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+            y_min_i = np.min(model.surrogate.predict_values(model.x_data[i][model.unmasked_data[i].flatten()],-1))
             if  y_min_i < y_opt:
-                ind_best_mf = np.argmin(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+                ind_best_mf = np.argmin(model.surrogate.predict_values(model.x_data[i][model.unmasked_data[i].flatten()],-1))
                 orig_indices_of_unmasked = np.where(model.unmasked_data[i].flatten())[0]
                 ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
                 y_opt = y_min_i
                 x_opt = model.x_data[i][ind_best_mf,:]
                 assert(model.unmasked_data[i][ind_best_mf])
-    # option 3: could implement a minimization on the GPR surface though this introduces additional uncertainty
+    # option 3: could implement a minimization on the surrogate surface though this introduces additional uncertainty, since could
+    # return a point where no simulation has ever been computed yet.
 
     return [x_opt, y_opt]
 
@@ -197,20 +198,20 @@ def find_max(model):
     # ind_best = np.argmax(model.y_data[-1])
     # x_opt = model.x_data[-1][ind_best,:]
     # y_opt = model.y_data[-1][ind_best]
-    # option 2: estimate the optimum using the highest fidelity GPR and every sampled location with any fidelity level
+    # option 2: estimate the optimum using the highest fidelity surrogate and every sampled location with any fidelity level
     # Begin with the x_data where the highest fidelity model has been evaluated
-    ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1]))
+    ind_best = np.argmax(model.surrogate.predict_values(model.x_data[-1],-1))
     x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
-    y_opt = model.gprs[-1].predict_values(x_opt)
+    y_opt = model.surrogate.predict_values(x_opt,-1)
     x_opt = x_opt[0]
     y_opt = y_opt[0]
     opt_is_masked = False
     if not model.unmasked_data[-1][ind_best]:
         opt_is_masked = True
     for i in range(model.n_fl-1):
-        y_max_i = np.max(model.gprs[-1].predict_values(model.x_data[i]))
+        y_max_i = np.max(model.surrogate.predict_values(model.x_data[i],-1))
         if  y_max_i < y_opt:
-            ind_best_mf = np.argmax(model.gprs[-1].predict_values(model.x_data[i]))
+            ind_best_mf = np.argmax(model.surrogate.predict_values(model.x_data[i],-1))
             y_opt = y_max_i
             x_opt = model.x_data[i][ind_best_mf,:]
             if not model.unmasked_data[i][ind_best_mf]:
@@ -222,23 +223,23 @@ def find_max(model):
               +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
         print(f'This masked maximum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning maximum using only the unmasked data.')
-        ind_best = np.argmax(model.gprs[-1].predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()])) # this index is of only the unmasked data
+        ind_best = np.argmax(model.surrogate.predict_values(model.x_data[-1][model.unmasked_data[-1].flatten()],-1)) # this index is of only the unmasked data
         orig_indices_of_unmasked = np.where(model.unmasked_data[-1].flatten())[0]
         ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
         x_opt = np.atleast_2d(model.x_data[-1][ind_best,:])
-        y_opt = model.gprs[-1].predict_values(x_opt)
+        y_opt = model.surrogate.predict_values(x_opt,-1)
         x_opt = x_opt[0]
         y_opt = y_opt[0]
         assert(model.unmasked_data[-1][ind_best])
         for i in range(model.n_fl-1):
-            y_max_i = np.max(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+            y_max_i = np.max(model.surrogate.predict_values(model.x_data[i][model.unmasked_data[i].flatten()],-1))
             if  y_max_i < y_opt:
-                ind_best_mf = np.argmax(model.gprs[-1].predict_values(model.x_data[i][model.unmasked_data[i].flatten()]))
+                ind_best_mf = np.argmax(model.surrogate.predict_values(model.x_data[i][model.unmasked_data[i].flatten()],-1))
                 orig_indices_of_unmasked = np.where(model.unmasked_data[i].flatten())[0]
                 ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
                 y_opt = y_max_i
                 x_opt = model.x_data[i][ind_best_mf,:]
                 assert(model.unmasked_data[i][ind_best_mf])
-    # option 3: could implement a maximization on the GPR surface though this introduces additional uncertainty
+    # option 3: could implement a maximization on the surrogate surface though this introduces additional uncertainty
 
     return [x_opt, y_opt]

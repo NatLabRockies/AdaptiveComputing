@@ -94,9 +94,9 @@ def driver_mf_1d():
     x_HF = my_model.x_data[1]
     y_HF = my_model.y_data[1]
     plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
-    plt.plot(x, my_model.gprs[-1].predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
-    sig_plus = my_model.gprs[-1].predict_values(x)+3*np.sqrt(my_model.gprs[-1].predict_variances(x))
-    sig_moins = my_model.gprs[-1].predict_values(x)-3*np.sqrt(my_model.gprs[-1].predict_variances(x))
+    plt.plot(x, my_model.surrogate.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
+    sig_plus = my_model.surrogate.predict_values(x)+3*np.sqrt(my_model.surrogate.predict_variances(x))
+    sig_moins = my_model.surrogate.predict_values(x)-3*np.sqrt(my_model.surrogate.predict_variances(x))
     plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
     plt.legend(loc=0)
     plt.ylim(-10, 17)

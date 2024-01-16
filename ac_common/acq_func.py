@@ -10,9 +10,9 @@ from scipy.stats import norm
 from scipy.optimize import minimize, brute, differential_evolution
 #########################################################
 # expected improvement: 
-def EI(GP,points,f_min):
-    pred = GP.predict_values(points)
-    var = GP.predict_variances(points)
+def EI(GP,points,f_min,fidelity_level):
+    pred = GP.predict_values(points,fidelity_level)
+    var = GP.predict_variances(points,fidelity_level)
     args0 = (f_min - pred)/np.sqrt(var)
     args1 = (f_min - pred)*norm.cdf(args0)
     args2 = np.sqrt(var)*norm.pdf(args0)
@@ -22,32 +22,32 @@ def EI(GP,points,f_min):
     return ei
 #########################################################
 # surrogate Based optimization: min the Surrogate model by using the mean mu
-def SBO(GP,points):
-    res = GP.predict_values(points)
+def SBO(GP,points,fidelity_level):
+    res = GP.predict_values(points,fidelity_level)
     return res
 #########################################################
 # lower confidence bound optimization: minimize by using mu - 3*sigma
-def LCB(GP,points):
-    pred = GP.predict_values(points)
-    var = GP.predict_variances(points)
+def LCB(GP,points,fidelity_level):
+    pred = GP.predict_values(points,fidelity_level)
+    var = GP.predict_variances(points,fidelity_level)
     res = pred-3.*np.sqrt(var)
     return res
 #########################################################
 # maximal standard deviation: tries to minimize the max standard deviation
-def MSD(GP,points):
-    var = GP.predict_variances(points)
+def MSD(GP,points,fidelity_level):
+    var = GP.predict_variances(points,fidelity_level)
     res = -np.sqrt(var)
     return res
 #########################################################
-def get_acq_func(IC,gpr,f_min_k):
+def get_acq_func(IC,gpr,f_min_k,fidelity_level):
     if IC == 'EI':
-        obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k)[:,0]
+        obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k,fidelity_level)[:,0]
     elif IC =='SBO':
-        obj_k = lambda x: SBO(gpr,np.atleast_2d(x))
+        obj_k = lambda x: SBO(gpr,np.atleast_2d(x),fidelity_level)
     elif IC == 'LCB':
-        obj_k = lambda x: LCB(gpr,np.atleast_2d(x))
+        obj_k = lambda x: LCB(gpr,np.atleast_2d(x),fidelity_level)
     elif IC == 'MSD':
-        obj_k = lambda x: MSD(gpr,np.atleast_2d(x))
+        obj_k = lambda x: MSD(gpr,np.atleast_2d(x),fidelity_level)
     else:
         raise Exception('Unrecognized acq_func specified.')
     return obj_k
