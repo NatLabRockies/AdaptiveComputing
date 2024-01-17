@@ -40,7 +40,6 @@ class SMTWrapper(SurrogateModelBase):
                 self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=xtypes, xlimits=xlimits)
 
     def train(self, x_data, y_data):
-        #self.surrogate_model.set_training_values(x_data, y_data)
         for i_fl in range(self.n_fl):
             # Set the training values for all levels below the current fidelity level by indicating the name field
             # Note: other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
@@ -58,7 +57,42 @@ class SMTWrapper(SurrogateModelBase):
 
     def predict_variances(self, x_data, fidelity_level=-1):
         return self.surrogate_model[fidelity_level].predict_variances(np.atleast_2d(x_data))    
+
+# # To implement a new type of surrogate model, copy the following code and
+# # implement the methods using function calls to your desired surrogate modeling library.
+# class ExampleWrapper(SurrogateModelBase):
+#     # n_fl: number of fidelity levels
+#     # multifidelity: boolean indicates if more than 1 fidelity level
+#     # mixed_type: boolean indicates if non-float types are used (enumerated or ordered types)
+#     def __init__(self, n_fl, multifidelity, mixed_type, ...):
+#         # Call the constructor of the base class
+#         super().__init__(n_fl, multifidelity, mixed_type)
         
-# To implement a new type of surrogate model, copy the preceding SMTWrapper code,
-# implement the methods using function calls to your desired
-# surrogate modeling library.
+#         # Initialize the surrogate model. Might use additional arguments
+#         # self.surrogate_model = ...
+#         pass
+
+#     # Train the surrogate model using the provided samples space coordinates x_data and the function values y_data
+#     # x_data: is the location in the sample space of the training data. It is a list of length n_fl.
+#     # Each entry is a numpy array of size n_samp[i_fl] (number of samples for the given fidelity level) x n_dim (dimension size of the sample space)
+#     # y_data: is the function values for the training data. It is a list of length n_fl.
+#     # Each entry is a numpy array of size n_samp[i_fl] (number of samples for the given fidelity level) x 1
+#     def train(self, x_data, y_data):
+#         # Example code: self.surrogate_model.add_training_point(x_data[0:n_fl][0:n_samp,0:n_dim], y_data[0:n_fl][0:n_samp,0])
+#         pass
+
+#     # Evaluate the expected value of the surrogate model on specified fidelity level at the specified x coordinates
+#     # x_data: is the location in the sample space of the training data. It is a list of length n_fl.
+#     # Each entry is a numpy array of size n_samp[i_fl] (number of samples for the given fidelity level) x n_dim (dimension size of the sample space)
+#     # fidelity_level: interger in the range 0,..., n_fl-1 indicating which fidelity level to evaluate
+#     def predict_values(self, x_data, fidelity_level=-1):
+#         # Example code: self.surrogate_model.eval(x_data[0:n_fl][0:n_samp,0:n_dim],fidelity_level=0) 
+#         pass
+
+#     # Evaluate the variance of the surrogate model on specified fidelity level at the specified x coordinates
+#     # x_data: is the location in the sample space of the training data. It is a list of length n_fl.
+#     # Each entry is a numpy array of size n_samp[i_fl] (number of samples for the given fidelity level) x n_dim (dimension size of the sample space)
+#     # fidelity_level: interger in the range 0,..., n_fl-1 indicating which fidelity level to evaluate
+#     def predict_variances(self, x_data, fidelity_level=-1):
+#         # Example code: self.surrogate_model.eval_variance(x_data[0:n_fl][0:n_samp,0:n_dim],fidelity_level=0) 
+#         pass
