@@ -5,7 +5,7 @@ from .utils import check_nan_oob
 from .model import num_to_native
 #########################################################
 # Pseudo-random initial sampling
-def add_lhs_samples(model,n_lhs_samp):
+def add_lhs_samples(model,n_lhs_samp,surrogate):
     n_lhs_samp = np.atleast_1d(n_lhs_samp)
     if len(n_lhs_samp) != model.n_fl:
         raise Exception('Must provide a list of length n fidelity levels specifying number of initial samples for each fidelity level.')
@@ -30,20 +30,21 @@ def add_lhs_samples(model,n_lhs_samp):
             
             if model.mod_ops.use_hero:
                 for i_s in range (n_lhs_samp[i]):
-                    model.queue_hero_sample(i,x_data_lhs[i_s,:],y_sur=False)
+                    model.queue_hero_sample(i,x_data_lhs[i_s,:],surrogate=None)
             else:
                 for i_s in range (n_lhs_samp[i]):
-                    model.add_xnum_sample(i,x_data_lhs[i_s,:],train=False)
-                    # Note: train=False since will perform a single training below, outside the loop
+                    model.add_xnum_sample(i,x_data_lhs[i_s,:],surrogate=None)
+                    # Note: surrogate=None since will perform a single training below, outside the loop
 
     if model.mod_ops.use_hero:
         print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the surrogate already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
-        model.wait_for_workers(train=False)
-    model.train_on_unmasked_data()
+        model.wait_for_workers(surrogate=None)
+    if surrogate is not None:
+        model.train_on_unmasked_data(surrogate)
 
 #########################################################
 # Read user-provided function evaluations from a .csv file
-def add_file_samples(model,filenames):
+def add_file_samples(model,filenames,surrogate):
     import csv
     filenames = np.atleast_1d(filenames)
     if len(filenames) != model.n_fl:
@@ -83,24 +84,25 @@ def add_file_samples(model,filenames):
                         raise Exception('Unrecognized type for parameter '+str(i))    
                 if len(a[i+1]) == model.n_dim: # if the user has not specified any objective function values
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_sur=False)
+                        model.queue_hero_sample(f,x_cur,surrogate=None)
                     else:
-                        model.add_xnum_sample(f,x_cur,train=False) # Note: train=False since will perform a single training below, outside the loop
+                        model.add_xnum_sample(f,x_cur,surrogate=None) # Note: surrogate=None since will perform a single training below, outside the loop
                 elif a[i+1][model.n_dim] == '': # elif the user has specified some objective function values, but not the present row's objective function value
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_sur=False)
+                        model.queue_hero_sample(f,x_cur,surrogate=None)
                     else:
-                        model.add_xnum_sample(f,x_cur,train=False)
+                        model.add_xnum_sample(f,x_cur,surrogate=None)
                 else: # the user has specified the parameters and the corresponding objective function evaluations
                     if model.mod_ops.use_hero:
-                        model.queue_hero_sample(f,x_cur,y_sur=False)
+                        model.queue_hero_sample(f,x_cur,surrogate=None)
                     else:
-                        model.add_xnum_sample(f,x_cur,y_eval=float(a[i+1][model.n_dim]),train=False)
+                        model.add_xnum_sample(f,x_cur,y_eval=float(a[i+1][model.n_dim]),surrogate=None)
 
     if model.mod_ops.use_hero:
         print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the surrogate already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
-        model.wait_for_workers(train=False)
-    model.train_on_unmasked_data()
+        model.wait_for_workers(surrogate=None)
+    if surrogate is not None:
+        model.train_on_unmasked_data(surrogate)
 
 #########################################################
 # Convert any categorical entries in x_query to be numbers   
@@ -118,7 +120,7 @@ def native_to_num(model,x_eval_native):
 #########################################################
 # Add a sim to the model's training set, retrain the model using all unmasked data, and update the masked data using the new surrogate
 # The x_eval_num argument has variable types converted to floats as SMT expects
-def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,train):
+def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,surrogate):
     if y_eval is None:
         # y_eval = model.funcs[fidelity_level](x_eval_num)
         y_eval = model.eval_xnum(fidelity_level,x_eval_num)
@@ -141,15 +143,15 @@ def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,trai
                 if np.array_equal(model.x_data[fidelity_level][-1,:],model.x_data[im1_fl][j_d_lower,:]):
                     pt_exists = True
             if not pt_exists: # add the sim at the im1_fl level
-                model.add_xnum_sample(im1_fl,x_eval_num,train=train)
+                model.add_xnum_sample(im1_fl,x_eval_num,surrogate=surrogate)
 
     # Visualize the next point to add and the surrogate that has not yet been trained on this point
     if viz_ops is not None:
         from .viz import viz_animate
-        viz_animate(model,viz_ops,frame_id)
+        viz_animate(model,surrogate,viz_ops,frame_id)
 
-    if train:
-        model.train_on_unmasked_data()
+    if surrogate is not None:
+        model.train_on_unmasked_data(surrogate)
 
 #########################################################
 # Add a sim to the model's training set and retrain the model using all unmasked data.
@@ -157,12 +159,11 @@ def add_xnum_sample(model,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,trai
 # queue of simulations to run and the function returns, storing a temporary result
 # in the mean time.
 # The x_eval_num argument has variable types converted to floats as SMT expects
-def queue_hero_sample(model,fidelity_level,x_eval_num,y_sur,viz_ops,frame_id):
+def queue_hero_sample(model,fidelity_level,x_eval_num,surrogate,viz_ops,frame_id):
     model.x_data[fidelity_level] = np.append(model.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
     # set a placeholder value using the surrogate's prediction
-    assert(isinstance(y_sur, bool))
-    if y_sur:
-        y_eval = model.surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
+    if surrogate is not None:
+        y_eval = surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
         model.y_data[fidelity_level] = np.atleast_2d(np.append(model.y_data[fidelity_level], y_eval)).T
     else:
         model.y_data[fidelity_level] = np.atleast_2d(np.append(model.y_data[fidelity_level], np.NaN)).T
@@ -196,11 +197,11 @@ def queue_hero_sample(model,fidelity_level,x_eval_num,y_sur,viz_ops,frame_id):
                 if np.array_equal(model.x_data[fidelity_level][-1,:],model.x_data[im1_fl][j_d_lower,:]):
                     pt_exists = True
             if not pt_exists: # add the sim at the im1_fl level
-                model.queue_hero_sample(im1_fl,x_eval_num)
+                model.queue_hero_sample(im1_fl,x_eval_num,surrogate)
 
 #########################################################
-# Collect data from any sims in the hero queue that have finished. Retrain the surrogate.
-def sync_hero_results(model,viz_ops,train):
+# Collect data from any sims in the hero queue that have finished. Retrain the surrogate if it is provided.
+def sync_hero_results(model,surrogate,viz_ops):
     # if viz_ops is not None:
     #     from .viz import viz_animate
     for i_fl in range(model.n_fl):
@@ -217,21 +218,21 @@ def sync_hero_results(model,viz_ops,train):
                     model.hero_todo[i_fl][i] = False
                     # Visualize the next point to add and the surrogate that has not yet been trained on this point
                     # if viz_ops is not None:
-                    #     viz_animate(model,viz_ops,frame_id)
+                    #     viz_animate(model,surrogate,viz_ops,frame_id)
 
-    if train:
-        model.train_on_unmasked_data()
+    if surrogate is not None:
+        model.train_on_unmasked_data(surrogate)
 
 #########################################################
 # Wait for workers to complete all tasks in Hero queues.
-def wait_for_workers(model,viz_ops,train):
+def wait_for_workers(model,surrogate,viz_ops):
     print('Wait until workers complete all tasks in all hero queues.')
     while True:
         total_in_queue = np.sum([np.sum(arr) for arr in model.hero_todo])
         if total_in_queue > 0:
             print(f'Number of remaining tasks in hero queues = {total_in_queue}')
             model.hero_objs[0].wait(1)
-            sync_hero_results(model,viz_ops,train)
+            sync_hero_results(model,surrogate,viz_ops)
         else:
             print('Workers are done. All Hero queues are empty.')
             break
@@ -240,9 +241,9 @@ def wait_for_workers(model,viz_ops,train):
 # # Add a sim to the model's training set and retrain the model
 # # The x_eval_native argument has the data types defined by the use-defined list of Params
 # # If y_eval is not speicified, a simulation is conducted
-# def add_xnative_sim(model,fidelity_level,x_eval_native,y_eval=None):
+# def add_xnative_sim(model,fidelity_level,x_eval_native,y_eval=None,surrogate=None):
 #     x_eval_num = native_to_num(x_eval_native)
-#     model.add_xnum_sample(fidelity_level,x_eval_num,y_eval)
+#     model.add_xnum_sample(fidelity_level,x_eval_num,y_eval,surrogate)
 
 #########################################################
 # Check if the x_eval_native follows the user specified bounds in the list of Params
@@ -262,7 +263,7 @@ def bounds_check_xnative(model,x_eval_native):
 
 #########################################################
 # Train the surrogate model using x_data and y_data. This training only uses unmasked data (i.e. not-NaN and within the user-specified allowable bounds).
-def train_on_unmasked_data(model):
+def train_on_unmasked_data(model,surrogate):
     # Check that there are enough samples to train a GP model
     for i in range(model.n_fl):
         if np.count_nonzero(model.unmasked_data[i]) < model.n_dim + 1 + i:
@@ -288,18 +289,18 @@ def train_on_unmasked_data(model):
     for i_fl in range(model.n_fl):
         x_data_unmasked.append(model.x_data[i_fl][model.unmasked_data[i_fl].flatten()])
         y_data_unmasked.append(model.y_data[i_fl][model.unmasked_data[i_fl].flatten()])
-    model.surrogate.train(x_data_unmasked, y_data_unmasked)
+    surrogate.train(x_data_unmasked, y_data_unmasked)
 
     # Update the values for the masked data
     # Predict the mean value at all x_data[masked] values using surrogate_unmasked (and store these in y_data[masked])
     for i_fl in range(model.n_fl):
         for i in range(len(model.y_data[i_fl])):
             if not model.unmasked_data[i_fl][i]:
-                model.y_data[i_fl][i] = model.surrogate.predict_values(np.atleast_2d(model.x_data[i_fl][i]), i_fl)[0]
+                model.y_data[i_fl][i] = surrogate.predict_values(np.atleast_2d(model.x_data[i_fl][i]), i_fl)[0]
 
 #########################################################
 # Train the surrogate model using x_data and y_data. This training uses masked and unmasked data.
-def train_on_all_data(model):
+def train_on_all_data(model,surrogate):
     # Check that there are enough samples to train a GP model
     for i in range(model.n_fl):
         if len(model.y_data[i]) < model.n_dim + 1 + i:
@@ -319,7 +320,7 @@ def train_on_all_data(model):
                       ' sampling, and perform_lower_sims if active. Note: that only values that are '+
                       'non-NaN and within user-specified allowable bounds are included in these counts.')
                 
-    model.surrogate.train(model.x_data, model.y_data)
+    surrogate.train(model.x_data, model.y_data)
 
 # #########################################################
 # # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too

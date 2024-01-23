@@ -5,7 +5,7 @@ import numpy as np
 # Queries the highest fidelity level (-1) unless a different level is specified
 # Each x_query is a list of variables with each having the data type specified by user's list of Params
 # Returns y_queries, y_queries_var
-def query(model,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv):
+def query(model,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv):
     if len(x_queries.shape) == 1: # if x_queries is a 1d array
         x_queries = x_queries[:, np.newaxis]
     assert(x_queries.shape[1]==model.n_dim)
@@ -30,33 +30,33 @@ def query(model,x_queries,fidelity_level,threshold_std,threshold_std_mean,thresh
         x_queries_num[i,:] = model.native_to_num(x_queries[i,:])  
 
         # Evaluate the surrogate model
-        y_queries[i] = model.surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
-        y_queries_var[i] = model.surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+        y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+        y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
 
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std:
                 # conduct a simulation and retrain the GPR using this data
-                model.add_xnum_sample(fidelity_level,x_queries_num[i])
+                model.add_xnum_sample(fidelity_level,x_queries_num[i],surrogate=surrogate)
 
         # Run simulation at all points where the std/mean >= user-specified threshold value
         if threshold_std_mean is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std_mean*y_queries[i]:
                 # conduct a simulation and retrain the GPR using this data
-                model.add_xnum_sample(fidelity_level,x_queries_num[i])
+                model.add_xnum_sample(fidelity_level,x_queries_num[i],surrogate=surrogate)
 
         # Run simulation at all points where the std/total_variation >= user-specified threshold value
         if threshold_std_tv is not None:
             total_variation = model.find_max()[1][0] - model.find_min()[1][0]
             if np.sqrt(y_queries_var[i]) >= threshold_std_tv*total_variation:
                 # conduct a simulation and retrain the GPR using this data
-                model.add_xnum_sample(fidelity_level,x_queries_num[i])
+                model.add_xnum_sample(fidelity_level,x_queries_num[i],surrogate=surrogate)
         
     # Re-evaluate the surrogate model because some new simulations may have been conducted
     if (threshold_std is not None) or (threshold_std_mean is not None) or (threshold_std_tv is not None):
         for i in range(n_queries):    
-            y_queries[i] = model.surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
-            y_queries_var[i] = model.surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+            y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+            y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
 
     return y_queries, y_queries_var
 

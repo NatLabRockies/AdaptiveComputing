@@ -37,8 +37,8 @@ def viz_init(viz_ops,n_dim):
     return
 #########################################################
 # After each iteration, one frame of the animation is written 
-def viz_animate(model,viz_ops,frame_id):
-    [x_opt, y_opt] = model.find_min()
+def viz_animate(model,surrogate,viz_ops,frame_id):
+    [x_opt, y_opt] = model.find_min(surrogate)
     n_fl = len(model.y_data)
     if n_fl == 1:
         ndoe = len(model.y_data[0])-(frame_id+1)
@@ -48,13 +48,13 @@ def viz_animate(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[0](x_plot[i])
                 y_plot[i] = model.eval_xnum(0,x_plot[i])
-            y_gp_plot = model.surrogate.predict_values(x_plot)
-            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
+            y_gp_plot = surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_EI:
                 x_ei_plot = np.atleast_2d(np.linspace(model.xlimits_num[0][0], model.xlimits_num[0][1], 10000)).T
-                y_ei_plot = -EI(model.surrogate,x_ei_plot,np.min(model.y_data[0][:-1]),-1)
+                y_ei_plot = -EI(surrogate,x_ei_plot,np.min(model.y_data[0][:-1]),-1)
                 ax1 = ax.twinx()
                 ax1.plot(x_ei_plot,y_ei_plot,color='red',label='-EI')
                 ax1.set_ylabel('-EI')
@@ -64,7 +64,7 @@ def viz_animate(model,viz_ops,frame_id):
             ax.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
             ax.scatter(model.x_data[0][0:ndoe],model.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
             ax.scatter(model.x_data[0][ndoe:-1],model.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
-            ax.scatter(model.x_data[0][-1],model.surrogate.predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
+            ax.scatter(model.x_data[0][-1],surrogate.predict_values(model.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
             ax.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='GP mean')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
@@ -98,11 +98,11 @@ def viz_animate(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[-1](x_plot[i])
                 y_plot[i] = model.eval_xnum(-1,x_plot[i])
-            y_gp_plot = model.surrogate.predict_values(x_plot)
-            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
+            y_gp_plot = surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            #y_ei_plot = -EI(model.surrogate,x_plot,np.min(model.y_data[-1]),-1)
+            #y_ei_plot = -EI(surrogate,x_plot,np.min(model.y_data[-1]),-1)
             # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
             #     ei, = ax.plot(x_plot,y_ei_plot,color='red')
             # else:    
@@ -144,8 +144,8 @@ def viz_animate(model,viz_ops,frame_id):
     return
 #########################################################
 # After all iterations are complete make final plots and make any finishing touches
-def viz_finalize(model,viz_ops,frame_id):
-    [x_opt, y_opt] = model.find_min()
+def viz_finalize(model,surrogate,viz_ops,frame_id):
+    [x_opt, y_opt] = model.find_min(surrogate)
     n_fl = len(model.y_data)
     if n_fl == 1:
         ndoe = len(model.y_data[0])-(frame_id+1)
@@ -155,8 +155,8 @@ def viz_finalize(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[0](x_plot[i])
                 y_plot[i] = model.eval_xnum(0,x_plot[i])
-            y_gp_plot = model.surrogate.predict_values(x_plot)
-            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
+            y_gp_plot = surrogate.predict_values(x_plot)
+            y_gp_plot_var  =  surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:
@@ -219,8 +219,8 @@ def viz_finalize(model,viz_ops,frame_id):
             for i in range(len(x_plot)):
                 #y_plot[i] = model.funcs[-1](x_plot[i])
                 y_plot[i] = model.eval_xnum(-1,x_plot[i])
-            y_gp_plot = model.surrogate.predict_values(x_plot,-1)
-            y_gp_plot_var  =  model.surrogate.predict_variances(x_plot)
+            y_gp_plot = surrogate.predict_values(x_plot,-1)
+            y_gp_plot_var  =  surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             if viz_ops.show_exact:

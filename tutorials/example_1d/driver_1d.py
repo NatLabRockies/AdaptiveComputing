@@ -53,8 +53,14 @@ def driver_1d():
     viz_ops.animation_1d=True
     viz_ops.show_exact = True
     viz_ops.show_EI = True
-    my_model.add_bo_samples(6,viz_ops=viz_ops)
-    [x_opt, y_opt] = my_model.find_min()
+    
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate = SMTWrapper(my_model.n_fl, my_model.multifidelity, my_model.mixed_type, xlimits=my_model.xlimits, xtypes=my_model.xtypes)
+    #surrogate = SMTWrapper(my_model)
+    
+    my_model.add_bo_samples(6,surrogate,viz_ops=viz_ops)
+    [x_opt, y_opt] = my_model.find_min(surrogate)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')
