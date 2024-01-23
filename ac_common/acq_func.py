@@ -21,7 +21,7 @@ def EI(GP,points,f_min,fidelity_level):
     ei = args1 + args2
     return ei
 #########################################################
-# surrogate Based optimization: min the Surrogate model by using the mean mu
+# surrogate Based optimization: min of the surrogate model by using the expected value mu
 def SBO(GP,points,fidelity_level):
     res = GP.predict_values(points,fidelity_level)
     return res
@@ -74,19 +74,19 @@ def min_for_cont_vars(xc_start,xclimits_num,obj_k,bo_ops,xi):
 # Return the argmin of the objective function obj_k
 # Minimization of continuous arguments uses scipy minimize
 # Minimization of integer arguments uses scipy brute
-def minimize_acq_func(model,obj_k,x_start,bo_ops):
-    xc_start = x_start[:,0:model.n_cont_vars]
-    xclimits_num = model.xlimits_num[0:model.n_cont_vars]
-    xdlimits_num = model.xlimits_num[model.n_cont_vars:]
+def minimize_acq_func(dataset,obj_k,x_start,bo_ops):
+    xc_start = x_start[:,0:dataset.n_cont_vars]
+    xclimits_num = dataset.xlimits_num[0:dataset.n_cont_vars]
+    xdlimits_num = dataset.xlimits_num[dataset.n_cont_vars:]
     n_disc_vars = len(xdlimits_num)
     
     # Combined optimization of continuous and discrete varaibles:
-    if model.mixed_type and bo_ops.mixedtype_minimization == 'differential_evolution':
-        DE_bounds = [0]*model.n_dim
-        integrality = [False]*model.n_dim
-        for i in range(model.n_dim):
-            DE_bounds[i] = (model.xlimits_num[i][0], model.xlimits_num[i][-1])
-            integrality[i] = (model.params[i].type == 'ordered') or (model.params[i].type == 'categorical')
+    if dataset.mixed_type and bo_ops.mixedtype_minimization == 'differential_evolution':
+        DE_bounds = [0]*dataset.n_dim
+        integrality = [False]*dataset.n_dim
+        for i in range(dataset.n_dim):
+            DE_bounds[i] = (dataset.xlimits_num[i][0], dataset.xlimits_num[i][-1])
+            integrality[i] = (dataset.params[i].type == 'ordered') or (dataset.params[i].type == 'categorical')
         x_et_k = differential_evolution(lambda x: float(obj_k(x)), DE_bounds, integrality=integrality)['x']
         # COBYLA
         # would need this new argument: unfolded_limits = sampling_opt._unfolded_xlimits
@@ -112,19 +112,19 @@ def minimize_acq_func(model,obj_k,x_start,bo_ops):
         # x_et_k = opt['x'] # the x value at which the min occurs
     else: # Separate optimization methods for continuous and discrete variables:
         ranges = ()
-        for i in range(model.n_cont_vars,model.n_dim):
-            ranges = ranges+(slice(model.xlimits_num[i][0], model.xlimits_num[i][-1]+1, 1),)
+        for i in range(dataset.n_cont_vars,dataset.n_dim):
+            ranges = ranges+(slice(dataset.xlimits_num[i][0], dataset.xlimits_num[i][-1]+1, 1),)
         DE_bounds = [0]*n_disc_vars
         for i in range(n_disc_vars):
             DE_bounds[i] = (xdlimits_num[i][0], xdlimits_num[i][-1])    
-        if model.n_cont_vars == 0: # if all data types are discrete
+        if dataset.n_cont_vars == 0: # if all data types are discrete
             if bo_ops.sep_disc_minimizer == 'brute':
                 x_et_k = brute(lambda x: float(obj_k(x)), ranges, finish=None)
             elif bo_ops.sep_disc_minimizer == 'differential_evolution':
                 x_et_k = differential_evolution(lambda x: float(obj_k(x)), DE_bounds, integrality=[True]*n_disc_vars)['x']
             else:
                 raise Exception('Unrecognized option for discrete minimization method: bo_ops.sep_disc_minimizer = '+bo_ops.sep_disc_minimizer)
-        elif model.n_cont_vars == model.n_dim: # if all data types are continuous
+        elif dataset.n_cont_vars == dataset.n_dim: # if all data types are continuous
             x_et_k = min_for_cont_vars(xc_start,xclimits_num,obj_k,bo_ops,[])[1]
         else: # if there are a mixture of continuous and discrete data types
             if bo_ops.sep_disc_minimizer == 'brute':

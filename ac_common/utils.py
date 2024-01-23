@@ -16,20 +16,20 @@ def is_notebook() -> bool:
     
 #########################################################
 # # read a csv file and return the contents
-def write_samples_csv(model,filenames):
+def write_samples_csv(dataset,filenames):
     import numpy as np
     import csv
 
     # validate filenames end with .csv
     filenames = np.atleast_1d(filenames)
-    if len(filenames) != model.n_fl:
+    if len(filenames) != dataset.n_fl:
         raise Exception('Must give a list of file names of len(simulations). Use empty quotes for list entries corresponding to fidelity levels that you want to skip writing data for.')
     for filename in filenames:
         if not filename.endswith('.csv'):
             if filename != '':
                 raise Exception('csv filename must end in .csv or be an empty string')
 
-    for f in range(model.n_fl):
+    for f in range(dataset.n_fl):
         filename = filenames[f]
         if filename == '':
             print('No ouput data file specified for fidelity level ' + str(f) + '. Skipping write_output_data for this level.')
@@ -37,52 +37,52 @@ def write_samples_csv(model,filenames):
             with open(filename,'w', encoding='utf-8-sig') as csvfile: #, newline=''
                 writer = csv.writer(csvfile, delimiter=',') # , quotechar='|'
                 row = []
-                for i_p in range(model.n_dim):
-                    row.append(model.params[i_p].type)
+                for i_p in range(dataset.n_dim):
+                    row.append(dataset.params[i_p].type)
                 row.append('y')
                 writer.writerow(row)
-                for i_d in range(len(model.y_data[f])):
+                for i_d in range(len(dataset.y_data[f])):
                     row = []
-                    for i_p in range(model.n_dim):
-                        if model.params[i_p].type == 'categorical':
-                            row.append(model.params[i_p].categories[int(model.x_data[f][i_d][i_p])])
+                    for i_p in range(dataset.n_dim):
+                        if dataset.params[i_p].type == 'categorical':
+                            row.append(dataset.params[i_p].categories[int(dataset.x_data[f][i_d][i_p])])
                         else:
-                            row.append(model.x_data[f][i_d][i_p])
-                    row.append(model.y_data[f][i_d][0])
+                            row.append(dataset.x_data[f][i_d][i_p])
+                    row.append(dataset.y_data[f][i_d][0])
                     writer.writerow(row)
                 
             
     return
 
 #########################################################
-def check_nan_oob(y,mod_ops):
+def check_nan_oob(y,ds_ops):
     unmasked = True
     if np.isnan(y):
-        if mod_ops.mask_nans:
+        if ds_ops.mask_nans:
             unmasked = False
             print('NaN point found. Masking this point.')
         else:
-            raise Exception('NaN returned by user-defined simulation. Consider setting mod_ops.mask_nans=True to ignore NaNs.')
+            raise Exception('NaN returned by user-defined simulation. Consider setting ds_ops.mask_nans=True to ignore NaNs.')
     else:
         oob = False
-        if hasattr(mod_ops, 'lbound_inclusive'):
-            if y<mod_ops.lbound_inclusive:
+        if hasattr(ds_ops, 'lbound_inclusive'):
+            if y<ds_ops.lbound_inclusive:
                 oob = True
-        if hasattr(mod_ops, 'ubound_inclusive'):
-            if y>mod_ops.ubound_inclusive:
+        if hasattr(ds_ops, 'ubound_inclusive'):
+            if y>ds_ops.ubound_inclusive:
                 oob = True
-        if hasattr(mod_ops, 'lbound_exclusive'):
-            if y<=mod_ops.lbound_exclusive:
+        if hasattr(ds_ops, 'lbound_exclusive'):
+            if y<=ds_ops.lbound_exclusive:
                 oob = True
-        if hasattr(mod_ops, 'ubound_exclusive'):
-            if y>=mod_ops.ubound_exclusive:
+        if hasattr(ds_ops, 'ubound_exclusive'):
+            if y>=ds_ops.ubound_exclusive:
                 oob = True
         if oob:
-            if mod_ops.mask_oob_values:
+            if ds_ops.mask_oob_values:
                 unmasked = False
                 print('Data is out of user-specified allowable bounds. Masking this point.')
             else:
-                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting mod_ops.mask_oob_values=True to ignore such values.')
+                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting ds_ops.mask_oob_values=True to ignore such values.')
     return unmasked
 
 #########################################################

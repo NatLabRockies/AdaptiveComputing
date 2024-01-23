@@ -50,7 +50,7 @@ def validate_params(params):
     return True
 
 #########################################################
-class ModelOptions:
+class DataSetOptions:
     # set the default options
     deterministic = True # random seeds are set deterministically
     perform_lower_sims = True # if a simulation is conducted at a fidelity level, it is also run at all lower fidelity levels

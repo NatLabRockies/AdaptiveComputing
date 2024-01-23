@@ -1,9 +1,9 @@
-# Model.py
+# dataset.py
 import numpy as np
 from .classes import validate_params
 
-class Model:
-    def __init__(self, simulations, params, mod_ops):
+class DataSet:
+    def __init__(self, simulations, params, ds_ops):
         # Check the number of fidelity levels
         self.simulations = np.atleast_1d(simulations)
         self.n_fl = len(self.simulations) # number of fidelity levels
@@ -22,8 +22,8 @@ class Model:
             if params[i].type == 'continuous':
                 self.n_cont_vars += 1
 
-        self.mod_ops = mod_ops
-        if self.mod_ops.use_hero:
+        self.ds_ops = ds_ops
+        if self.ds_ops.use_hero:
             # Hero setup ...
             # Set Hero environment variables
             import os
@@ -82,7 +82,7 @@ class Model:
             self.xlimits_num = self.xlimits
             self.xtypes = ['float_type']*self.n_dim
         
-        # declare model data
+        # declare DataSet data
         # n_samp[i] will be incremented for each Latin hypercube sample, sample read from an input file, or Bayesian optimization iteration performed.
         self.n_samp = np.zeros(self.n_fl).astype(int)
         # the sample-space coordinates:
@@ -168,8 +168,8 @@ class Model:
         return y_eval
 
 #########################################################
-# In order to pickle the Model object, no local functions
-# can be defined inside the Model, so funcs is set using
+# In order to pickle the DataSet object, no local functions
+# can be defined inside the DataSet, so funcs is set using
 # class functions. In fact, composite class functions.
 # simulation_i is the user-defined implementation of the simulations
 # catch_valerr catches ValueErrors that may occur in g

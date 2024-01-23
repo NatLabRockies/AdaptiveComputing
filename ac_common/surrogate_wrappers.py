@@ -1,11 +1,11 @@
 import numpy as np
 
 class SurrogateModelBase:    
-    def __init__(self, n_fl, multifidelity, mixed_type):
+    def __init__(self, dataset):
         # initialize variables needed by all derived classes
-        self.n_fl = n_fl
-        self.multifidelity = multifidelity
-        self.mixed_type = mixed_type
+        self.n_fl = dataset.n_fl
+        self.multifidelity = dataset.multifidelity
+        self.mixed_type = dataset.mixed_type
         pass
 
     def train(self, x_data, y_data):
@@ -19,16 +19,16 @@ class SurrogateModelBase:
 
 # Implement surrogate modeling using the Surrogate Modeling Toolbox (SMT)
 class SMTWrapper(SurrogateModelBase):
-    def __init__(self, n_fl, multifidelity, mixed_type, xlimits, xtypes):
+    def __init__(self, dataset):
         # Call the constructor of the base class
-        super().__init__(n_fl, multifidelity, mixed_type)
+        super().__init__(dataset)
         
         # Initialize SMT-specific surrogate model
         # set upt the GPs Gaussian Process models (AKA the Kriging model)
         from smt.surrogate_models import KRG
-        if multifidelity:
+        if self.multifidelity:
             from smt.applications.mfk import MFK
-        if mixed_type:
+        if self.mixed_type:
             from smt.applications.mixed_integer import MixedIntegerSurrogateModel
         self.surrogate_model = []
         for i_fl in range(self.n_fl): # create at hierarchy of GPs
@@ -37,7 +37,7 @@ class SMTWrapper(SurrogateModelBase):
             else:
                 self.surrogate_model.append(KRG(print_global = False)) 
             if self.mixed_type:
-                self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=xtypes, xlimits=xlimits)
+                self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
 
     def train(self, x_data, y_data):
         for i_fl in range(self.n_fl):
@@ -64,9 +64,9 @@ class SMTWrapper(SurrogateModelBase):
 #     # n_fl: number of fidelity levels
 #     # multifidelity: boolean indicates if more than 1 fidelity level
 #     # mixed_type: boolean indicates if non-float types are used (enumerated or ordered types)
-#     def __init__(self, n_fl, multifidelity, mixed_type, ...):
+#     def __init__(self, dataset, ...):
 #         # Call the constructor of the base class
-#         super().__init__(n_fl, multifidelity, mixed_type)
+#         super().__init__(dataset)
         
 #         # Initialize the surrogate model. Might use additional arguments
 #         # self.surrogate_model = ...
