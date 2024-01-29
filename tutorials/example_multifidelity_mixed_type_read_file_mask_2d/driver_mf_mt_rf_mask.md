@@ -86,25 +86,30 @@ def driver_mf_mt_rf_mask():
     params = [x0, x1]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
+    ds_ops = DataSetOptions()
 
     # Compute the multi-fidelity model
     import time
     t = time.time()
-    my_model = Model(simulations, params, mod_ops)
-    # my_model.add_file_samples(['lf_input_data.csv','hf_input_data.csv'])
-    my_model.add_file_samples(['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv'])
-    my_model.add_lhs_samples([4, 0])
+    my_dataset = DataSet(simulations, params, ds_ops)
+    # my_dataset.add_file_samples(['lf_input_data.csv','hf_input_data.csv'])
+    my_dataset.add_file_samples(['lf_input_data_incomplete_y.csv','hf_input_data_incomplete_y.csv'])
+    my_dataset.add_lhs_samples([4, 0])
     viz_ops = VizOptions()
     viz_ops.plot_2d=True
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]
-    my_model.add_bo_samples(20,bo_ops=bo_ops,viz_ops=viz_ops)
-    my_model.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
-    [x_opt, y_opt] = my_model.find_min()
+
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate = SMTWrapper(my_dataset)
+
+    my_dataset.add_bo_samples(20,surrogate,bo_ops=bo_ops,viz_ops=viz_ops)
+    my_dataset.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
 
     x_queries = np.array([[0,'a'],[0.3,'c'],[0.5,'b']], dtype=object)
-    y_queries, _ = my_model.query(x_queries)
+    y_queries, _ = my_dataset.query(surrogate,x_queries)
     print(y_queries)
 
     t = time.time() - t

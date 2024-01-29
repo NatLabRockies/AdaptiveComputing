@@ -53,49 +53,52 @@ def driver_query_1d():
     params = [x0]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
-    my_model = Model(func_1d, params, mod_ops)
-    my_model.add_lhs_samples(2)
+    ds_ops = DataSetOptions()
+    my_dataset = DataSet(func_1d, params, ds_ops)
+    my_dataset.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.plot_1d=True
     viz_ops.show_exact = True
-    my_model.add_bo_samples(2,viz_ops=viz_ops)
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+    my_dataset.add_bo_samples(2,surrogate,viz_ops=viz_ops)
 
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
     x_queries = np.array([[13],[13.5]])
     threshold_std_mean = 1.0
-    y_queries, y_queries_var = my_model.query(x_queries,threshold_std_mean=threshold_std_mean)
+    y_queries, y_queries_var = my_dataset.query(surrogate,x_queries,threshold_std_mean=threshold_std_mean)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
     # Visualize the final result
-    my_model.add_bo_samples(0,viz_ops=viz_ops)
+    my_dataset.add_bo_samples(0,surrogate,viz_ops=viz_ops)
 
     # Query with a std/total_variation threshold. Conducts simulations if the standard deviation is too high.
     x_queries = np.array([[14],[14.5]])
     threshold_std_tv = 1.0
-    y_queries, y_queries_var = my_model.query(x_queries,threshold_std_tv=threshold_std_tv)
+    y_queries, y_queries_var = my_dataset.query(surrogate,x_queries,threshold_std_tv=threshold_std_tv)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
     # Visualize the final result
-    my_model.add_bo_samples(0,viz_ops=viz_ops)
+    my_dataset.add_bo_samples(0,surrogate,viz_ops=viz_ops)
     
     # Query without a threshold. This just probes the surrogate at 3 locations.
     x_queries = np.array([[12],[18],[12.5]])
-    y_queries, y_queries_var = my_model.query(x_queries)
+    y_queries, y_queries_var = my_dataset.query(surrogate,x_queries)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
     # Query with a std threshold. Conducts simulations if the standard deviation is too high.
     x_queries = np.array([[12],[18],[12.5]])
     threshold_std = 1.0
-    y_queries, y_queries_var = my_model.query(x_queries,threshold_std=threshold_std)
+    y_queries, y_queries_var = my_dataset.query(surrogate,x_queries,threshold_std=threshold_std)
     print(y_queries)
     print(np.sqrt(y_queries_var))
 
     # Visualize the final result
-    my_model.add_bo_samples(0,viz_ops=viz_ops)
+    my_dataset.add_bo_samples(0,surrogate,viz_ops=viz_ops)
 
     # Verify that the standard deviation at all queried points is less than the threshold
     # observed_std < threshold_std

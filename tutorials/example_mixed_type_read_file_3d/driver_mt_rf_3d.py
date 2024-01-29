@@ -76,19 +76,24 @@ def driver_mt_rf_3d():
     params = [x0, x1, x2]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
+    ds_ops = DataSetOptions()
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_mt, params, mod_ops)
-    # my_model.add_file_samples('input_data.csv')
-    my_model.add_file_samples('input_data_parameters_only.csv')
+    my_dataset = DataSet(func_mt, params, ds_ops)
+    # my_dataset.add_file_samples('input_data.csv')
+    my_dataset.add_file_samples('input_data_parameters_only.csv')
     viz_ops = VizOptions()
     viz_ops.plot_nd=True
-    my_model.add_bo_samples(32,viz_ops=viz_ops)
-    my_model.write_samples_csv('output_data.csv')
-    [x_opt, y_opt] = my_model.find_min()
+
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+
+    my_dataset.add_bo_samples(32,surrogate,viz_ops=viz_ops)
+    my_dataset.write_samples_csv('output_data.csv')
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

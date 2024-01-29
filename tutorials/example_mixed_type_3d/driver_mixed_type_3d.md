@@ -74,17 +74,20 @@ def driver_mixed_type_3d():
     params = [x0, x1, x2]
     
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
+    ds_ops = DataSetOptions()
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_mt, params, mod_ops)
-    my_model.add_lhs_samples(8)
+    my_dataset = DataSet(func_mt, params, ds_ops)
+    my_dataset.add_lhs_samples(8)
     viz_ops = VizOptions()
     viz_ops.plot_nd=True
-    my_model.add_bo_samples(25,viz_ops=viz_ops)
-    [x_opt, y_opt] = my_model.find_min()
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+    my_dataset.add_bo_samples(25,surrogate,viz_ops=viz_ops)
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = 0 at the location [x0_opt, x1_opt, x2_opt] = [5, 4, b]')

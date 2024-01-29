@@ -52,8 +52,8 @@ def driver_mf_1d():
     params = [x0]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
-    mod_ops.perform_lower_sims = False
+    ds_ops = DataSetOptions()
+    ds_ops.perform_lower_sims = False
 
     # Compute the low and high fidelity models as baselines
     plt.figure()
@@ -62,21 +62,24 @@ def driver_mf_1d():
 
     # Compute the multi-fidelity model
     t = time.time()
-    my_model = Model(simulations, params, mod_ops)
-    my_model.add_lhs_samples([5, 3])
+    my_dataset = DataSet(simulations, params, ds_ops)
+    my_dataset.add_lhs_samples([5, 3])
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]
-    my_model.add_bo_samples(10,bo_ops=bo_ops)
-    [x_opt, y_opt] = my_model.find_min()
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+    my_dataset.add_bo_samples(10,surrogate,bo_ops=bo_ops)
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
     
     # Query the multifidelity GP at its high fidelity level
     x_queries_hf = np.array([[0],[0.3],[0.5]])
-    y_queries_hf, _ = my_model.query(x_queries_hf,fidelity_level=1)
+    y_queries_hf, _ = my_dataset.query(surrogate,x_queries_hf,fidelity_level=1)
     print(y_queries_hf)
 
     # Query the multifidelity GP at its low fidelity level
     x_queries_lf = np.array([[0],[0.3],[0.5]])
-    y_queries_lf, _ = my_model.query(x_queries_lf,fidelity_level=0)
+    y_queries_lf, _ = my_dataset.query(surrogate,x_queries_lf,fidelity_level=0)
     print(y_queries_lf)
 
     t = time.time() - t
@@ -84,15 +87,15 @@ def driver_mf_1d():
     print('The minimum should be approximately [x,y] = [0.757249,-6.02074]')
     print('The minimum found is [', x_opt[0], ',', y_opt,']')
 
-    x_LF = my_model.x_data[0]
-    y_LF = my_model.y_data[0]
+    x_LF = my_dataset.x_data[0]
+    y_LF = my_dataset.y_data[0]
     plt.scatter(x_LF, y_LF, marker="*", color="c", label="Low-fidelity samples")
-    x_HF = my_model.x_data[1]
-    y_HF = my_model.y_data[1]
+    x_HF = my_dataset.x_data[1]
+    y_HF = my_dataset.y_data[1]
     plt.scatter(x_HF, y_HF, marker="o", color="g", label="HF samples")
-    plt.plot(x, my_model.surrogate.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
-    sig_plus = my_model.surrogate.predict_values(x)+3*np.sqrt(my_model.surrogate.predict_variances(x))
-    sig_moins = my_model.surrogate.predict_values(x)-3*np.sqrt(my_model.surrogate.predict_variances(x))
+    plt.plot(x, surrogate.predict_values(x), linestyle="-.", color='r', label="Multi-fidelity GPR")
+    sig_plus = surrogate.predict_values(x)+3*np.sqrt(surrogate.predict_variances(x))
+    sig_moins = surrogate.predict_values(x)-3*np.sqrt(surrogate.predict_variances(x))
     plt.fill_between(x.T[0],sig_plus.T[0],sig_moins.T[0],alpha=0.3,color='r')
 
     plt.legend(loc=0)

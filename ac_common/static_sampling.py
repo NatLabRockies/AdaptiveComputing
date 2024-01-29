@@ -63,8 +63,8 @@ def add_file_samples(dataset,filenames,surrogate):
                 reader = csv.reader(csvfile, delimiter=',') # , quotechar='|'
                 a = []
                 for row in reader:
-                    if (len(row) != dataset.n_dim+1) and (len(row) != dataset.n_dim):
-                        raise Exception('Number of columns in csv must be >= the number of parameters (n_dim) and <= n_dim+1.')
+                    if (len(row) != dataset.n_in+dataset.n_out) and (len(row) != dataset.n_in):
+                        raise Exception('Number of columns in csv must be either the number of parameters (n_in) or the number of outputs (n_out) plus n_in.')
                     a.append(row)
             n_samples = len(a) - 1 # first row is header
             if n_samples < 1:
@@ -72,8 +72,8 @@ def add_file_samples(dataset,filenames,surrogate):
             
             # a is a list of lists
             for i in range(n_samples):
-                x_cur = np.zeros([dataset.n_dim])
-                for j in range(dataset.n_dim):
+                x_cur = np.zeros([dataset.n_in])
+                for j in range(dataset.n_in):
                     if a[0][j] == 'categorical':
                         x_cur[j] = dataset.params[j].categories.index(a[i+1][j])
                     elif a[0][j] == 'continuous':
@@ -82,21 +82,18 @@ def add_file_samples(dataset,filenames,surrogate):
                         x_cur[j] = int(float(a[i+1][j]))
                     else:
                         raise Exception('Unrecognized type for parameter '+str(i))    
-                if len(a[i+1]) == dataset.n_dim: # if the user has not specified any objective function values
+                if len(a[i+1]) == dataset.n_in: # if the user has not specified any objective function values
                     if dataset.ds_ops.use_hero:
                         dataset.queue_hero_sample(f,x_cur,surrogate=None)
                     else:
                         dataset.add_xnum_sample(f,x_cur,surrogate=None) # Note: surrogate=None since will perform a single training below, outside the loop
-                elif a[i+1][dataset.n_dim] == '': # elif the user has specified some objective function values, but not the present row's objective function value
+                elif any(not s.strip() for s in a[i+1][dataset.n_in:]): # elif the user has specified some objective function values, but not all of the obj values for the present row
                     if dataset.ds_ops.use_hero:
                         dataset.queue_hero_sample(f,x_cur,surrogate=None)
                     else:
                         dataset.add_xnum_sample(f,x_cur,surrogate=None)
-                else: # the user has specified the parameters and the corresponding objective function evaluations
-                    if dataset.ds_ops.use_hero:
-                        dataset.queue_hero_sample(f,x_cur,surrogate=None)
-                    else:
-                        dataset.add_xnum_sample(f,x_cur,y_eval=float(a[i+1][dataset.n_dim]),surrogate=None)
+                else: # the user has specified the parameters and the corresponding objective function evaluations 
+                    dataset.add_xnum_sample(f,x_cur,y_eval=[float(s) for s in a[i+1][dataset.n_in:]],surrogate=None)
 
     if dataset.ds_ops.use_hero:
         print('Note: LHS with use_hero=True is blocking. Since non-blocking relies on the surrogate already having enough samples to do masking. If you write these outputs to a file, next time you can use add_file_samples instead of add_lhs_samples')
@@ -107,8 +104,8 @@ def add_file_samples(dataset,filenames,surrogate):
 #########################################################
 # Convert any categorical entries in x_query to be numbers   
 def native_to_num(dataset,x_eval_native):
-    x_eval_num = np.zeros([1,dataset.n_dim])
-    for j in range(dataset.n_dim):
+    x_eval_num = np.zeros([1,dataset.n_in])
+    for j in range(dataset.n_in):
         if dataset.params[j].type == 'categorical':
             x_eval_num[0,j] = dataset.params[j].categories.index(x_eval_native[j])
         elif (dataset.params[j].type == 'continuous') or (dataset.params[j].type == 'ordered'):
@@ -125,12 +122,13 @@ def add_xnum_sample(dataset,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,su
         # y_eval = dataset.funcs[fidelity_level](x_eval_num)
         y_eval = dataset.eval_xnum(fidelity_level,x_eval_num)
     dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
-    dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], y_eval)).T
+    dataset.y_data[fidelity_level] = np.append(dataset.y_data[fidelity_level],np.atleast_2d(y_eval),axis=0)
     dataset.n_samp[fidelity_level] += 1
 
     # Check for NaNs and out of bounds y_data
-    dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],True)).T
-    dataset.unmasked_data[fidelity_level][-1] = check_nan_oob(dataset.y_data[fidelity_level][-1],dataset.ds_ops)
+    dataset.unmasked_data[fidelity_level] = np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
+    for i_o in range(dataset.n_out):
+        dataset.unmasked_data[fidelity_level][-1,i_o] = check_nan_oob(dataset.y_data[fidelity_level][-1,i_o],dataset.ds_ops)
     dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],False)).T # don't add this point to the hero queue
     dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],'None')).T
     
@@ -166,17 +164,17 @@ def queue_hero_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_
         y_eval = surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
         dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], y_eval)).T
     else:
-        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], np.NaN)).T
+        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], np.full((1,dataset.n_out), np.NaN))).T
     dataset.n_samp[fidelity_level] += 1
 
     # Mark the data as masked
-    dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],False)).T
+    dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), False, dtype=bool))).T
     # Mark the data as in the hero queue
     dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],True)).T
     x_eval_native = num_to_native(x_eval_num,dataset.params)
     x_eval_str = [str(variable) for variable in x_eval_native]
     # Since Hero only allows string arguments, convert args to strings and append the variable types
-    for j in range(dataset.n_dim):
+    for j in range(dataset.n_in):
         if dataset.params[j].type == 'categorical':
             x_eval_str[j] += '_categorical'
         elif dataset.params[j].type == 'continuous':
@@ -212,9 +210,10 @@ def sync_hero_results(dataset,surrogate,viz_ops):
                 if task_data["status"] == 'complete':
                     print(f'Found a complete task = {task_id} with simulation result = {task_data["results_s3"]}')
                     y_eval = float(task_data["results"]["objective"])
-                    dataset.y_data[i_fl][i] = np.atleast_2d(y_eval)
+                    dataset.y_data[i_fl][i,:] = np.atleast_2d(y_eval)
                     # Check for NaNs and out of bounds y_data
-                    dataset.unmasked_data[i_fl][i] = check_nan_oob(y_eval,dataset.ds_ops)
+                    for i_o in range(dataset.n_out):
+                        dataset.unmasked_data[i_fl][i,i_o] = check_nan_oob(y_eval[i_o],dataset.ds_ops)
                     dataset.hero_todo[i_fl][i] = False
                     # Visualize the next point to add and the surrogate that has not yet been trained on this point
                     # if viz_ops is not None:
@@ -249,7 +248,7 @@ def wait_for_workers(dataset,surrogate,viz_ops):
 # Check if the x_eval_native follows the user specified bounds in the list of Params
 # The x_eval_native argument has the data types defined by the usef-defined list of Params
 def bounds_check_xnative(dataset,x_eval_native):
-    for j in range(dataset.n_dim):
+    for j in range(dataset.n_in):
         if dataset.params[j].type == 'categorical':
             assert(isinstance(x_eval_native[j], str))
             if x_eval_native[j] not in dataset.params[j].categories:
@@ -266,17 +265,17 @@ def bounds_check_xnative(dataset,x_eval_native):
 def train_on_unmasked_data(dataset,surrogate):
     # Check that there are enough samples to train a GP model
     for i in range(dataset.n_fl):
-        if np.count_nonzero(dataset.unmasked_data[i]) < dataset.n_dim + 1 + i:
-            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(dataset.unmasked_data[i]))+
-                            ' < n_dim+1+fidelity_level simulation sample values that are non-NaN and within user-specified bounds.'+
+        if np.count_nonzero(dataset.unmasked_data[i][:,surrogate.i_out]) < dataset.n_in + 1 + i:
+            raise Exception('For fidelity level ' + str(i) + ', there are '+str(np.count_nonzero(dataset.unmasked_data[i][:,surrogate.i_out]))+
+                            ' < n_in+1+fidelity_level simulation sample values that are non-NaN and within user-specified bounds.'+
                             ' Either specify more in input file or increase the number of pseudo-randomly sampled points'+
                             ' n_lhs_samp before training a surrogate dataset.')
         # print a warning if there are more higher fidelity samples than lower fidelity samples
         if i > 0:
-            if np.count_nonzero(dataset.unmasked_data[i]) >= np.count_nonzero(dataset.unmasked_data[i-1]):
+            if np.count_nonzero(dataset.unmasked_data[i][:,surrogate.i_out]) >= np.count_nonzero(dataset.unmasked_data[i-1][:,surrogate.i_out]):
                 print('Warning: the number of simulation samples for fidelity level '+str(i)+' is '+
-                      str(np.count_nonzero(dataset.unmasked_data[i]))+
-                      ', which is >= '+str(np.count_nonzero(dataset.unmasked_data[i-1]))+
+                      str(np.count_nonzero(dataset.unmasked_data[i][:,surrogate.i_out]))+
+                      ', which is >= '+str(np.count_nonzero(dataset.unmasked_data[i-1][:,surrogate.i_out]))+
                       ', the number of simulation samples for (lower) fidelity level '+str(i-1)+
                       '. This can lead to poor performance and is typically not an efficient way to '+
                       'initialize the Bayesian Optimization. This includes data read from files, LHS'+
@@ -287,33 +286,33 @@ def train_on_unmasked_data(dataset,surrogate):
     x_data_unmasked = []
     y_data_unmasked = []
     for i_fl in range(dataset.n_fl):
-        x_data_unmasked.append(dataset.x_data[i_fl][dataset.unmasked_data[i_fl].flatten()])
-        y_data_unmasked.append(dataset.y_data[i_fl][dataset.unmasked_data[i_fl].flatten()])
+        x_data_unmasked.append(dataset.x_data[i_fl][dataset.unmasked_data[i_fl][:,surrogate.i_out].flatten()])
+        y_data_unmasked.append(dataset.y_data[i_fl][dataset.unmasked_data[i_fl][:,surrogate.i_out].flatten()])
     surrogate.train(x_data_unmasked, y_data_unmasked)
 
     # Update the values for the masked data
     # Predict the mean value at all x_data[masked] values using surrogate_unmasked (and store these in y_data[masked])
     for i_fl in range(dataset.n_fl):
-        for i in range(len(dataset.y_data[i_fl])):
-            if not dataset.unmasked_data[i_fl][i]:
-                dataset.y_data[i_fl][i] = surrogate.predict_values(np.atleast_2d(dataset.x_data[i_fl][i]), i_fl)[0]
+        for i in range(dataset.n_samp[i_fl]):
+            if not dataset.unmasked_data[i_fl][i,surrogate.i_out]:
+                dataset.y_data[i_fl][i,surrogate.i_out] = surrogate.predict_values(np.atleast_2d(dataset.x_data[i_fl][i]), i_fl)[0]
 
 #########################################################
 # Train the surrogate model using x_data and y_data. This training uses masked and unmasked data.
 def train_on_all_data(dataset,surrogate):
     # Check that there are enough samples to train a GP model
     for i in range(dataset.n_fl):
-        if len(dataset.y_data[i]) < dataset.n_dim + 1 + i:
-            raise Exception('For fidelity level ' + str(i) + ', there are '+str(len(dataset.y_data[i]))+
-                            ' < n_dim+1+fidelity_level simulation samples.'+
+        if dataset.n_samp[i] < dataset.n_in + 1 + i:
+            raise Exception('For fidelity level ' + str(i) + ', there are '+str(dataset.n_samp[i])+
+                            ' < n_in+1+fidelity_level simulation samples.'+
                             ' Either specify more in input file or increase the number of pseudo-randomly sampled points'+
                             ' n_lhs_samp before training a surrogate dataset.')
         # print a warning if there are more higher fidelity samples than lower fidelity samples
         if i > 0:
-            if len(dataset.y_data[i]) >= len(dataset.y_data[i-1]):
+            if dataset.n_samp[i] >= dataset.n_samp[i-1]:
                 print('Warning: the number of simulation samples for fidelity level '+str(i)+' is '+
-                      str(len(dataset.y_data[i]))+
-                      ', which is >= '+str(len(dataset.y_data[i-1]))+
+                      str(dataset.n_samp[i])+
+                      ', which is >= '+str(dataset.n_samp[i-1])+
                       ', the number of simulation samples for (lower) fidelity level '+str(i-1)+
                       '. This can lead to poor performance and is typically not an efficient way to '+
                       'initialize the Bayesian Optimization. This includes data read from files, LHS'+
@@ -343,12 +342,12 @@ def train_on_all_data(dataset,surrogate):
 # # Mask data that is NaN or outside allowable bounds
 # def check_all_nan_oob(dataset):
 #     for ind_which_lvl in range(dataset.n_fl):
-#         dataset.unmasked_data[ind_which_lvl] = np.full([len(dataset.y_data[ind_which_lvl]),1], True)
-#         for i in range(len(dataset.y_data[ind_which_lvl])):
-#             dataset.unmasked_data[ind_which_lvl][i] = check_nan_oob(dataset.y_data[ind_which_lvl][i],dataset.ds_ops)
+#         dataset.unmasked_data[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], True)
+#         for i in range(dataset.n_samp[ind_which_lvl]):
+#             dataset.unmasked_data[ind_which_lvl][i,surrogate.i_out] = check_nan_oob(dataset.y_data[ind_which_lvl][i,surrogate.i_out],dataset.ds_ops)
 #         # don't put these points in the hero queue
-#         dataset.hero_todo[ind_which_lvl] = np.full([len(dataset.y_data[ind_which_lvl]),1], False)
-#         dataset.hero_task_id[ind_which_lvl] = np.full([len(dataset.y_data[ind_which_lvl]),1], 'None')
+#         dataset.hero_todo[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], False)
+#         dataset.hero_task_id[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], 'None')
 
 
 

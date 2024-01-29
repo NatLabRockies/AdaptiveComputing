@@ -4,9 +4,9 @@
 # plot- 
 # animation-
 # For each type, there are 3 subtypes:
-# 1D- for n_dim=1 parameters: plot of obj vs the 1 design param
-# 2D- for n_dim=2 parameters: 1 param vs the other param with color indicating the obj func value
-# ND- for arbitrary n_dim parameters: radial plot of the distance from the optimal param vector vs 
+# 1D- for n_in=1 parameters: plot of obj vs the 1 design param
+# 2D- for n_in=2 parameters: 1 param vs the other param with color indicating the obj func value
+# ND- for arbitrary n_in parameters: radial plot of the distance from the optimal param vector vs 
 # the angle (dot product) from the optimal parameter vector with color indicating the obj func value
 import sys
 import numpy as np 
@@ -19,14 +19,14 @@ from matplotlib import cm
 from . import utils
 #########################################################
 # Validate input plot types and set up paths for animations
-def viz_init(viz_ops,n_dim):
+def viz_init(viz_ops,n_in):
     # validate the selected visualizations are compatible with the number of design parameters
     if viz_ops.animation_1d or viz_ops.plot_1d:
-        if n_dim != 1:
-            raise Exception('viz_ops.animation_1d and viz_ops.plot_1d should be False unless n_dim=1')
+        if n_in != 1:
+            raise Exception('viz_ops.animation_1d and viz_ops.plot_1d should be False unless n_in=1')
     if viz_ops.animation_2d or viz_ops.plot_2d:
-        if n_dim != 2:
-            raise Exception('viz_ops.animation_2d and viz_ops.plot_2d should be False unless n_dim=2')
+        if n_in != 2:
+            raise Exception('viz_ops.animation_2d and viz_ops.plot_2d should be False unless n_in=2')
 
     # create output directory
     if viz_ops.plot_1d or viz_ops.plot_2d or viz_ops.plot_nd or viz_ops.animation_1d or viz_ops.animation_2d or viz_ops.animation_nd:
@@ -39,9 +39,8 @@ def viz_init(viz_ops,n_dim):
 # After each iteration, one frame of the animation is written 
 def viz_animate(dataset,surrogate,viz_ops,frame_id):
     [x_opt, y_opt] = dataset.find_min(surrogate)
-    n_fl = len(dataset.y_data)
-    if n_fl == 1:
-        ndoe = len(dataset.y_data[0])-(frame_id+1)
+    if dataset.n_fl == 1:
+        ndoe = dataset.n_samp[0]-(frame_id+1)
         if viz_ops.animation_1d:
             x_plot = np.atleast_2d(np.linspace(dataset.xlimits_num[0][0], dataset.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
@@ -54,7 +53,7 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             ax = fig.add_subplot(111)
             if viz_ops.show_EI:
                 x_ei_plot = np.atleast_2d(np.linspace(dataset.xlimits_num[0][0], dataset.xlimits_num[0][1], 10000)).T
-                y_ei_plot = -EI(surrogate,x_ei_plot,np.min(dataset.y_data[0][:-1]),-1)
+                y_ei_plot = -EI(surrogate,x_ei_plot,np.min(dataset.y_data[0][:-1,surrogate.i_out]),-1)
                 ax1 = ax.twinx()
                 ax1.plot(x_ei_plot,y_ei_plot,color='red',label='-EI')
                 ax1.set_ylabel('-EI')
@@ -62,8 +61,8 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             if viz_ops.show_exact:
                 ax.plot(x_plot,y_plot,label='Exact function')
             ax.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
-            ax.scatter(dataset.x_data[0][0:ndoe],dataset.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
-            ax.scatter(dataset.x_data[0][ndoe:-1],dataset.y_data[0][ndoe:-1],marker='o',color='orange',label='Additional samples')
+            ax.scatter(dataset.x_data[0][0:ndoe],dataset.y_data[0][0:ndoe,surrogate.i_out],marker='^',color='black',label='Initial samples')
+            ax.scatter(dataset.x_data[0][ndoe:-1],dataset.y_data[0][ndoe:-1,surrogate.i_out],marker='o',color='orange',label='Additional samples')
             ax.scatter(dataset.x_data[0][-1],surrogate.predict_values(dataset.x_data[0][-1]),80,marker='>',color='magenta',label='Next point to evaluate')
             ax.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='GP mean')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
@@ -79,7 +78,7 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             plt.scatter(dataset.x_data[0][:ndoe,0],dataset.x_data[0][:ndoe,1],s=20,marker='x',c='black',label='Initial DOE')
-            sm = plt.scatter(dataset.x_data[0][ndoe:,0],dataset.x_data[0][ndoe:,1],s=20,marker='o',c=dataset.y_data[0][ndoe:],cmap=cm.coolwarm,label='Added points')
+            sm = plt.scatter(dataset.x_data[0][ndoe:,0],dataset.x_data[0][ndoe:,1],s=20,marker='o',c=dataset.y_data[0][ndoe:,surrogate.i_out],cmap=cm.coolwarm,label='Added points')
             plt.scatter(dataset.x_data[0][-1,0],dataset.x_data[0][-1,1],s=60,marker='s',facecolors='none',edgecolors='g',label='Next point to evaluate')
             plt.scatter(x_opt[0],x_opt[1],s=100,marker='*',color='m',label='Current estimate of optimum')
             plt.xlabel('x0')
@@ -91,7 +90,7 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
 
         if viz_ops.animation_nd:
             raise Exception('viz_ops.animation_nd is not supported. Use viz_ops.plot_nd instead.')
-    elif n_fl == 2:
+    elif dataset.n_fl == 2:
         if viz_ops.animation_1d:
             x_plot = np.atleast_2d(np.linspace(dataset.xlimits_num[0][0], dataset.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
@@ -102,7 +101,7 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             y_gp_plot_var  =  surrogate.predict_variances(x_plot)
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
-            #y_ei_plot = -EI(surrogate,x_plot,np.min(dataset.y_data[-1]),-1)
+            #y_ei_plot = -EI(surrogate,x_plot,np.min(dataset.y_data[-1][:,surrogate.i_out]),-1)
             # if options.acq_func == 'LCB' or options.acq_func == 'SBO':
             #     ei, = ax.plot(x_plot,y_ei_plot,color='red')
             # else:    
@@ -111,8 +110,8 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             if viz_ops.show_exact:
                 plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
-            plt.scatter(dataset.x_data[0],dataset.y_data[0],marker='^',color='black',label='LF samples')
-            plt.scatter(dataset.x_data[1],dataset.y_data[1],marker='o',color='orange',label='HF samples')
+            plt.scatter(dataset.x_data[0],dataset.y_data[0][:,surrogate.i_out],marker='^',color='black',label='LF samples')
+            plt.scatter(dataset.x_data[1],dataset.y_data[1][:,surrogate.i_out],marker='o',color='orange',label='HF samples')
             plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
@@ -127,7 +126,7 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             plt.scatter(dataset.x_data[0][:,0],dataset.x_data[0][:,1],s=20,marker='^',color='k',label='LF samples')
-            sm = plt.scatter(dataset.x_data[1][:,0],dataset.x_data[1][:,1],s=20,marker='o',c=dataset.y_data[1],cmap=cm.coolwarm,label='HF samples')
+            sm = plt.scatter(dataset.x_data[1][:,0],dataset.x_data[1][:,1],s=20,marker='o',c=dataset.y_data[1][:,surrogate.i_out],cmap=cm.coolwarm,label='HF samples')
             plt.scatter(x_opt[0],x_opt[1],s=100,marker='*',color='m',label='Current estimate of optimum')
             plt.xlabel('x0')
             plt.ylabel('x1')
@@ -146,9 +145,8 @@ def viz_animate(dataset,surrogate,viz_ops,frame_id):
 # After all iterations are complete make final plots and make any finishing touches
 def viz_finalize(dataset,surrogate,viz_ops,frame_id):
     [x_opt, y_opt] = dataset.find_min(surrogate)
-    n_fl = len(dataset.y_data)
-    if n_fl == 1:
-        ndoe = len(dataset.y_data[0])-(frame_id+1)
+    if dataset.n_fl == 1:
+        ndoe = dataset.n_samp[0]-(frame_id+1)
         if viz_ops.plot_1d:
             x_plot = np.atleast_2d(np.linspace(dataset.xlimits_num[0][0], dataset.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
@@ -162,8 +160,8 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
             if viz_ops.show_exact:
                 plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
-            plt.scatter(dataset.x_data[0][0:ndoe],dataset.y_data[0][0:ndoe],marker='^',color='black',label='Initial samples')
-            plt.scatter(dataset.x_data[0][ndoe:],dataset.y_data[0][ndoe:],marker='o',color='orange',label='Additional samples')
+            plt.scatter(dataset.x_data[0][0:ndoe],dataset.y_data[0][0:ndoe,surrogate.i_out],marker='^',color='black',label='Initial samples')
+            plt.scatter(dataset.x_data[0][ndoe:],dataset.y_data[0][ndoe:,surrogate.i_out],marker='o',color='orange',label='Additional samples')
             plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
@@ -178,7 +176,7 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             plt.scatter(dataset.x_data[0][:ndoe,0],dataset.x_data[0][:ndoe,1],s=20,marker='x',c='black',label='Initial DOE')
-            sm = plt.scatter(dataset.x_data[0][ndoe:,0],dataset.x_data[0][ndoe:,1],s=20,marker='o',c=dataset.y_data[0][ndoe:],cmap=cm.coolwarm,label='Added points')
+            sm = plt.scatter(dataset.x_data[0][ndoe:,0],dataset.x_data[0][ndoe:,1],s=20,marker='o',c=dataset.y_data[0][ndoe:,surrogate.i_out],cmap=cm.coolwarm,label='Added points')
             plt.scatter(x_opt[0],x_opt[1],s=100,marker='*',color='m',label='Optimum found')
             plt.xlabel('x0')
             plt.ylabel('x1')
@@ -189,11 +187,11 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
         
         if viz_ops.plot_nd:
             fig = plt.figure(figsize=[10,10])
-            radius = np.zeros_like(dataset.y_data[0])
-            color = np.zeros_like(dataset.y_data[0]) # the iteration in which this data point was collected
-            n_dim = len(dataset.xlimits_num)
-            max_dist = np.zeros([1,n_dim])
-            for i in range(n_dim):
+            radius = np.zeros_like(dataset.y_data[0][:,surrogate.i_out])
+            color = np.zeros_like(dataset.y_data[0][:,surrogate.i_out]) # the iteration in which this data point was collected
+            n_in = len(dataset.xlimits_num)
+            max_dist = np.zeros([1,n_in])
+            for i in range(n_in):
                 max_dist[0][i] = dataset.xlimits_num[i][-1]-dataset.xlimits_num[i][0]
             for i in range(len(dataset.x_data[0])):
                 x1 = dataset.x_data[0][i,:]
@@ -202,8 +200,8 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
                     color[i] = 0
                 else:
                     color[i] = i-ndoe+1
-            plt.scatter(radius[:ndoe,0],dataset.y_data[0][:ndoe],s=20,marker='x',color='black',label='Initial DOE')
-            sm = plt.scatter(radius[ndoe:,0],dataset.y_data[0][ndoe:],s=20,marker='o',c=color[ndoe:],cmap=cm.coolwarm,label='Added points')
+            plt.scatter(radius[:ndoe],dataset.y_data[0][:ndoe,surrogate.i_out],s=20,marker='x',color='black',label='Initial DOE')
+            sm = plt.scatter(radius[ndoe:],dataset.y_data[0][ndoe:,surrogate.i_out],s=20,marker='o',c=color[ndoe:],cmap=cm.coolwarm,label='Added points')
             plt.scatter(0,y_opt,s=100,marker='*',facecolors='none',edgecolors='m',label='Optimum found')
             plt.title('Objective function vs distance from optimum in parameter vector space')
             plt.colorbar(sm,label='Iteration')
@@ -212,7 +210,7 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
             plt.legend()
             plt.savefig(viz_ops.output_dir + ('/final_ND'))
             plt.close(fig)
-    elif n_fl == 2:
+    elif dataset.n_fl == 2:
         if viz_ops.plot_1d:
             x_plot = np.atleast_2d(np.linspace(dataset.xlimits_num[0][0], dataset.xlimits_num[0][1], 100)).T
             y_plot = np.zeros_like(x_plot)
@@ -226,8 +224,8 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
             if viz_ops.show_exact:
                 plt.plot(x_plot,y_plot,label='Exact function')
             plt.scatter(x_opt,y_opt,70,marker='s',color='blue',label='Optimum found')
-            plt.scatter(dataset.x_data[0],dataset.y_data[0],marker='^',color='k',label='LF samples')
-            plt.scatter(dataset.x_data[1],dataset.y_data[1],marker='o',color='orange',label='HF samples')
+            plt.scatter(dataset.x_data[0],dataset.y_data[0][:,surrogate.i_out],marker='^',color='k',label='LF samples')
+            plt.scatter(dataset.x_data[1],dataset.y_data[1][:,surrogate.i_out],marker='o',color='orange',label='HF samples')
             plt.plot(x_plot,y_gp_plot,linestyle='--',color='g',label='MF surrogate prediction')
             sig_plus = y_gp_plot+3*np.sqrt(y_gp_plot_var)
             sig_moins = y_gp_plot-3*np.sqrt(y_gp_plot_var)
@@ -242,7 +240,7 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
             fig = plt.figure(figsize=[10,10])
             ax = fig.add_subplot(111)
             plt.scatter(dataset.x_data[0][:,0],dataset.x_data[0][:,1],s=20,marker='^',color='k',label='LF samples')
-            sm = plt.scatter(dataset.x_data[1][:,0],dataset.x_data[1][:,1],s=20,marker='o',c=dataset.y_data[1],cmap=cm.coolwarm,label='HF samples')
+            sm = plt.scatter(dataset.x_data[1][:,0],dataset.x_data[1][:,1],s=20,marker='o',c=dataset.y_data[1][:,surrogate.i_out],cmap=cm.coolwarm,label='HF samples')
             plt.scatter(x_opt[0],x_opt[1],s=100,marker='*',color='m',label='Optimum found')
             plt.xlabel('x0')
             plt.ylabel('x1')
@@ -253,22 +251,22 @@ def viz_finalize(dataset,surrogate,viz_ops,frame_id):
         
         if viz_ops.plot_nd:
             fig = plt.figure(figsize=[10,10])
-            radius_fl0 = np.zeros_like(dataset.y_data[0])
-            radius_fl1 = np.zeros_like(dataset.y_data[1])
-            color = np.zeros_like(dataset.y_data[1]) # the iteration in which this data point was collected
-            n_dim = len(dataset.xlimits_num)
-            max_dist = np.zeros([1,n_dim])
-            for i in range(n_dim):
+            radius_fl0 = np.zeros_like(dataset.y_data[0][:,surrogate.i_out])
+            radius_fl1 = np.zeros_like(dataset.y_data[1][:,surrogate.i_out])
+            color = np.zeros_like(dataset.y_data[1][:,surrogate.i_out]) # the iteration in which this data point was collected
+            n_in = len(dataset.xlimits_num)
+            max_dist = np.zeros([1,n_in])
+            for i in range(n_in):
                 max_dist[0][i] = dataset.xlimits_num[i][-1]-dataset.xlimits_num[i][0]
             for i in range(len(dataset.x_data[0])):
                 x1 = dataset.x_data[0][i,:]
                 radius_fl0[i] = np.linalg.norm((x1-x_opt)/(max_dist))
-            plt.scatter(radius_fl0[:,0],dataset.y_data[0],s=20,marker='^',color='k',label='LF samples')
+            plt.scatter(radius_fl0[:],dataset.y_data[0][:,surrogate.i_out],s=20,marker='^',color='k',label='LF samples')
             for i in range(len(dataset.x_data[1])):
                 x1 = dataset.x_data[1][i,:]
                 radius_fl1[i] = np.linalg.norm((x1-x_opt)/(max_dist))
                 color[i] = i+1
-            sm = plt.scatter(radius_fl1[:,0],dataset.y_data[1],s=20,marker='o',c=color,cmap=cm.coolwarm,label='HF samples')
+            sm = plt.scatter(radius_fl1[:],dataset.y_data[1][:,surrogate.i_out],s=20,marker='o',c=color,cmap=cm.coolwarm,label='HF samples')
             plt.scatter(0,y_opt,s=100,marker='*',facecolors='none',edgecolors='m',label='Optimum found')
             plt.title('Objective function vs distance from optimum in parameter vector space')
             plt.colorbar(sm,label='Iteration')

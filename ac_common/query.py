@@ -8,7 +8,7 @@ import numpy as np
 def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv):
     if len(x_queries.shape) == 1: # if x_queries is a 1d array
         x_queries = x_queries[:, np.newaxis]
-    assert(x_queries.shape[1]==dataset.n_dim)
+    assert(x_queries.shape[1]==dataset.n_in)
     n_queries = x_queries.shape[0]
 
     if threshold_std is not None:
@@ -20,7 +20,7 @@ def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std
 
     y_queries = np.zeros([n_queries,1])
     y_queries_var = np.zeros([n_queries,1])
-    x_queries_num = np.zeros([n_queries,dataset.n_dim])
+    x_queries_num = np.zeros([n_queries,dataset.n_in])
 
     for i in range(n_queries):
         # Bounds checking for the queries
@@ -47,7 +47,7 @@ def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std
 
         # Run simulation at all points where the std/total_variation >= user-specified threshold value
         if threshold_std_tv is not None:
-            total_variation = dataset.find_max()[1][0] - dataset.find_min()[1][0]
+            total_variation = dataset.find_max(surrogate)[1][0] - dataset.find_min(surrogate)[1][0]
             if np.sqrt(y_queries_var[i]) >= threshold_std_tv*total_variation:
                 # conduct a simulation and retrain the GPR using this data
                 dataset.add_xnum_sample(fidelity_level,x_queries_num[i],surrogate=surrogate)

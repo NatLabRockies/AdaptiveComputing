@@ -8,15 +8,15 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
         bo_ops = BoOptions()
     if viz_ops is not None:
         from .viz import viz_init, viz_finalize, viz_show_plots
-        viz_init(viz_ops,dataset.n_dim) # Set up animations
+        viz_init(viz_ops,dataset.n_in) # Set up animations
 
     if dataset.ds_ops.use_hero:
         dataset.wait_for_workers(surrogate) # wait is recommended so that this batch uses the most up to date information
 
     # Check that there are enough initial samples to conduct Bayesian optimization
     for i in range(dataset.n_fl):
-        if dataset.n_samp[i] <= dataset.n_dim+i:
-            raise Exception("Error on fidelity level " + str(i) + ". At least n_dim+1+fidelity_level initial samples from static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
+        if dataset.n_samp[i] <= dataset.n_in+i:
+            raise Exception("Error on fidelity level " + str(i) + ". At least n_in+1+fidelity_level initial samples from static sampling methods are required before Bayesian Optimization can be used to perform dynamic sampling.")
 
     # Multi-fidelity Bayesian optimization requires the cost to be specified for each fidelity level
     if dataset.n_fl > 1:
@@ -46,7 +46,7 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
         dataset.train_on_all_data(surrogate)
 
         af_array = np.zeros([dataset.n_fl,1]) # acquisition function min values for each fidelity level
-        x_et_k_array = np.zeros([dataset.n_fl,dataset.n_dim]) # acquisition function argmin for each fidelity level
+        x_et_k_array = np.zeros([dataset.n_fl,dataset.n_in]) # acquisition function argmin for each fidelity level
         for i in range(dataset.n_fl):
             if dataset.ds_ops.deterministic:
                 # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
@@ -59,7 +59,7 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
                 sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
             # x_start is an array of initial guess used in the search for the minimum of the acquisition function
             x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-            f_min_k = np.min(dataset.y_data[i]) # this is an argument needed by the EI acquisition function
+            f_min_k = np.min(dataset.y_data[i][:,surrogate.i_out]) # this is an argument needed by the EI acquisition function
             obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,i) # this is the acquistion function which will be minimized
             x_et_k_array[i,:] = minimize_acq_func(dataset,obj_k,x_start,bo_ops)
             af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
@@ -99,7 +99,7 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
         # else:
         #     sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
         # x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-        # f_min_k = np.min(dataset.y_data)
+        # f_min_k = np.min(dataset.y_data[:][:,surrogate.i_out])
         # obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,-1)
         # x_et_k = minimize_acq_func(obj_k, x_start, dataset.ds_ops, dataset.xlimits_num)
         # if dataset.multifidelity: # decide which fidelity level to evaluate the objective on.
@@ -135,9 +135,9 @@ def find_min(dataset,surrogate):
             print(f'Warning: {total_in_queue} Hero tasks are incomplete. Consider calling wait_for_workers(surrogate) before find_min().')
     
     # # option 1: estimate the optimum using the high fidelity model
-    # ind_best = np.argmin(dataset.y_data[-1])
+    # ind_best = np.argmin(dataset.y_data[-1][:,surrogate.i_out])
     # x_opt = dataset.x_data[-1][ind_best,:]
-    # y_opt = dataset.y_data[-1][ind_best]
+    # y_opt = dataset.y_data[-1][ind_best,surrogate.i_out]
     # option 2: estimate the optimum using the highest fidelity surrogate and every sampled location with any fidelity level
     # Begin with the x_data where the highest fidelity model has been evaluated
     ind_best = np.argmin(surrogate.predict_values(dataset.x_data[-1]))
@@ -146,7 +146,7 @@ def find_min(dataset,surrogate):
     x_opt = x_opt[0]
     y_opt = y_opt[0]
     opt_is_masked = False
-    if not dataset.unmasked_data[-1][ind_best]:
+    if not dataset.unmasked_data[-1][ind_best,surrogate.i_out]:
         opt_is_masked = True
     for i in range(dataset.n_fl-1): # check the highest fidelity surrogate model evaluated at the points where lower fidelity sims have been conducted
         y_min_i = np.min(surrogate.predict_values(dataset.x_data[i],-1))
@@ -154,7 +154,7 @@ def find_min(dataset,surrogate):
             ind_best_mf = np.argmin(surrogate.predict_values(dataset.x_data[i],-1))
             y_opt = y_min_i
             x_opt = dataset.x_data[i][ind_best_mf,:]
-            if not dataset.unmasked_data[i][ind_best_mf]:
+            if not dataset.unmasked_data[i][ind_best_mf,surrogate.i_out]:
                 opt_is_masked = True
             else:
                 opt_is_masked = False
@@ -163,23 +163,23 @@ def find_min(dataset,surrogate):
               +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
         print(f'This masked minimum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning minimum using only the unmasked data.')
-        ind_best = np.argmin(surrogate.predict_values(dataset.x_data[-1][dataset.unmasked_data[-1].flatten()],-1)) # this index is of only the unmasked data
-        orig_indices_of_unmasked = np.where(dataset.unmasked_data[-1].flatten())[0]
+        ind_best = np.argmin(surrogate.predict_values(dataset.x_data[-1][dataset.unmasked_data[-1][:,surrogate.i_out].flatten()],-1)) # this index is of only the unmasked data
+        orig_indices_of_unmasked = np.where(dataset.unmasked_data[-1][:,surrogate.i_out].flatten())[0]
         ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
         x_opt = np.atleast_2d(dataset.x_data[-1][ind_best,:])
         y_opt = surrogate.predict_values(x_opt,-1)
         x_opt = x_opt[0]
         y_opt = y_opt[0]
-        assert(dataset.unmasked_data[-1][ind_best])
+        assert(dataset.unmasked_data[-1][ind_best,surrogate.i_out])
         for i in range(dataset.n_fl-1):
-            y_min_i = np.min(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i].flatten()],-1))
+            y_min_i = np.min(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i][:,surrogate.i_out].flatten()],-1))
             if  y_min_i < y_opt:
-                ind_best_mf = np.argmin(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i].flatten()],-1))
-                orig_indices_of_unmasked = np.where(dataset.unmasked_data[i].flatten())[0]
+                ind_best_mf = np.argmin(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i][:,surrogate.i_out].flatten()],-1))
+                orig_indices_of_unmasked = np.where(dataset.unmasked_data[i][:,surrogate.i_out].flatten())[0]
                 ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
                 y_opt = y_min_i
                 x_opt = dataset.x_data[i][ind_best_mf,:]
-                assert(dataset.unmasked_data[i][ind_best_mf])
+                assert(dataset.unmasked_data[i][ind_best_mf,surrogate.i_out])
     # option 3: could implement a minimization on the surrogate surface though this introduces additional uncertainty, since could
     # return a point where no simulation has ever been computed yet.
 
@@ -195,9 +195,9 @@ def find_max(dataset,surrogate):
             print(f'Warning: {total_in_queue} Hero tasks are incomplete. Consider calling wait_for_workers(surrogate) before find_max().')
     
     # # option 1: estimate the optimum using the high fidelity model
-    # ind_best = np.argmax(dataset.y_data[-1])
+    # ind_best = np.argmax(dataset.y_data[-1][:,surrogate.i_out])
     # x_opt = dataset.x_data[-1][ind_best,:]
-    # y_opt = dataset.y_data[-1][ind_best]
+    # y_opt = dataset.y_data[-1][ind_best,surrogate.i_out]
     # option 2: estimate the optimum using the highest fidelity surrogate and every sampled location with any fidelity level
     # Begin with the x_data where the highest fidelity model has been evaluated
     ind_best = np.argmax(surrogate.predict_values(dataset.x_data[-1],-1))
@@ -206,7 +206,7 @@ def find_max(dataset,surrogate):
     x_opt = x_opt[0]
     y_opt = y_opt[0]
     opt_is_masked = False
-    if not dataset.unmasked_data[-1][ind_best]:
+    if not dataset.unmasked_data[-1][ind_best,surrogate.i_out]:
         opt_is_masked = True
     for i in range(dataset.n_fl-1):
         y_max_i = np.max(surrogate.predict_values(dataset.x_data[i],-1))
@@ -214,7 +214,7 @@ def find_max(dataset,surrogate):
             ind_best_mf = np.argmax(surrogate.predict_values(dataset.x_data[i],-1))
             y_opt = y_max_i
             x_opt = dataset.x_data[i][ind_best_mf,:]
-            if not dataset.unmasked_data[i][ind_best_mf]:
+            if not dataset.unmasked_data[i][ind_best_mf,surrogate.i_out]:
                 opt_is_masked = True
             else:
                 opt_is_masked = False
@@ -223,23 +223,23 @@ def find_max(dataset,surrogate):
               +' an incomplete Hero simulation or the simulation returned NaN or an out of allowable bounds value).')
         print(f'This masked maximum is x_opt={x_opt}, y_opt={y_opt}')
         print('Recomputing and returning maximum using only the unmasked data.')
-        ind_best = np.argmax(surrogate.predict_values(dataset.x_data[-1][dataset.unmasked_data[-1].flatten()],-1)) # this index is of only the unmasked data
-        orig_indices_of_unmasked = np.where(dataset.unmasked_data[-1].flatten())[0]
+        ind_best = np.argmax(surrogate.predict_values(dataset.x_data[-1][dataset.unmasked_data[-1][:,surrogate.i_out].flatten()],-1)) # this index is of only the unmasked data
+        orig_indices_of_unmasked = np.where(dataset.unmasked_data[-1][:,surrogate.i_out].flatten())[0]
         ind_best = orig_indices_of_unmasked[ind_best] # this index is global index for masked and unmasked data
         x_opt = np.atleast_2d(dataset.x_data[-1][ind_best,:])
         y_opt = surrogate.predict_values(x_opt,-1)
         x_opt = x_opt[0]
         y_opt = y_opt[0]
-        assert(dataset.unmasked_data[-1][ind_best])
+        assert(dataset.unmasked_data[-1][ind_best,surrogate.i_out])
         for i in range(dataset.n_fl-1):
-            y_max_i = np.max(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i].flatten()],-1))
+            y_max_i = np.max(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i][:,surrogate.i_out].flatten()],-1))
             if  y_max_i < y_opt:
-                ind_best_mf = np.argmax(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i].flatten()],-1))
-                orig_indices_of_unmasked = np.where(dataset.unmasked_data[i].flatten())[0]
+                ind_best_mf = np.argmax(surrogate.predict_values(dataset.x_data[i][dataset.unmasked_data[i][:,surrogate.i_out].flatten()],-1))
+                orig_indices_of_unmasked = np.where(dataset.unmasked_data[i][:,surrogate.i_out].flatten())[0]
                 ind_best_mf = orig_indices_of_unmasked[ind_best_mf] # this index is global index for masked and unmasked data
                 y_opt = y_max_i
                 x_opt = dataset.x_data[i][ind_best_mf,:]
-                assert(dataset.unmasked_data[i][ind_best_mf])
+                assert(dataset.unmasked_data[i][ind_best_mf,surrogate.i_out])
     # option 3: could implement a maximization on the surrogate surface though this introduces additional uncertainty
 
     return [x_opt, y_opt]

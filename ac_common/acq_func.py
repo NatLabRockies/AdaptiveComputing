@@ -82,9 +82,9 @@ def minimize_acq_func(dataset,obj_k,x_start,bo_ops):
     
     # Combined optimization of continuous and discrete varaibles:
     if dataset.mixed_type and bo_ops.mixedtype_minimization == 'differential_evolution':
-        DE_bounds = [0]*dataset.n_dim
-        integrality = [False]*dataset.n_dim
-        for i in range(dataset.n_dim):
+        DE_bounds = [0]*dataset.n_in
+        integrality = [False]*dataset.n_in
+        for i in range(dataset.n_in):
             DE_bounds[i] = (dataset.xlimits_num[i][0], dataset.xlimits_num[i][-1])
             integrality[i] = (dataset.params[i].type == 'ordered') or (dataset.params[i].type == 'categorical')
         x_et_k = differential_evolution(lambda x: float(obj_k(x)), DE_bounds, integrality=integrality)['x']
@@ -112,7 +112,7 @@ def minimize_acq_func(dataset,obj_k,x_start,bo_ops):
         # x_et_k = opt['x'] # the x value at which the min occurs
     else: # Separate optimization methods for continuous and discrete variables:
         ranges = ()
-        for i in range(dataset.n_cont_vars,dataset.n_dim):
+        for i in range(dataset.n_cont_vars,dataset.n_in):
             ranges = ranges+(slice(dataset.xlimits_num[i][0], dataset.xlimits_num[i][-1]+1, 1),)
         DE_bounds = [0]*n_disc_vars
         for i in range(n_disc_vars):
@@ -124,7 +124,7 @@ def minimize_acq_func(dataset,obj_k,x_start,bo_ops):
                 x_et_k = differential_evolution(lambda x: float(obj_k(x)), DE_bounds, integrality=[True]*n_disc_vars)['x']
             else:
                 raise Exception('Unrecognized option for discrete minimization method: bo_ops.sep_disc_minimizer = '+bo_ops.sep_disc_minimizer)
-        elif dataset.n_cont_vars == dataset.n_dim: # if all data types are continuous
+        elif dataset.n_cont_vars == dataset.n_in: # if all data types are continuous
             x_et_k = min_for_cont_vars(xc_start,xclimits_num,obj_k,bo_ops,[])[1]
         else: # if there are a mixture of continuous and discrete data types
             if bo_ops.sep_disc_minimizer == 'brute':

@@ -29,26 +29,28 @@ def write_samples_csv(dataset,filenames):
             if filename != '':
                 raise Exception('csv filename must end in .csv or be an empty string')
 
-    for f in range(dataset.n_fl):
-        filename = filenames[f]
+    for i_fl in range(dataset.n_fl):
+        filename = filenames[i_fl]
         if filename == '':
-            print('No ouput data file specified for fidelity level ' + str(f) + '. Skipping write_output_data for this level.')
+            print('No ouput data file specified for fidelity level ' + str(i_fl) + '. Skipping write_output_data for this level.')
         else:
             with open(filename,'w', encoding='utf-8-sig') as csvfile: #, newline=''
                 writer = csv.writer(csvfile, delimiter=',') # , quotechar='|'
                 row = []
-                for i_p in range(dataset.n_dim):
+                for i_p in range(dataset.n_in):
                     row.append(dataset.params[i_p].type)
-                row.append('y')
+                for i_o in range(dataset.n_out):
+                    row.append('y'+str(i_o))
                 writer.writerow(row)
-                for i_d in range(len(dataset.y_data[f])):
+                for i_s in range(dataset.n_samp[i_fl]):
                     row = []
-                    for i_p in range(dataset.n_dim):
+                    for i_p in range(dataset.n_in):
                         if dataset.params[i_p].type == 'categorical':
-                            row.append(dataset.params[i_p].categories[int(dataset.x_data[f][i_d][i_p])])
+                            row.append(dataset.params[i_p].categories[int(dataset.x_data[i_fl][i_s][i_p])])
                         else:
-                            row.append(dataset.x_data[f][i_d][i_p])
-                    row.append(dataset.y_data[f][i_d][0])
+                            row.append(dataset.x_data[i_fl][i_s][i_p])
+                    for i_o in range(dataset.n_out):
+                        row.append(dataset.y_data[i_fl][i_s][i_o])
                     writer.writerow(row)
                 
             

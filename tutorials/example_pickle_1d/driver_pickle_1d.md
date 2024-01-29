@@ -44,30 +44,34 @@ def driver_pickle_1d():
     params = [x0]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
+    ds_ops = DataSetOptions()
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_1d, params, mod_ops)
-    my_model.add_lhs_samples(2)
+    my_dataset = DataSet(func_1d, params, ds_ops)
+    my_dataset.add_lhs_samples(2)
     viz_ops = VizOptions()
     viz_ops.animation_1d=True
     viz_ops.show_exact = True
 
     # Pickle the object
     with open('data.pkl', 'wb') as file:
-        pickle.dump(my_model, file)
+        pickle.dump(my_dataset, file)
 
-    my_model.add_bo_samples(7,viz_ops=viz_ops)
-    [x_opt, y_opt] = my_model.find_min()
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+    my_dataset.add_bo_samples(7,surrogate,viz_ops=viz_ops)
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
 
     # Unpickle the object
     with open('data.pkl', 'rb') as file:
         unpickled_model = pickle.load(file)
     
-    unpickled_model.add_bo_samples(7,viz_ops=viz_ops)
-    [x_opt_up, y_opt_up] = my_model.find_min()
+    surrogate_unpickled= SMTWrapper(my_dataset)
+    unpickled_model.add_bo_samples(7,surrogate_unpickled,viz_ops=viz_ops)
+    [x_opt_up, y_opt_up] = my_dataset.find_min(surrogate_unpickled)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be approximately [x,y] = [18.9352,-15.1251]')

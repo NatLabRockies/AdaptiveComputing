@@ -50,17 +50,20 @@ def driver_2d():
     params = [x0, x1]
 
     # Define the options for surrogate modeling and optimization
-    mod_ops = ModelOptions()
+    ds_ops = DataSetOptions()
 
     # Perform the optimization
     import time
     t = time.time()
-    my_model = Model(func_2d, params, mod_ops)
-    my_model.add_lhs_samples(10)
+    my_dataset = DataSet(func_2d, params, ds_ops)
+    my_dataset.add_lhs_samples(10)
     viz_ops = VizOptions()
     viz_ops.animation_2d=True
-    my_model.add_bo_samples(30,viz_ops=viz_ops)
-    [x_opt, y_opt] = my_model.find_min()
+    # use the SMT implementation of the Gaussian Process model
+    from ac_common.surrogate_wrappers import SMTWrapper
+    surrogate= SMTWrapper(my_dataset)
+    my_dataset.add_bo_samples(30,surrogate,viz_ops=viz_ops)
+    [x_opt, y_opt] = my_dataset.find_min(surrogate)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
     print('The minimum should be y = 0 at the location [x0_opt, x1_opt] = [3, 4]')
