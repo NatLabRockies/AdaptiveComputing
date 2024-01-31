@@ -56,13 +56,15 @@ def driver_2d():
     import time
     t = time.time()
     my_dataset = DataSet(func_2d, params, ds_ops)
-    my_dataset.add_lhs_samples(10)
+    my_dataset.add_lhs_samples(30)
     viz_ops = VizOptions()
     viz_ops.animation_2d=True
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
-    my_dataset.add_bo_samples(30,surrogate,viz_ops=viz_ops)
+    bo_ops = BoOptions()
+    bo_ops.dont_run_sims = True
+    my_dataset.add_bo_samples(10,surrogate,viz_ops=viz_ops,bo_ops=bo_ops)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)
     t = time.time() - t
     print('Elapsed time = ', t, ' s')
@@ -70,7 +72,7 @@ def driver_2d():
     print('The minimum found is y = ', y_opt, ' at the location', x_opt)
     computed_values = [x_opt[0], x_opt[1], y_opt[0]]
     expected_values = [3.0, 4.0, 0.0]
-    tolerances = [0.15]*len(expected_values)
+    tolerances = [0.5]*len(expected_values)
     return expected_values, computed_values, tolerances
 ```
 

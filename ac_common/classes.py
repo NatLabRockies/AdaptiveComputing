@@ -88,5 +88,6 @@ class BoOptions:
     # trust-constr: warnings from approximate Hessian
     # dogleg, trust-ncg, trust-exact, trust-krylov: Jacobian required
     n_opt_pts = 20 # number of initial guesses used to probe the acquisition function
+    dont_run_sims = False # If true, Bayesian Optimization just returns masked data points instead of evaluating simulations
 
 #########################################################

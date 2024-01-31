@@ -124,6 +124,10 @@ class DataSet:
     def queue_hero_sample(self,fidelity_level,x_eval_num,surrogate=None,viz_ops=None,frame_id=None):
         from ac_common.static_sampling import queue_hero_sample
         queue_hero_sample(self,fidelity_level,x_eval_num,surrogate,viz_ops,frame_id)
+
+    def mask_xnum_sample(self,fidelity_level,x_eval_num,surrogate=None,viz_ops=None,frame_id=None):
+        from ac_common.static_sampling import mask_xnum_sample
+        mask_xnum_sample(self,fidelity_level,x_eval_num,surrogate,viz_ops,frame_id)
     
     def sync_hero_results(self,surrogate=None,viz_ops=None):
         from ac_common.static_sampling import sync_hero_results

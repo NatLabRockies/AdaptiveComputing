@@ -198,6 +198,40 @@ def queue_hero_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_
                 dataset.queue_hero_sample(im1_fl,x_eval_num,surrogate)
 
 #########################################################
+# Similar to add_xnum_sample, but it does not run or queue the sim.
+# Instead, this function just stores this point as a masked sample and stores
+# the value of the surrogate model as the correpsonding y value.
+# The x_eval_num argument has variable types converted to floats as SMT expects
+def mask_xnum_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_id):
+    dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
+    # set a placeholder value using the surrogate's prediction
+    if surrogate is not None:
+        y_eval = surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
+        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], y_eval)).T
+    else:
+        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], np.full((1,dataset.n_out), np.NaN))).T
+    dataset.n_samp[fidelity_level] += 1
+
+    # Mark the data as masked
+    dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), False, dtype=bool))).T
+    
+    # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
+    if dataset.ds_ops.perform_lower_sims:        
+        pt_exists = False 
+        im1_fl = fidelity_level-1
+        if im1_fl >= 0:    
+            for j_d_lower in range(dataset.n_samp[im1_fl]): # for all data in the level below
+                if np.array_equal(dataset.x_data[fidelity_level][-1,:],dataset.x_data[im1_fl][j_d_lower,:]):
+                    pt_exists = True
+            if not pt_exists: # add the sim at the im1_fl level
+                dataset.mask_xnum_sample(im1_fl,x_eval_num,surrogate)
+        
+    # Visualize the next point to add and the surrogate that has not yet been trained on this point
+    if viz_ops is not None:
+        from .viz import viz_animate
+        viz_animate(dataset,surrogate,viz_ops,frame_id)
+
+#########################################################
 # Collect data from any sims in the hero queue that have finished. Retrain the surrogate if it is provided.
 def sync_hero_results(dataset,surrogate,viz_ops):
     # if viz_ops is not None:

@@ -35,7 +35,8 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
     if dataset.mixed_type:
         from smt.applications.mixed_integer import MixedIntegerSamplingMethod
     
-    dataset.sync_hero_results(surrogate,viz_ops)
+    if dataset.ds_ops.use_hero:
+        dataset.sync_hero_results(surrogate,viz_ops)
 
     # Beginning of the bayesian optimization iterations (each iteration computes a new simulation sample)
     rand_state = np.random.RandomState()
@@ -82,8 +83,11 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops):
         
         # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
         # This computes the value of the user-defined objective function at the location where the acquisition function is minimal
+        # Just return the location of the samples (don't run the correpsonding simulations and don't put them in the hero queue)
+        if bo_ops.dont_run_sims: 
+            dataset.mask_xnum_sample(ind_which_lvl,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
         # Add sample to the Hero queue instead of running it locally immediately
-        if dataset.ds_ops.use_hero:
+        elif dataset.ds_ops.use_hero:
             dataset.queue_hero_sample(ind_which_lvl,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
         # Run the simulation on the current process (blocking)
         else:
