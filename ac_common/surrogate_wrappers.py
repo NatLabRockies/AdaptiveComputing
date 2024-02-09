@@ -39,7 +39,7 @@ class SMTWrapper(SurrogateModelBase):
                 self.surrogate_model.append(KRG(print_global = False)) 
             if self.mixed_type:
                 self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
-        dataset.train_on_unmasked_data(self)
+        #dataset.train_on_unmasked_data(self)
 
     def train(self, x_data, y_data):
         for i_fl in range(self.n_fl):

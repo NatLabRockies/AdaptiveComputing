@@ -69,7 +69,9 @@ def driver_mf_1d():
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
-    my_dataset.add_bo_samples(10,surrogate,bo_ops=bo_ops)
+    my_dataset.add_bo_samples(3,surrogate,bo_ops=bo_ops)
+    my_dataset.add_bo_samples(3,surrogate,bo_ops=bo_ops,bo_fidelity_level=0)
+    my_dataset.add_bo_samples(4,surrogate,bo_ops=bo_ops,bo_fidelity_level=1)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)
     
     # Query the multifidelity GP at its high fidelity level

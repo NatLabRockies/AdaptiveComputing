@@ -257,7 +257,7 @@ def sync_hero_results(dataset,surrogate,viz_ops):
         dataset.train_on_unmasked_data(surrogate)
 
 #########################################################
-# Wait for workers to complete all tasks in Hero queues.
+# Wait for workers to complete all tasks in Hero queues. And retrain the surrogate if it is provided.
 def wait_for_workers(dataset,surrogate,viz_ops):
     print('Wait until workers complete all tasks in all hero queues.')
     while True:
@@ -265,10 +265,13 @@ def wait_for_workers(dataset,surrogate,viz_ops):
         if total_in_queue > 0:
             print(f'Number of remaining tasks in hero queues = {total_in_queue}')
             dataset.hero_objs[0].wait(1)
-            sync_hero_results(dataset,surrogate,viz_ops)
+            sync_hero_results(dataset,viz_ops)
         else:
             print('Workers are done. All Hero queues are empty.')
             break
+    
+    if surrogate is not None:
+        dataset.train_on_unmasked_data(surrogate)
 
 # #########################################################
 # # Add a sim to the dataset and retrain the surrogate model
@@ -333,7 +336,7 @@ def train_on_unmasked_data(dataset,surrogate):
 
 #########################################################
 # Train the surrogate model using x_data and y_data. This training uses masked and unmasked data.
-def train_on_all_data(dataset,surrogate):
+def train_on_all_data(dataset,surrogate,update_masked):
     # Check that there are enough samples to train a GP model
     for i in range(dataset.n_fl):
         if dataset.n_samp[i] < dataset.n_in + 1 + i:
@@ -352,7 +355,10 @@ def train_on_all_data(dataset,surrogate):
                       'initialize the Bayesian Optimization. This includes data read from files, LHS'+
                       ' sampling, and perform_lower_sims if active. Note: that only values that are '+
                       'non-NaN and within user-specified allowable bounds are included in these counts.')
-                
+
+    if update_masked:
+        dataset.train_on_unmasked_data(surrogate) # this updates the predictions at masked data locations since they will be used by the next step
+        # if the unmasked data is already up to date, this step could be skipped for computational efficiency
     surrogate.train(dataset.x_data, dataset.y_data)
 
 # #########################################################

@@ -101,9 +101,9 @@ class DataSet:
         from ac_common.static_sampling import train_on_unmasked_data
         train_on_unmasked_data(self,surrogate)
     
-    def train_on_all_data(self,surrogate):
+    def train_on_all_data(self,surrogate,update_masked):
         from ac_common.static_sampling import train_on_all_data
-        train_on_all_data(self,surrogate)
+        train_on_all_data(self,surrogate,update_masked)
     
     def add_lhs_samples(self,n_lhs_samp,surrogate=None):
         from ac_common.static_sampling import add_lhs_samples
@@ -113,9 +113,9 @@ class DataSet:
         from ac_common.static_sampling import add_file_samples
         add_file_samples(self,filenames,surrogate)
 
-    def add_bo_samples(self,n_iter,surrogate,bo_ops=None,viz_ops=None):
+    def add_bo_samples(self,n_iter,surrogate,bo_ops=None,viz_ops=None,bo_fidelity_level=None):
         from ac_common.bo import add_bo_samples
-        add_bo_samples(self,n_iter,surrogate,bo_ops,viz_ops)
+        add_bo_samples(self,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level)
 
     def add_xnum_sample(self,fidelity_level,x_eval_num,y_eval=None,viz_ops=None,frame_id=None,surrogate=None):
         from ac_common.static_sampling import add_xnum_sample
