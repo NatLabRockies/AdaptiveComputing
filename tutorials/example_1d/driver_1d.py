@@ -15,7 +15,7 @@ Kevin Griffin
 
 ```python"""
 import sys
-sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
+sys.path.insert(0, 'C:/Users/JanelleDomantay/Documents/GitHub/AdaptiveComputing') # add the path to the AdaptiveComputing directory
 import numpy as np
 from ac_common import *
 if utils.is_notebook():
@@ -35,6 +35,9 @@ from func_1d import func_1d # import each of the simulation scripts
 Define the design parameters (inputs to the objective function)
 
 ```python"""
+def say_hello():
+    print("Hello from driver_1d!")
+    return 2*2
 def driver_1d():
     x0 = Param()
     x0.min_val = 0
@@ -56,7 +59,7 @@ def driver_1d():
     
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
-    surrogate = SMTWrapper(my_dataset)
+    surrogate = SMTWrapper(my_dataset) #CALL THIS, add_sample_xnum
     
     my_dataset.add_bo_samples(6,surrogate,viz_ops=viz_ops)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)
@@ -68,7 +71,11 @@ def driver_1d():
     expected_values = [18.9352, -15.1251]
     tolerances = [0.3, 0.3]
     return expected_values, computed_values, tolerances
+
+
 """```
+
+
 
 ```python"""
 if __name__ == '__main__':
