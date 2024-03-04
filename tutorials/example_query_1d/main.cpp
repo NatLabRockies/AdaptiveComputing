@@ -1,4 +1,4 @@
-//"call_python.cpp -o output -L C:\Python39\libs -lpython39 -I C:\Python39\include
+//
 
 #include <python.h>
 #include <iostream>
