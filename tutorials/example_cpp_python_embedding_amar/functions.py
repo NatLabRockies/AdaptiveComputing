@@ -20,12 +20,22 @@ Kevin Griffin
 """
 
 """```
-
+#dependencies
+import sys
+sys.path.insert(0, 'C:\Users\JanelleDomantay\Documents\GitHub\AdaptiveComputing') # add the path to the AdaptiveComputing directory
+import numpy as np
+from ac_common import *
+if utils.is_notebook():
+    get_ipython().run_line_magic('matplotlib', 'notebook')
+import matplotlib.pyplot as plt
 
 Define the objective function
 
 
 ```python"""
+
+
+
 # define the microscale (Kinetic Monte Carlo) simulation
 # this function takes Temperature, Pressure, and compositions as input
 # returns the flux on the surface
@@ -37,14 +47,11 @@ Define the design parameters (inputs to the objective function)
 
 ```python"""
 def init_dataset():
-    import sys
-    sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
+    
+    print("In init_dataset")
+    '''
     import numpy as np
-    from ac_common import *
-    if utils.is_notebook():
-        get_ipython().run_line_magic('matplotlib', 'notebook')
     import matplotlib.pyplot as plt
-
     T = Param() # Temperature
     T.type = 'continuous'
     T.min_val = 0
@@ -69,20 +76,22 @@ def init_dataset():
     my_dataset = DataSet(func_4d, params, ds_ops)
     my_dataset.add_lhs_samples(10) # >= the number of input arguments of func_4d + 1 (=5)
     return my_dataset
-
-def init_surrogate():
+    '''
+def init_surrogate(my_dataset):
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
 
-def query_surrogate():
+def query_surrogate(my_dataset, surrogate):
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
+    import numpy as np
     x_queries = np.array([[13],[13.5]])
     threshold_std_mean = 1.0
     y_queries, y_queries_var = my_dataset.query(surrogate,x_queries,threshold_std_mean=threshold_std_mean)
     print(y_queries)
     print(np.sqrt(y_queries_var))
-    return expected_values, computed_values, tolerances
+    return 0
+    #return expected_values, computed_values, tolerances
 
 if __name__ == '__main__':
     init_dataset()
