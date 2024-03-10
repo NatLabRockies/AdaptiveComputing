@@ -1,39 +1,9 @@
-"""
-<div class="jumbotron text-left"><b>
-    
-This tutorial describes how to use AC to do Bayesian Optimization (Efficient Global Optimization EGO method) for optimal parameter selection when some of the objective function evaluations have been precomputed and stored in a .csv file.
-<div>
-    
-Kevin Griffin
-    
-    March  2023
 
-<div class="alert alert-info fade in" id="d110">
-<p>In this notebook, </p>
-<ol> - Create DataSet. In continuum simulation, the dataset the flow field. Temperature, Pressure, Composition (mass fraction for the species). </ol>
-<ol> - Create Surrogate model. Surrogate model keeps track of which microscale simulations have been performed. Allows us to interpolate between those simulations. </ol>
-<ol> - . </ol>
-<ol> - . </ol>
-</div>
-
-```python
-"""
-
-"""```
-#dependencies
 import sys
-sys.path.insert(0, 'C:\Users\JanelleDomantay\Documents\GitHub\AdaptiveComputing') # add the path to the AdaptiveComputing directory
+sys.path.insert(0, '../../') # add the path to the AdaptiveComputing directory
+from ac_common import *    
 import numpy as np
-from ac_common import *
-if utils.is_notebook():
-    get_ipython().run_line_magic('matplotlib', 'notebook')
 import matplotlib.pyplot as plt
-
-Define the objective function
-
-
-```python"""
-
 
 
 # define the microscale (Kinetic Monte Carlo) simulation
@@ -49,8 +19,6 @@ Define the design parameters (inputs to the objective function)
 def init_dataset():
     
 
-    import numpy as np
-    import matplotlib.pyplot as plt
     T = Param() # Temperature
     T.type = 'continuous'
     T.min_val = 0
@@ -75,24 +43,22 @@ def init_dataset():
     my_dataset = DataSet(func_4d, params, ds_ops)
     my_dataset.add_lhs_samples(10) # >= the number of input arguments of func_4d + 1 (=5)
     return my_dataset
-    
+
 def init_surrogate(my_dataset):
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
 
-def query_surrogate(my_dataset, surrogate):
+def if_query(my_dataset, surrogate, x_queries, threshold_std_mean):
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
     import numpy as np
-    x_queries = np.array([[13],[13.5]])
-    threshold_std_mean = 1.0
-    y_queries, y_queries_var = my_dataset.query(surrogate,x_queries,threshold_std_mean=threshold_std_mean)
-    print(y_queries)
-    print(np.sqrt(y_queries_var))
-    return 0
+    y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)        
+    return y_queries
     #return expected_values, computed_values, tolerances
+    
 
 if __name__ == '__main__':
-    init_dataset()
-    init_surrogate()
-"""```"""
+    print("Calling func.py")
+    #init_dataset()
+    #init_surrogate()
+

@@ -161,6 +161,10 @@ class DataSet:
         from ac_common.query import query
         return query(self,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv)
     
+    def query_cpp(self,surrogate,x_queries,fidelity_level=-1,threshold_std=None,threshold_std_mean=None,threshold_std_tv=None):
+        from ac_common.query import query_cpp
+        return query_cpp(self,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv)
+
     #########################################################
     # This runs a simulation without using Hero. So it runs on the AC main process and is blocking.
     def eval_xnum(self,fidelity_level,x_num):
