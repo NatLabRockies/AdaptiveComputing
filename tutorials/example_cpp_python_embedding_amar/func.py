@@ -48,17 +48,23 @@ def init_surrogate(my_dataset):
     # use the SMT implementation of the Gaussian Process model
     from ac_common.surrogate_wrappers import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
+    return surrogate
 
 def if_query(my_dataset, surrogate, x_queries, threshold_std_mean):
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
     import numpy as np
+    print("Types: ", type(my_dataset), type(surrogate), type(x_queries), type(threshold_std_mean))
     y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)        
+    print("Called my_dataset.query_cpp")
     return y_queries
     #return expected_values, computed_values, tolerances
     
 
 if __name__ == '__main__':
     print("Calling func.py")
+    #my_dataset = init_dataset()
+    #my_surrogate = init_surrogate(my_dataset)
+    
     #init_dataset()
     #init_surrogate()
 

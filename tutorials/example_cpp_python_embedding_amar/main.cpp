@@ -56,7 +56,7 @@ int main(int argc, char*argv[])
     //PyObject* my_dataset = PyObject_CallMethod(myModule, "init_dataset", nullptr);
 
     // Initialize the surrogate model. The surrogate model allows us to interpolate between those simulations.
-    PyObject* init_surrogate = PyObject_GetAttrString(myModule, (char*)"init_surrogate");
+    //PyObject* init_surrogate = PyObject_GetAttrString(myModule, (char*)"init_surrogate");
     //PyObject* args = PyTuple_Pack(1, my_dataset);
     //PyObject* my_surrogate = PyObject_CallObject(init_surrogate, args); //pass in dataset to surrogate initalization   
     PyObject* my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
@@ -75,6 +75,7 @@ int main(int argc, char*argv[])
       double threshold_std_mean = 0.5;
 
       int cpp_x_query[] = {T, P, x0, x1};
+      int x[4] = {T, P, x0, x1};
       int length = sizeof(cpp_x_query) / sizeof(cpp_x_query[0]);
 
       PyObject* x_queries = initializeIntArray(cpp_x_query, length);
@@ -90,7 +91,7 @@ int main(int argc, char*argv[])
     if (y_query == NULL){
       //query returns mean 
       //if y_query == NULL,           
-          double y_val = func4d(cpp_x_query); //call func4d.cpp
+          //double y_val = func_4d(cpp_x_query); //call func4d.cpp
           //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);// call add_xnum_sample
     }
       
@@ -111,7 +112,6 @@ int main(int argc, char*argv[])
     Py_DECREF(myModule);
     Py_DECREF(obj);
     Py_DECREF(my_dataset);
-    Py_DECREF(init_surrogate);
     Py_DECREF(my_surrogate);
     //Py_DECREF(args);
 

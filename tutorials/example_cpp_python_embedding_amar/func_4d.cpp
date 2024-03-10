@@ -1,5 +1,5 @@
 
-double func_4d(double x[4])
+double func_4d(int x[4])
 {    
     return(x[0] - 3.5) * ((x[0] - 3.5)) + x[1] + x[2] + x[3];
 }
