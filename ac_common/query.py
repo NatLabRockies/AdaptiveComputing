@@ -61,9 +61,15 @@ def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std
     return y_queries, y_queries_var
 
 def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv):
-    if len(x_queries.shape) == 1: # if x_queries is a 1d array
+    #if len(x_queries.shape) == 1: # if x_queries is a 1d array
+    #    print("query_cpp line 66")
+    x_queries = np.array([np.array([float(x) for x in x_queries])]) #cast to proper format
+    print("x_queries: ", x_queries)
+    if len(x_queries.shape) == 1: # if x_queries is a 1d array 
         x_queries = x_queries[:, np.newaxis]
-    assert(x_queries.shape[1]==dataset.n_in)
+    print(x_queries.shape)
+    assert(x_queries.shape[1]==dataset.n_in)    
+
     n_queries = x_queries.shape[0]
 
     if threshold_std is not None:
@@ -73,9 +79,12 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
     if threshold_std_tv is not None:
         assert(threshold_std_tv > 0.0)
 
+
     y_queries = np.zeros([n_queries,1])
-    y_queries_var = np.zeros([n_queries,1])
+    
+    y_queries_var = np.zeros([n_queries,1])       
     x_queries_num = np.zeros([n_queries,dataset.n_in])
+
 
     for i in range(n_queries):
         # Bounds checking for the queries
@@ -87,6 +96,10 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
         # Evaluate the surrogate model
         y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
+        
+        print("Threshold: ", threshold_std_mean, "threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
+        print("Variance: ", np.sqrt(y_queries_var[i]))
+        print("Checking if Variance >= Threshold")        
 
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
@@ -98,6 +111,7 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
         if threshold_std_mean is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std_mean*y_queries[i]:
                 # conduct a simulation and retrain the GPR using this data
+                print("Revaluating")
                 return None
 
         # Run simulation at all points where the std/total_variation >= user-specified threshold value
@@ -105,8 +119,9 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
             total_variation = dataset.find_max(surrogate)[1][0] - dataset.find_min(surrogate)[1][0]
             if np.sqrt(y_queries_var[i]) >= threshold_std_tv*total_variation:
                 # conduct a simulation and retrain the GPR using this data
-                return None            
+                return None                        
 
+    print("No Re-evaluation necessary")
     return y_queries
 
     

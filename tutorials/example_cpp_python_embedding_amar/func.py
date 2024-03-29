@@ -41,7 +41,8 @@ def init_dataset():
     # Define the options for surrogate modeling and optimization
     ds_ops = DataSetOptions()
     my_dataset = DataSet(func_4d, params, ds_ops)
-    my_dataset.add_lhs_samples(10) # >= the number of input arguments of func_4d + 1 (=5)
+    my_dataset.add_lhs_samples(10) # >= the number of input arguments of func_4d + 1 (=5) 
+    print("MY Dataset Values: ", my_dataset.x_data)
     return my_dataset
 
 def init_surrogate(my_dataset):
@@ -52,13 +53,16 @@ def init_surrogate(my_dataset):
 
 def if_query(my_dataset, surrogate, x_queries, threshold_std_mean):
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
-    import numpy as np
-    print("Types: ", type(my_dataset), type(surrogate), type(x_queries), type(threshold_std_mean))
-    y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)        
-    print("Called my_dataset.query_cpp")
+    import numpy as np   
+    print("if_query_x_queries: ", x_queries)
+    y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)            
+    print("y_query: ", y_queries)
     return y_queries
     #return expected_values, computed_values, tolerances
     
+def add_xnum_sample(my_dataset, fidelity_level, x_eval_num):
+    print("Re-evaluating HF model")
+    my_dataset.add_xnum_sample(fidelity_level, x_eval_num)    
 
 if __name__ == '__main__':
     print("Calling func.py")
