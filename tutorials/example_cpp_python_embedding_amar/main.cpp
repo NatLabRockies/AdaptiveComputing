@@ -88,9 +88,10 @@ int main(int argc, char*argv[])
           PyRun_SimpleString("print('Running Test 2, high threshold, high variance no re-evaluation')");
           threshold_std_mean = 100;
         }
-      else if (n == 2)
-        PyRun_SimpleString("print('Running Test 3, low threshold, high variance re-evaluation')");
-        threshold_std_mean = 0.0001;
+        else if (n == 2){
+          PyRun_SimpleString("print('Running Test 3, low threshold, high variance re-evaluation')");
+          threshold_std_mean = 0.0001;
+        }
       }      
       // Query the surrogate model. If the variances is too high, run a simulation, otherwise, interpolate the surrogate model.
       
@@ -110,10 +111,10 @@ int main(int argc, char*argv[])
       PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);
            
       //PyObject* y_query = PyObject_CallMethod(my_dataset, "query_cpp", "OOsd", my_surrogate, x_queries, "threshold_std_mean", threshold_std_mean);
-      
-      if (y_query == NULL){             
+
+      if (y_query == Py_None){             
         double y_val = func_4d(cpp_x_query); //query original function via cpp call
-        PyObject_CallMethod(myModule, "add_xnum_sample", "OdOsd", my_dataset, 0, x_queries, "y_eval", y_val); //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);// call add_xnum_sample
+        PyObject_CallMethod(myModule, "add_xnum_sample", "OdOd", my_dataset, -1, x_queries, y_val); //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);// call add_xnum_sample
       }
       // else query returns mean, no need to sample
       

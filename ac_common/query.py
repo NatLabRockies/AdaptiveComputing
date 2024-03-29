@@ -67,7 +67,6 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
     print("x_queries: ", x_queries)
     if len(x_queries.shape) == 1: # if x_queries is a 1d array 
         x_queries = x_queries[:, np.newaxis]
-    print(x_queries.shape)
     assert(x_queries.shape[1]==dataset.n_in)    
 
     n_queries = x_queries.shape[0]
