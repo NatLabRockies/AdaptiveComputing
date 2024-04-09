@@ -2,6 +2,7 @@
 #include <python.h>
 #include <iostream>
 #include "func_4d.h"
+#include <ctime>
 
 PyObject* initializeFloatArray(float* array, int length) {
     // Create a Python list from the C integer array
@@ -108,12 +109,15 @@ int main(int argc, char*argv[])
         return 1;
       }
 
-      PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);
+      //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean); //query dataset
+      PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, time_ratio, computer_budget_ratio);//dynamic query to dataset
            
-      //PyObject* y_query = PyObject_CallMethod(my_dataset, "query_cpp", "OOsd", my_surrogate, x_queries, "threshold_std_mean", threshold_std_mean);
+      
 
-      if (y_query == Py_None){             
+      if (y_query == Py_None){         
+        int start = clock();
         double y_val = func_4d(cpp_x_query); //query original function via cpp call
+        int stop = clock(); //timing code here
         PyObject_CallMethod(myModule, "add_xnum_sample", "OdOd", my_dataset, -1, x_queries, y_val); //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);// call add_xnum_sample
       }
       // else query returns mean, no need to sample

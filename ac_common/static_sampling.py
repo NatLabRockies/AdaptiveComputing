@@ -285,13 +285,15 @@ def wait_for_workers(dataset,surrogate,viz_ops):
 # Check if the x_eval_native follows the user specified bounds in the list of Params
 # The x_eval_native argument has the data types defined by the usef-defined list of Params
 def bounds_check_xnative(dataset,x_eval_native):
-    for j in range(dataset.n_in):
+    for j in range(dataset.n_in):        
         if dataset.params[j].type == 'categorical':
             assert(isinstance(x_eval_native[j], str))
             if x_eval_native[j] not in dataset.params[j].categories:
                 raise Exception('Parameter x' + str(j) + ' = '+str(x_eval_native[j])+' is not a valid value for categorical parameter.')
+            
         elif (dataset.params[j].type == 'continuous') or (dataset.params[j].type == 'ordered'):
-            assert(isinstance(x_eval_native[j], (int,float)))
+            assert(isinstance(x_eval_native[j], (int,float)))          
+                
             if x_eval_native[j] < dataset.params[j].min_val or x_eval_native[j] > dataset.params[j].max_val:
                 raise Exception('Out of bounds value of parameter x' + str(j) + ' = '+str(x_eval_native[j])+' .')
         else:

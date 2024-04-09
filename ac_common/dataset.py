@@ -143,7 +143,10 @@ class DataSet:
 
     def bounds_check_xnative(self,x_eval_native):
         from ac_common.static_sampling import bounds_check_xnative
-        bounds_check_xnative(self,x_eval_native) 
+        try:
+            bounds_check_xnative(self,x_eval_native) 
+        except Exception as error:
+            print("An exception occurred in bounds_check_xnative: ", error)
 
     def find_min(self,surrogate):
         from ac_common.bo import find_min
@@ -164,6 +167,11 @@ class DataSet:
     def query_cpp(self,surrogate,x_queries,fidelity_level=-1,threshold_std=None,threshold_std_mean=None,threshold_std_tv=None):
         from ac_common.query import query_cpp
         return query_cpp(self,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv)
+    
+    def dynamic_query_cpp(self, surrogate, x_queries, fidelity_level=-1, time_ratio = 1, computer_budget_ratio = 1):
+        from ac_common.query import dynamic_query_cpp
+        return dynamic_query_cpp(self,surrogate,x_queries,fidelity_level, time_ratio, computer_budget_ratio)
+    
 
     #########################################################
     # This runs a simulation without using Hero. So it runs on the AC main process and is blocking.

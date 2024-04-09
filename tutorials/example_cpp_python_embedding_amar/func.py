@@ -63,6 +63,9 @@ def add_xnum_sample(my_dataset, fidelity_level, x_eval_num, y_eval):
     print("Re-evaluating HF model")
     my_dataset.add_xnum_sample(fidelity_level, x_eval_num, y_eval = y_eval)    
 
+def dynamic_if_query(my_dataset, surrogate, x_queries, time_ratio, computer_budget_ratio):
+    y_queries = my_dataset.dynamic_query_cpp(surrogate, x_queries, time_ratio = time_ratio, computer_budget_ratio = computer_budget_ratio)
+    return y_queries
 if __name__ == '__main__':
     print("Calling func.py")
 

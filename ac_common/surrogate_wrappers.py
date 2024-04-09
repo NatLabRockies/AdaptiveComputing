@@ -7,6 +7,7 @@ class SurrogateModelBase:
         self.multifidelity = dataset.multifidelity
         self.mixed_type = dataset.mixed_type
         self.i_out = i_out # indicates which output variable to model
+        self.threshold_std_dyn = 1
         pass
 
     def train(self, x_data, y_data):
