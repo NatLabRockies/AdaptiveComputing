@@ -33,6 +33,10 @@ def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std
         y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
 
+        
+        print("Threshold: ", threshold_std_mean, "threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
+        print("Variance: ", np.sqrt(y_queries_var[i]))
+        print("Checking if Variance >= Threshold")     
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std:
@@ -156,24 +160,30 @@ def dynamic_query_cpp(dataset,surrogate,x_queries,fidelity_level, time_ratio, co
         y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         
-        print("Threshold: ", threshold_std_dyn)
-        print("Variance: ", np.sqrt(y_queries_var[i]))
-        print("Checking if Variance >= Threshold")        
+
         
         import time
         #update variance threshold
+        print("Checking time: ", computer_budget_ratio, " < ", time_ratio)
         if (computer_budget_ratio < time_ratio):
-            threshold_std_dyn -= threshold_std_dyn * 0.1#variance decreased
+            threshold_std_dyn -= threshold_std_dyn * np.abs(computer_budget_ratio - time_ratio)#variance decreased
         else:
-            threshold_std_dyn += threshold_std_dyn * 0.1 #increased
+            threshold_std_dyn += threshold_std_dyn * np.abs(computer_budget_ratio - time_ratio) #increased
 
+        print("Threshold: ", threshold_std_dyn)
+        print("Variance: ", np.sqrt(y_queries_var[i]))    
+        
+            
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std_dyn is not None:
+            surrogate.threshold_std_dyn = threshold_std_dyn
             if np.sqrt(y_queries_var[i]) >= threshold_std_dyn:
                 # conduct a simulation and retrain the GPR using this data
-                return None        
-
-    print("No Re-evaluation necessary")
+                y_queries = None        
+                hf_count += 1
+            else:
+                lf_count += 1            
+                
     return y_queries
 
     
