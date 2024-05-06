@@ -48,7 +48,7 @@ class SMTWrapper(SurrogateModelBase):
             for ii_fl in range(i_fl):
                 self.surrogate_model[i_fl].set_training_values(x_data[ii_fl],y_data[ii_fl][:,self.i_out], name=ii_fl)
             # Set the training values for the current fidelity level
-            # Note: the name field should not be specified for the current fidelity level    
+            # Note: the name field should not be specified for the current fidelity level    )
             self.surrogate_model[i_fl].set_training_values(x_data[i_fl],y_data[i_fl][:,self.i_out])
             
             # Update the surrogate model using this data
@@ -59,6 +59,18 @@ class SMTWrapper(SurrogateModelBase):
 
     def predict_variances(self, x_data, fidelity_level=-1):
         return self.surrogate_model[fidelity_level].predict_variances(np.atleast_2d(x_data))    
+
+
+# Implement surrogate modeling using the Surrogate Modeling Toolbox (SMT)
+class ConstrainedSMTWrapper(SMTWrapper):
+    def __init__(self, dataset, constraint_func, i_out=0):
+        # Call the constructor of the base class
+        super().__init__(dataset, i_out)
+        self.constraint_func = constraint_func
+        
+    def predict_constraint(self, x_data, fidelity_level=-1):
+        return self.constraint_func(x_data)
+
 
 # # To implement a new type of surrogate model, copy the following code and
 # # implement the methods using function calls to your desired surrogate modeling library.
