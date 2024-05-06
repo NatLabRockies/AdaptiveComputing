@@ -27,6 +27,10 @@ Usage
             DSO Error - A DSO error is received during compilation
                 Double check library path for libpython 3.XX.so
                 Update LD_LIBRARY_PATH file to contain virtual environment library
+                        
+        Additional notes
+            - the output file output only contains the cpp file and a python EMBEDDER, this means that any additional changes made to the referenced python files after compilation
+            will be reflected when the embedder is called
 
 Python Functions
     #include <Python.h> 
@@ -65,7 +69,6 @@ Python Functions
     Py_Finalize();
         - used to close interpreter 
 
-        
 
 
 
