@@ -100,9 +100,18 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
         y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         
-        print("Threshold: ", threshold_std_mean, "threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
+        print("Threshold: ", threshold_std_mean)
+        print("threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
         print("Variance: ", np.sqrt(y_queries_var[i]))
         print("Checking if Variance >= Threshold")        
+        
+        import os.path
+        csvfilename = 'variance.csv'
+        row = [threshold_std_mean, np.sqrt(y_queries_var[i])[0]]        
+        import csv
+        with open(csvfilename, 'a', newline='', encoding='utf-8') as fd:
+            csvwriter = csv.writer(fd, delimiter=',')
+            csvwriter.writerow(row)
 
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
@@ -173,7 +182,8 @@ def dynamic_query_cpp(dataset,surrogate,x_queries,fidelity_level, time_ratio, co
         print("Threshold: ", threshold_std_dyn)
         print("Variance: ", np.sqrt(y_queries_var[i]))    
         
-            
+
+                
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std_dyn is not None:
             surrogate.threshold_std_dyn = threshold_std_dyn

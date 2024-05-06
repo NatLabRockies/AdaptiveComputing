@@ -76,24 +76,32 @@ int main(int argc, char*argv[])
     int boundary_pts = 64; 
     int count_HF = 0;
     int count_LF = 0;
+    int n = 0;
+
     
-    for (int n = 0; n < N_iter; n++){
+    //for (int n = 0; n < N_iter; n++){    
+    while (double(clock()) < wall_clock_end)
+    {      
+      n++;
       // The real code will do some complex code to determine the T,P,x0,x1 values where the surrogate model needs to be queried
       //generate 8^2 candidates
       float T [boundary_pts];
       float P [boundary_pts];
       float x0 [boundary_pts];
       float x1 [boundary_pts];
-      double threshold_std_mean = 0.5;
+      double t_0 = 0.1;
+      double t_1 = 1.1*t_0;
+      double r_0 = 0;
+      double threshold_std_mean = 0.05;
 
-      for (int m = 0; m < thres_iter; m++){// loop over variance threshold choices                   
+      for (int m = 0; m < thres_iter; m++){// loop over variance threshold choices   t                
         int num_simulations = 0;
         
         for (int i = 0; i < boundary_pts; i++){
           if (m == 0){
-            T[i] = 20.0+(n + i/boundary_pts)/2.0;
-            P[i] = 0.5+(n + i/boundary_pts)/10.0;
-            x0[i] = (n + i/boundary_pts)/N_iter;
+            T[i] = 20.0 + float(float(n) + float(i)/float(boundary_pts)) / 2.0;//20.0+float(n + float(i/(boundary_pts)))/2.0;
+            P[i] = 0.5 + float(float(n) + float(i)/float(boundary_pts)) / 10.0;//0.5+float(n + float(i/(boundary_pts)) )/10.0;
+            x0[i] = float(float(n) + float(i)/float(boundary_pts)) / float(N_iter);//float(n + float(i/(boundary_pts)) )/N_iter;
             x1[i] = 1.0-x0[i];
           }
 
@@ -114,7 +122,7 @@ int main(int argc, char*argv[])
           }
 
           if (m == thres_iter - 1) { //simulation on last iteration
-            if (y_query == Py_None){         
+            if (y_query == Py_None && cpu_elapsed < cpu_budget){         
               count_HF += 1;
               int start = clock();
               double y_val = func_4d(cpp_x_query); //query original function via cpp call
@@ -126,7 +134,7 @@ int main(int argc, char*argv[])
               count_LF += 1;
             }
             double curr_time = double(clock());
-            PyObject_CallMethod(myModule, "write_output", "idddii", n * boundary_pts + i,  cpu_elapsed/ cpu_budget, curr_time / wall_clock_end, threshold_std_mean,  count_HF, count_LF);
+            PyObject_CallMethod(myModule, "write_output", "idddii", (n - 1) * boundary_pts + i,  cpu_elapsed/ cpu_budget, curr_time / wall_clock_end, threshold_std_mean,  count_HF, count_LF);
           }        
           //Dereference
           Py_DECREF(x_queries);
@@ -138,11 +146,20 @@ int main(int argc, char*argv[])
         //update variance threshold based on num_simulations      
 
         if (m < thres_iter - 1){ //update threshold values
+          //secant method
+          double r_1 = computer_budget_ratio - time_ratio;
+          double t_2 = t_1 - r_1 * (t_1 - t_0) / float(r_1 - r_0);
+          r_0 = r_1;
+          t_0 = t_1;
+          t_1 = t_2;
           if (computer_budget_ratio < time_ratio){
-            threshold_std_mean -= threshold_std_mean * (time_ratio - computer_budget_ratio);
+            threshold_std_mean -= 0.01 * threshold_std_mean;//t_2; //threshold_std_mean * 0.5; //(time_ratio - computer_budget_ratio);
           }
           else{
-            threshold_std_mean += threshold_std_mean * (computer_budget_ratio - time_ratio);
+            threshold_std_mean += 0.15 * threshold_std_mean;//t_2; //threshold_std_mean * 0.5; //(computer_budget_ratio - time_ratio);
+          }
+          if (threshold_std_mean < 0){
+            threshold_std_mean = 0.00001;
           }
           if (m == thres_iter - 2){
             if (computer_budget_ratio > 1){
