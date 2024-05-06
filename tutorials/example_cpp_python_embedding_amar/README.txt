@@ -51,11 +51,13 @@ Python Functions
         - calls the function "init_dataset" from previously specified "func.py" module, arguments can be specified in the second parameter of PyObject_CallObject()
         - return values are stored in my_dataset
 
+    PyObject* my_dataset = PyObject_CallMethod(myModule, "init_dataset", nullptr); 
     PyObject* my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
         - an alternate method for calling a function from the func.py module, calls "init_surrogate" while passing in a PyObject "O" argument, "my_dataset"
         - This method can pass in parameters via PyObject_Call(myobject_method, args, keywords)
         - Note that for both the args and keywords argument, it is necessary to specify the datatype of the parameter
             PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean); passes three PyObject files and a single double value as specified by "OOOd"
+    
 
     Py_DECREF(myModule); 
         - dereferences PyObject 

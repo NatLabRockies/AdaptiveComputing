@@ -34,10 +34,10 @@ int main(int argc, char*argv[])
 
     Py_Initialize();    
          
-    double wall_clock_end = double(clock()) + 100000;
+    double wall_clock_end = double(clock()) + 100000; //specifies total amount of time to run simulation
     double cpu_elapsed = 0;
-    double cpu_budget = 50000;
-    double hrs_per_sim = 500;
+    double cpu_budget = 50000; //specifies amount of computing hours budgeted
+    double hrs_per_sim = 500; //specifies projected time it takes for one simulation
 
     PyObject* myModule = PyImport_ImportModule("func");
     PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
@@ -60,18 +60,14 @@ int main(int argc, char*argv[])
     //initalize dataset
     PyObject* init_dataset = PyObject_GetAttrString(myModule, (char*)"init_dataset");
     PyObject* my_dataset = PyObject_CallObject(init_dataset, nullptr);
-    //PyObject* my_dataset = PyObject_CallMethod(myModule, "init_dataset", nullptr);    
+    //   
 
     // Initialize the surrogate model. The surrogate model allows us to interpolate between those simulations.
-    //PyObject* init_surrogate = PyObject_GetAttrString(myModule, (char*)"init_surrogate");
-    //PyObject* args = PyTuple_Pack(1, my_dataset);
-    //PyObject* my_surrogate = PyObject_CallObject(init_surrogate, args); //pass in dataset to surrogate initalization   
+
     PyObject* my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
-
-    //train on dataset.train_on_unmasked_data(self)
-
+  
     // Run the continuum simulation
-    int N_iter = 100;
+    int N_iter = 100; 
     int thres_iter = 10;
     int boundary_pts = 64; 
     int count_HF = 0;
@@ -109,7 +105,7 @@ int main(int argc, char*argv[])
           float x[4] = {T[i], P[i], x0[i], x1[i]};
           int length = sizeof(cpp_x_query) / sizeof(cpp_x_query[0]);
 
-          PyObject* x_queries = initializeFloatArray(cpp_x_query, length);
+          PyObject* x_queries = initializeFloatArray(cpp_x_query, length); //used to convert c++ float array to PyObject
           if (x_queries == NULL) {
             PyErr_Print();
             Py_Finalize();
