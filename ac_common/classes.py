@@ -52,10 +52,13 @@ def validate_params(params):
 #########################################################
 class DataSetOptions:
     # set the default options
-    deterministic = True # random seeds are set deterministically
-    perform_lower_sims = True # if a simulation is conducted at a fidelity level, it is also run at all lower fidelity levels
-    mask_nans = True # Not-a-Number values are replaced with estimates from the surrogate model for the purpose of Bayesian Optimization. Otherwise, these values are excluded from the surrogate model. 
-    mask_oob_values = True # out of bounds values are replaced with estimates from the surrogate model for the purpose of Bayesian Optimization. Otherwise, these values are excluded from the surrogate model.
+    deterministic = True # True: random seeds are set deterministically
+    perform_lower_sims = True # True: if a simulation is conducted at a fidelity level, it is also run at all lower fidelity levels
+    exit_on_nans = False # True: throw a ValueError if a Not-a-Number (NaN) value is returned by a simulation. False: behavior determined by mask_nans.
+    mask_nans = False # True: Not-a-Number (NaN) values are replaced with estimates from the surrogate model (allows Bayesian Optimization to advance). False: NaN values are excluded from the surrogate model.
+    exit_on_oob_values = False # True: throw a ValueError if an out-of-bounds (OOB) value is encountered. The user specifies the bounds (see README). False: behavior determined by mask_oob_values.
+    mask_oob_values = False # True: out-of-bounds (OOB) values are replaced with estimates from the surrogate model (allows Bayesian Optimization to advance). False: OOB values are excluded from the surrogate model if user specified bounds are provided.
+    # If no bounds are specified by the user, then all values will be in bounds.
     use_hero = False # True: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. False: simulations are run locally and serially.
 
 #########################################################

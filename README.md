@@ -38,7 +38,7 @@ The `tutorials` directory contains several example programs which demonstrate th
 * `example_read_file` same as `example_mixed_type` except that the former reads data from a csv file instead of using pseudo-random initial sampling.
 * `example_multifidelity_1d` train a GPR using high fidelity and low fidelity function evaluations. Note: this function is not iterative yet. It uses pseudo-random sampling to find the minimum.
 * `example_multifidelity_mixed_type_read_file_2d` same as `example_multifidelity_1d` except the former adds a categorical variable, so it uses mixed types. Also, it reads some initial data from csv files and collects some from pseudo-random initial sampling.
-* `example_mask_1d` is similar to `example_1d` except that the objective function has been modified to return `NaN` for some input arguments to emulate an objective function that is ill behaved in some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
+* `example_mask_1d` is similar to `example_1d` except that the objective function has been modified to return `NaN` or out of bounds values for some input arguments to emulate an objective function that is ill behaved in some region of the sample space. The example demonstrates the masking capability, which is a robustness feature that is described below.
 * `example_query_1d` is similar to `example_1d` but after training the surrogate, it calls `query()` to evaluate the surrogate and dynamically run more simulations (and retrain) if the standard deviation (uncertainty) exceeds the user-specified limit.
 * `example_pickle_1d` is similar to `example_1d` but it saves the model as a pickle and then unpickles it. This is useful if you need to train a model and then load into memory at a later time. It pickles the model and all simulation evaluations.
 * `example_multifidelity_hero_1d` is similar to `example_multifidelity_1d` except that it uses the Hero task scheduler to run the low- and high-fidelity simulations on separate processes (and possibly on separate resources). See the section on Hero below for details.
@@ -174,26 +174,28 @@ Fields of `ModelOptions()`:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
-| `deterministic`  |  `True` | boolean | `True` or `False` |  True: random seeds for sampling are chosen deterministically so that results are reproducible. |
-| `perform_lower_sims` | `True` | boolean | `True` or `False` | True: at every point in the design space where a simulation has been performed, all lower fidelity models are also simulated there too. |
-| `mask_nans` | `True` | boolean | `True` or `False` | True: represent NaN simulation values with the surrogate model. See details on masking algorithm. False: NaNs trigger an error. |
-| `mask_oob_values` | `True` | boolean | `True` or `False` | True: represent simulation values that are out of allowable bounds with the surrogate model. See details on masking algorithm. False: out of bounds simulation values trigger an error. |
+| `deterministic`  |  `True` | boolean | `True` or `False` |  `True`: random seeds for sampling are chosen deterministically so that results are reproducible. |
+| `perform_lower_sims` | `True` | boolean | `True` or `False` | `True`: at every point in the design space where a simulation has been performed, all lower fidelity models are also simulated there too. |
+| `exit_on_nans` | `False` | boolean | `True` or `False` | `True`: throw a `ValueError` if a Not-a-Number (NaN) value is returned by a simulation. `False`: behavior determined by `mask_nans`. |
+| `mask_nans` | `False` | boolean | `True` or `False` | `True`: Not-a-Number (NaN) values are replaced with estimates from the surrogate model (allows Bayesian Optimization to advance). `False`: NaN values are excluded from the surrogate model. |
+| `exit_on_oob_values` | `False` | boolean | `True` or `False` | `True`: throw a `ValueError` if an out-of-bounds (OOB) value is encountered. The user specifies the bounds; see details on masking algorithm. `False`: behavior determined by `mask_oob_values`. |
+| `mask_oob_values` | `False` | boolean | `True` or `False` | `True`: out-of-bounds (OOB) values are replaced with estimates from the surrogate model (allows Bayesian Optimization to advance). `False`: OOB values are excluded from the surrogate model if user specified bounds are provided. If no bounds are specified by the user, then all values will be in bounds. See details on masking algorithm. |
 | `lbound_inclusive`, `ubound_inclusive`, `lbound_exclusive`, `ubound_exclusive` | none | float | any | Define the allowable bounds for simulation returns. See details on masking below. |
-| `use_hero` | `False` | boolean | `True` or `False` | True: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. False: simulations are run locally and serially. The code can not advance until a simulations completes. |
+| `use_hero` | `False` | boolean | `True` or `False` | `True`: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. `False`: simulations are run locally and serially. The code can not advance until a simulations completes. |
 
 
 `VizOptions()` controls plotting and is an optional argument to `add_bo_samples`. The fields of `VizOptions()` are:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|
-| `animation_1d`  | `False`  | boolean  | `True` or `False` |  True: show and save a movie of the Bayesian Optimization iterations. `n_dim` must = 1. |
-| `animation_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a movie of the Bayesian Optimization iterations. `n_dim` must = 2. |
-| `plot_1d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 1. |
-| `plot_2d`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
-| `plot_nd`  | `False`  | boolean  | `True` or `False` |  True: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
+| `animation_1d`  | `False`  | boolean  | `True` or `False` |  `True`: show and save a movie of the Bayesian Optimization iterations. `n_dim` must = 1. |
+| `animation_2d`  | `False`  | boolean  | `True` or `False` |  `True`: show and save a movie of the Bayesian Optimization iterations. `n_dim` must = 2. |
+| `plot_1d`  | `False`  | boolean  | `True` or `False` |  `True`: show and save a plot of the final result of the optimization. `n_dim` must = 1. |
+| `plot_2d`  | `False`  | boolean  | `True` or `False` |  `True`: show and save a plot of the final result of the optimization. `n_dim` must = 2. |
+| `plot_nd`  | `False`  | boolean  | `True` or `False` |  `True`: show and save a plot of the final result of the optimization. Plots objective function versus the n-dimensional distance in parameter from the optimal parameter value. |
 | `output_dir`  | `./plots` | string | any |  All plots and animations are saved to `./output_dir/`. The directory is created if it doesn't exist. |
-| `show_exact`  | `False` | boolean | `True` or `False` |  Option applies to animation_1d and plot_1d. True: evaluate the simulation at 100 uniformly spaced points and plots this curve. |
-| `show_EI`  | `False` | boolean | `True` or `False` |  Option applies to animation_1d with nfl=1. For animations with 1 parameter functions and 1 fidelity level. True: plot a curve for the expected improvement acquisition function. |
+| `show_exact`  | `False` | boolean | `True` or `False` |  Option applies to animation_1d and plot_1d. `True`: evaluate the simulation at 100 uniformly spaced points and plots this curve. |
+| `show_EI`  | `False` | boolean | `True` or `False` |  Option applies to animation_1d with nfl=1. For animations with 1 parameter functions and 1 fidelity level. `True`: plot a curve for the expected improvement acquisition function. |
 
 
 Bayesian optimization options are set with `BoOptions()`, which is another optional argument for `add_bo_samples`. The fields of `BoOptions` are:
@@ -234,16 +236,16 @@ If you would like AC to compute the objective function for you, leave out the la
 | 7 | 3 | d |
 
 #### More information on masking NaN and out of bounds (unallowable) simulation values
-Anytime a simulation returns a `NaN` value, that data point will be flagged. Similarly, the user can also define a range of allowable simulation values and all simulation return values outside this range will be flagged. By default, the flagged values are then masked, to prevent them from contaminating the surrogate model (details described below). If the user prefers not to use masking, the calculation can be terminated immediately upon discovering a `NaN` or out of bounds value by setting `mod_ops.mask_nans=False` or `mod_ops.mask_oob_values=False`, respectively. 
+Anytime a simulation returns a `NaN` value, that data point will be treated in one of three ways. Similarly, the user can also define a range of allowable simulation values and all simulation return values outside of these bounds (OOB) will be treated in one of three ways. By default, the `NaN` and OOB values are "skipped" to prevent them from contaminating the surrogate model. This means they are not added to `x_data`, `y_data`, and not counted in `n_samp`. Instead they are stored in `x_data_skipped`, `y_data_skipped`, and counted in `n_samp_skipped`. Another option is to use masking (details described below) by setting `mod_ops.mask_nans=True` or `mod_ops.mask_oob_values=True`, respectively. The third option is to throw a exit (throw a `ValueError`) immediately upon discovering a `NaN` or OOB value by setting `mod_ops.exit_on_nans=True` or `mod_ops.exit_on_oob_values=True`, respectively. 
 
-Lower and upper bounds can be inclusive or exclusive. Upper and/or lower bounds should be omitted if semi-infinite or infinite bounds are needed. The simulation return value f(x) must obey all specified constraints in order to be classified as allowable:
+To determine which values are OOB, lower and upper bounds (inclusive or exclusive) are set by the user. Upper and/or lower bounds should be omitted if semi-infinite or infinite bounds are needed. The simulation return value f(x) must obey all specified constraints in order to be classified as allowable (in bounds):
 
 * f(x) >= `lbound_inclusive`
 * f(x) <= `ubound_inclusive` 
 * f(x) > `lbound_exclusive`
 * f(x) < `ubound_exclusive`
 
-The surrogate model is trained using all unmasked data (non-NaN, within allowable bounds). However, just ignoring masked data would cause the Bayesian Optimization algorithm to repeatedly sample data in regions in the design space where NaNs or unallowable values are found (since the uncertainty will not reduce in these regions if returned values are always ignored). The masking algorithm is as follows.
+If masking is used, the surrogate model is trained using all unmasked data (non-NaN, within allowable bounds). However, just ignoring (skipping) masked data would cause the Bayesian Optimization algorithm to repeatedly sample data in regions in the design space where NaNs or unallowable values are found (since the uncertainty will not reduce in these regions if returned values are always ignored). The masking algorithm is as follows.
 
 * A precursor surrogate model is trained using all unmasked data.
 * The values for masked data points are estimated using the precursor surrogate model.

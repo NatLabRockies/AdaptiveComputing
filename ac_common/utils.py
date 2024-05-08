@@ -57,34 +57,69 @@ def write_samples_csv(dataset,filenames):
     return
 
 #########################################################
-def check_nan_oob(y,ds_ops):
-    unmasked = True
+# Return True if y is NaN.
+# Otherwise, return False.
+def check_nan(y,ds_ops):
+    is_nan = False
     if np.isnan(y):
-        if ds_ops.mask_nans:
-            unmasked = False
-            print('NaN point found. Masking this point.')
-        else:
-            raise Exception('NaN returned by user-defined simulation. Consider setting ds_ops.mask_nans=True to ignore NaNs.')
-    else:
-        oob = False
-        if hasattr(ds_ops, 'lbound_inclusive'):
-            if y<ds_ops.lbound_inclusive:
-                oob = True
-        if hasattr(ds_ops, 'ubound_inclusive'):
-            if y>ds_ops.ubound_inclusive:
-                oob = True
-        if hasattr(ds_ops, 'lbound_exclusive'):
-            if y<=ds_ops.lbound_exclusive:
-                oob = True
-        if hasattr(ds_ops, 'ubound_exclusive'):
-            if y>=ds_ops.ubound_exclusive:
-                oob = True
-        if oob:
-            if ds_ops.mask_oob_values:
-                unmasked = False
-                print('Data is out of user-specified allowable bounds. Masking this point.')
-            else:
-                raise Exception('Allowable bounds violated by return value from user-defined simulation. Consider setting ds_ops.mask_oob_values=True to ignore such values.')
+        is_nan = True
+    if is_nan and ds_ops.exit_on_nans:
+        raise ValueError('NaN returned by user-defined simulation. Exiting because ds_ops.exit_on_nans = True. See README on setting ds_ops.mask_nans.')
+    return is_nan
+
+#########################################################
+# Returns True if y is out of user-specified bounds (OOB).
+# Otherwise, returns False.
+def check_oob(y,ds_ops):
+    is_oob = False
+    if hasattr(ds_ops, 'lbound_inclusive'):
+        if y<ds_ops.lbound_inclusive:
+            is_oob = True
+    if hasattr(ds_ops, 'ubound_inclusive'):
+        if y>ds_ops.ubound_inclusive:
+            is_oob = True
+    if hasattr(ds_ops, 'lbound_exclusive'):
+        if y<=ds_ops.lbound_exclusive:
+            is_oob = True
+    if hasattr(ds_ops, 'ubound_exclusive'):
+        if y>=ds_ops.ubound_exclusive:
+            is_oob = True
+    if is_oob and ds_ops.exit_on_oob_values:
+        raise ValueError('User-defined allowable bounds violated by return value from user-defined simulation. Exiting because ds_ops.exit_on_oob_values=True. See README on setting ds_ops.mask_oob_values.')
+    return is_oob
+
+#########################################################
+# Returns True if the point should be skipped because the output is unmasked and any of the output values are either NaN or OOB.
+# Otherwise, returns False.
+def check_skip_vec(y_vec,ds_ops,n_out):
+    for i_o in range(n_out):
+        # check if should skip this point due to NaN value(s)
+        if (check_nan(y_vec[i_o],ds_ops) and not ds_ops.mask_nans):
+            print('NaN point found. Skipping this point since ds_ops.mask_nans=False. Warning: if using an acqusition function, skipping might lead to continued requerying of the same point. Consider using masking.')
+            return True
+        
+        # check if should skip this point due to OOB value(s)
+        if (check_oob(y_vec[i_o],ds_ops) and not ds_ops.mask_oob_values):
+            print('Data is out of user-specified allowable bounds. Skipping this point since ds_ops.mask_oob_values=False. Warning: if using an acqusition function, skipping might lead to continued requerying of the same point. Consider using masking.')
+            return True
+         
+    return False
+    
+#########################################################
+def check_unmasked(y,ds_ops):
+    unmasked = True
+    # check if should mask this point due to NaN value
+    if check_nan(y,ds_ops):
+        assert(ds_ops.mask_nans) # this code should not be called if you have NaNs that you want to skip.
+        unmasked = False
+        print('NaN point found. Masking this point since ds_ops.mask_nans=True.')
+
+    # check if should mask this point due to OOB value
+    if check_oob(y,ds_ops):
+        assert(ds_ops.mask_oob_values) # this code should not be called if you have OOBs that you want to skip.
+        unmasked = False
+        print('Data is out of user-specified allowable bounds. Masking this point since ds_ops.mask_oob_values=True.')
+        
     return unmasked
 
 #########################################################

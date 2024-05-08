@@ -1,7 +1,8 @@
 # static_sampling.py
 import numpy as np
 from decimal import Decimal
-from .utils import check_nan_oob
+from .utils import check_skip_vec
+from .utils import check_unmasked
 from .dataset import num_to_native
 #########################################################
 # Pseudo-random initial sampling
@@ -121,18 +122,33 @@ def add_xnum_sample(dataset,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,su
     if y_eval is None:
         # y_eval = dataset.funcs[fidelity_level](x_eval_num)
         y_eval = dataset.eval_xnum(fidelity_level,x_eval_num)
-    dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
-    dataset.y_data[fidelity_level] = np.append(dataset.y_data[fidelity_level],np.atleast_2d(y_eval),axis=0)
-    dataset.n_samp[fidelity_level] += 1
 
-    # Check for NaNs and out of bounds y_data
-    dataset.unmasked_data[fidelity_level] = np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
-    for i_o in range(dataset.n_out):
-        dataset.unmasked_data[fidelity_level][-1,i_o] = check_nan_oob(dataset.y_data[fidelity_level][-1,i_o],dataset.ds_ops)
-    dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],False)).T # don't add this point to the hero queue
-    dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],'None')).T
-    
-    # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
+    # Check if the data should be skipped because it is unmasked and is either NaN or out of bounds
+    # Skipped data is not added to x_data, y_data
+    if check_skip_vec(np.atleast_1d(y_eval),dataset.ds_ops,dataset.n_out):
+        dataset.x_data_skipped[fidelity_level] = np.append(dataset.x_data_skipped[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
+        dataset.y_data_skipped[fidelity_level] = np.append(dataset.y_data_skipped[fidelity_level],np.atleast_2d(y_eval),axis=0)
+        dataset.n_samp_skipped[fidelity_level] += 1
+        
+    else: # add to x_data and y_data and use masking if needed
+        dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
+        dataset.y_data[fidelity_level] = np.append(dataset.y_data[fidelity_level],np.atleast_2d(y_eval),axis=0)
+        dataset.n_samp[fidelity_level] += 1
+
+        dataset.unmasked_data[fidelity_level] = np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
+        for i_o in range(dataset.n_out):
+            dataset.unmasked_data[fidelity_level][-1,i_o] = check_unmasked(dataset.y_data[fidelity_level][-1,i_o],dataset.ds_ops)
+            
+        # the function has been evaluated, so no need to add to the hero queue
+        dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],False)).T
+        dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],'None')).T
+        
+        # Visualize the next point to be added and visualize the surrogate that has not yet been trained on this point
+        if viz_ops is not None:
+            from .viz import viz_animate
+            viz_animate(dataset,surrogate,viz_ops,frame_id)
+        
+    # At every point in the design space where a simulation is performed, recursively compute all lower fidelity level simulations there too
     if dataset.ds_ops.perform_lower_sims:        
         pt_exists = False 
         im1_fl = fidelity_level-1
@@ -142,11 +158,6 @@ def add_xnum_sample(dataset,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,su
                     pt_exists = True
             if not pt_exists: # add the sim at the im1_fl level
                 dataset.add_xnum_sample(im1_fl,x_eval_num,surrogate=surrogate)
-
-    # Visualize the next point to add and the surrogate that has not yet been trained on this point
-    if viz_ops is not None:
-        from .viz import viz_animate
-        viz_animate(dataset,surrogate,viz_ops,frame_id)
 
     if surrogate is not None:
         dataset.train_on_unmasked_data(surrogate)
@@ -247,7 +258,7 @@ def sync_hero_results(dataset,surrogate,viz_ops):
                     dataset.y_data[i_fl][i,:] = np.atleast_2d(y_eval)
                     # Check for NaNs and out of bounds y_data
                     for i_o in range(dataset.n_out):
-                        dataset.unmasked_data[i_fl][i,i_o] = check_nan_oob(y_eval[i_o],dataset.ds_ops)
+                        dataset.unmasked_data[i_fl][i,i_o] = check_unmasked(y_eval[i_o],dataset.ds_ops)
                     dataset.hero_todo[i_fl][i] = False
                     # Visualize the next point to add and the surrogate that has not yet been trained on this point
                     # if viz_ops is not None:

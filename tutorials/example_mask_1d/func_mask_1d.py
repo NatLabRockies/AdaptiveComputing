@@ -8,8 +8,8 @@ def func_mask_1d(x):
     val = np.atleast_2d((x[0]-3.5)*np.sin((x[0]-3.5)/(np.pi)))
     if x[0] > 1.5 and x[0] < 5:
         val = 10 # an unallowable value
-    # if x > 14 and x < 16:
-    #    val = np.NaN
-    # if x > 18.5 and x < 19.5:
+    if x[0] > 10 and x[0] < 15:
+       val = np.NaN
+    # if x[0] > 18.5 and x[0] < 19.5:
     #     val = np.NaN
     return val

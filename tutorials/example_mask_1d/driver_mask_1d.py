@@ -44,8 +44,76 @@ def driver_mask_1d():
     # Define the options for surrogate modeling and optimization
     ds_ops = DataSetOptions()
     ds_ops.ubound_inclusive = 8
+    # # Mask OOBs and NaNs:
+    ds_ops.exit_on_nans = False
     ds_ops.mask_nans = True
+    ds_ops.exit_on_oob_values = False
     ds_ops.mask_oob_values = True
+    
+    # # Skip OOBs and NaNs: (exclude them from the surrogate)
+    # Since using acquisition function, this reaches an OOB and then keeps requerying the same point because it's not being added to the surrogate (not masked) so the acq func max is in the skipped region everytime
+    # ds_ops.exit_on_nans = False
+    # ds_ops.mask_nans = False
+    # ds_ops.exit_on_oob_values = False
+    # ds_ops.mask_oob_values = False
+
+    # # Throw an error for OOBs or NaNs:
+    # ds_ops.exit_on_nans = True
+    # ds_ops.mask_nans = False
+    # ds_ops.exit_on_oob_values = True
+    # ds_ops.mask_oob_values = False
+
+    # # Throw an error for OOBs and skip NaNs:
+    # ds_ops.exit_on_nans = False
+    # ds_ops.mask_nans = False
+    # ds_ops.exit_on_oob_values = True
+    # ds_ops.mask_oob_values = False
+
+    # # Throw an error for NaNs and skip OOBs:
+    # ds_ops.exit_on_nans = True
+    # ds_ops.mask_nans = False
+    # ds_ops.exit_on_oob_values = False
+    # ds_ops.mask_oob_values = False
+
+    # # Throw an error for OOBs or NaNs:
+    # ds_ops.exit_on_nans = True
+    # ds_ops.mask_nans = True
+    # ds_ops.exit_on_oob_values = True
+    # ds_ops.mask_oob_values = True
+
+    # # Throw an error for OOBs and skip NaNs:
+    # ds_ops.exit_on_nans = False
+    # ds_ops.mask_nans = True
+    # ds_ops.exit_on_oob_values = True
+    # ds_ops.mask_oob_values = True
+
+    # # Throw an error for NaNs and skip OOBs:
+    # ds_ops.exit_on_nans = True
+    # ds_ops.mask_nans = True
+    # ds_ops.exit_on_oob_values = False
+    # ds_ops.mask_oob_values = True
+
+    # matters if you specified oob bounds or not?
+    # if exit_on_oob_values = True, must have specified oob
+    # if exit_on_oob_values = False, may have specified oob (default)
+    # if mask_oob_values = True, must have specified oob
+    # if mask_oob_values = False, may have specified oob. (default)
+        # If did specify range, then we are can ignore oobs.
+        # If did not specify, then we don't need even need to check for oobs. (default)
+    # if exit_on_nans = True
+    # if exit_on_nans = False (default)
+    # if mask_nans = True
+    # if mask_nans = False, just ignores nans, does it record them or not even check? (default)
+
+    # exit_on_oob_values = True # crash if oob value is encountered
+    # exit_on_oob_values = False # behavior determined by mask_oob_values
+    # exit_on_nans = True # crash if oob value is encountered
+    # exit_on_nans = False # (default) behavior determined by mask_oob_values
+    # question: if exit and mask are both false, will the flags be right in my code since mask is false? do I still mark these poitns as oob if they will never have a chance to be in bounds? Do I need to store the points even if they have no objective value? probably not. Well I imagine they will be in the dataset, but not in the surrogate.
+    # search other tutorials that use nan or oob
+    # update readme
+    # mask_oob_values = True # use the surrogate to estimate a dynamic value to represent the objective here, it may or may not be in bounds and will vary as the surrogate evolves
+    # mask_oob_values = False # (default) omit oob values from the surrogate
 
     # Perform the optimization
     import time
@@ -53,7 +121,7 @@ def driver_mask_1d():
     my_dataset = DataSet(func_mask_1d, params, ds_ops)
     my_dataset.add_lhs_samples(2)
     viz_ops = VizOptions()
-    viz_ops.animation_1d=True
+    # viz_ops.animation_1d=True
     viz_ops.plot_1d=True
     viz_ops.show_exact = True
     # use the SMT implementation of the Gaussian Process model
