@@ -3,6 +3,7 @@
 #include <iostream>
 #include "func_4d.h"
 #include <ctime>
+#include <math.h>
 
 
 PyObject* initializeFloatArray(float* array, int length) {
@@ -38,6 +39,8 @@ int main(int argc, char*argv[])
     double cpu_elapsed = 0;
     double cpu_budget = 50000; //specifies amount of computing hours budgeted
     double hrs_per_sim = 500; //specifies projected time it takes for one simulation
+
+
 
     PyObject* myModule = PyImport_ImportModule("func");
     PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
@@ -148,12 +151,15 @@ int main(int argc, char*argv[])
           r_0 = r_1;
           t_0 = t_1;
           t_1 = t_2;
-          if (computer_budget_ratio < time_ratio){
-            threshold_std_mean -= 0.01 * threshold_std_mean;//t_2; //threshold_std_mean * 0.5; //(time_ratio - computer_budget_ratio);
-          }
-          else{
-            threshold_std_mean += 0.15 * threshold_std_mean;//t_2; //threshold_std_mean * 0.5; //(computer_budget_ratio - time_ratio);
-          }
+          threshold_std_mean = t_2;
+          /*
+            if (computer_budget_ratio < time_ratio){
+              threshold_std_mean -= t_2;//0.01 * threshold_std_mean; //threshold_std_mean * 0.5; //(time_ratio - computer_budget_ratio);
+            }
+            else{
+              threshold_std_mean += t_2;//0.15 * threshold_std_mean; //threshold_std_mean * 0.5; //(computer_budget_ratio - time_ratio);
+            }
+          */
           if (threshold_std_mean < 0){
             threshold_std_mean = 0.00001;
           }

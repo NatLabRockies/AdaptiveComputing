@@ -24,9 +24,11 @@ Usage
         XX = Python version number
 
         Troubleshooting
-            DSO Error - A DSO error is received during compilation
+            DSO Error - A DSO error is received during compilation, 
                 Double check library path for libpython 3.XX.so
+            Cannot open shared objct file: Shared library cannot be found
                 Update LD_LIBRARY_PATH file to contain virtual environment library
+                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH: /path/to/libpython
                         
         Additional notes
             - the output file output only contains the cpp file and a python EMBEDDER, this means that any additional changes made to the referenced python files after compilation
