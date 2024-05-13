@@ -20,9 +20,12 @@ class SurrogateModelBase:
 
 # Implement surrogate modeling using the Surrogate Modeling Toolbox (SMT)
 class SMTWrapper(SurrogateModelBase):
-    def __init__(self, dataset, i_out=0):
+    def __init__(self, dataset, smt_kwargs=None,i_out=0):
         # Call the constructor of the base class
         super().__init__(dataset, i_out)
+
+        if smt_kwargs is None:
+            smt_kwargs = {}
         
         # Initialize SMT-specific surrogate model
         # set upt the GPs Gaussian Process models (AKA the Kriging model)
@@ -34,9 +37,13 @@ class SMTWrapper(SurrogateModelBase):
         self.surrogate_model = []
         for i_fl in range(self.n_fl): # create at hierarchy of GPs
             if self.multifidelity and i_fl > 0:
-                self.surrogate_model.append(MFK(print_global = False))
+                self.surrogate_model.append(MFK(
+                    **smt_kwargs,
+                    print_global = False))
             else:
-                self.surrogate_model.append(KRG(print_global = False)) 
+                self.surrogate_model.append(KRG(
+                    **smt_kwargs,
+                    print_global = False)) 
             if self.mixed_type:
                 self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
         #dataset.train_on_unmasked_data(self)
@@ -48,7 +55,7 @@ class SMTWrapper(SurrogateModelBase):
             for ii_fl in range(i_fl):
                 self.surrogate_model[i_fl].set_training_values(x_data[ii_fl],y_data[ii_fl][:,self.i_out], name=ii_fl)
             # Set the training values for the current fidelity level
-            # Note: the name field should not be specified for the current fidelity level    
+            # Note: the name field should not be specified for the current fidelity level    )
             self.surrogate_model[i_fl].set_training_values(x_data[i_fl],y_data[i_fl][:,self.i_out])
             
             # Update the surrogate model using this data
@@ -59,6 +66,18 @@ class SMTWrapper(SurrogateModelBase):
 
     def predict_variances(self, x_data, fidelity_level=-1):
         return self.surrogate_model[fidelity_level].predict_variances(np.atleast_2d(x_data))    
+
+
+# Implement surrogate modeling using the Surrogate Modeling Toolbox (SMT)
+class ConstrainedSMTWrapper(SMTWrapper):
+    def __init__(self, dataset, constraint_func, smt_kwargs=None,i_out=0):
+        # Call the constructor of the base class
+        super().__init__(dataset, i_out=i_out, smt_kwargs=smt_kwargs)
+        self.constraint_func = constraint_func
+        
+    def predict_constraint(self, x_data, fidelity_level=-1):
+        return self.constraint_func(x_data)
+
 
 # # To implement a new type of surrogate model, copy the following code and
 # # implement the methods using function calls to your desired surrogate modeling library.
