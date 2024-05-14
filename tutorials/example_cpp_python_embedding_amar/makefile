@@ -1,7 +1,7 @@
 CC = g++
 
-LDIR = /home/kgriffin/.conda-envs/AC-AMAR/lib
-IDIR = /home/kgriffin/.conda-envs/AC-AMAR/include/python3.12
+LDIR = ~/.conda-envs/AC-AMAR/lib
+IDIR = ~/.conda-envs/AC-AMAR/include/python3.12
 
 LIBS = -lpython3.12
 

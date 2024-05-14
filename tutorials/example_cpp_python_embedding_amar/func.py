@@ -72,7 +72,7 @@ def dynamic_if_query(my_dataset, surrogate, x_queries, time_ratio, computer_budg
 def print_stmt(lf, hf, cpu_elapsed):
     print("HF Eval: ", hf, " LF Eval: ", lf)
     print("CPU Elapsed: ", cpu_elapsed)
-    plot_graphs()
+    #plot_graphs()
     
 def write_output(iter, computer_budget_ratio, time_ratio, threshold_std_dyn, hf_count, lf_count):
     #write results to csv

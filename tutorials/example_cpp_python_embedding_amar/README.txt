@@ -4,8 +4,8 @@ Pre-requisites
 
     Python > 3.9
         module load anaconda3
-        conda create --name acEnv
-        conda activate acEnv
+        conda create --name AC-AMAR
+        conda activate AC-AMAR
 
     SMT 1.3
         pip install smt==1.3
@@ -20,7 +20,7 @@ Usage
 
     Compilation Instructions: 
         Libraries for python must be specified via -L and -I flags
-        i.e. g++ main.cpp -L /home/janelle9/.conda-envs/acEnv/lib -lpython3.XX -I /home/janelle9/.conda-envs/
+        i.e. g++ main.cpp -L ~/.conda-envs/AC-AMAR/lib -lpython3.XX -I ~/.conda-envs/
         XX = Python version number
 
         Troubleshooting
@@ -28,8 +28,8 @@ Usage
                 Double check library path for libpython3.XX.so
             Cannot open shared objct file: Shared library cannot be found
                 Update LD_LIBRARY_PATH file to contain virtual environment library
-                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libpython
-		    Where /path/to/libpython is the path following -L in the compile command.
+                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda-envs/AC-AMAR/lib
+		    Where /path/to/libpython is the path where libpython3.XX.so is located
                         
         Additional notes
             - the output file output only contains the cpp file and a python EMBEDDER, this means that any additional changes made to the referenced python files after compilation

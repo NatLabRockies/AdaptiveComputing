@@ -24,6 +24,7 @@ PyObject* initializeFloatArray(float* array, int length) {
         }
         // Set the Python integer object in the list
         PyList_SET_ITEM(pyList, i, pyFloat);
+	Py_DECREF(pyFloat);
     }
 
     // Return the Python list object
@@ -42,21 +43,26 @@ int main(int argc, char*argv[])
 
     PyObject* sys = PyImport_ImportModule("sys");
     PyObject* path = PyObject_GetAttrString(sys, "path");
+    Py_DECREF(sys);
     PyObject* cur_dir = PyUnicode_FromString("");
     PyList_Append(path, cur_dir);
+    Py_DECREF(path);
+    Py_DECREF(cur_dir);
     PyObject* myModule = PyImport_ImportModule("func");
     PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
     FILE * fp = _Py_fopen_obj(obj, "r+");
+    Py_DECREF(obj);
     if(fp != NULL)
     {
         PyRun_SimpleFile(fp, "func.py");
-    }
-
+	fclose(fp);
+    } else
+      assert(0);
+    
 
     if (myModule == nullptr){
       std::cerr << "Failed to import module.\n";
       Py_DECREF(myModule);
-      Py_DECREF(obj);
       Py_Finalize();
       return 1;
     }
@@ -65,6 +71,7 @@ int main(int argc, char*argv[])
     //initalize dataset
     PyObject* init_dataset = PyObject_GetAttrString(myModule, (char*)"init_dataset");
     PyObject* my_dataset = PyObject_CallObject(init_dataset, nullptr);
+    Py_DECREF(init_dataset);
     //   
 
     // Initialize the surrogate model. The surrogate model allows us to interpolate between those simulations.
@@ -113,11 +120,13 @@ int main(int argc, char*argv[])
           PyObject* x_queries = initializeFloatArray(cpp_x_query, length); //used to convert c++ float array to PyObject
           if (x_queries == NULL) {
             PyErr_Print();
+	    Py_DECREF(myModule);
             Py_Finalize();
             return 1;
           }
 
           PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean); //query dataset
+	  // XXX we don't check if the memory allocation fails... is Py_None == NULL?
           if (y_query == Py_None){      
             num_simulations += 1;
           }
@@ -194,10 +203,6 @@ int main(int argc, char*argv[])
     PyObject_CallMethod(myModule, "print_stmt", "iid", count_LF, count_HF, cpu_elapsed);
 
     Py_DECREF(myModule);
-    Py_DECREF(obj);
-    Py_DECREF(my_dataset);
-    Py_DECREF(my_surrogate);
-    //Py_DECREF(args);
 
     Py_Finalize();
 
