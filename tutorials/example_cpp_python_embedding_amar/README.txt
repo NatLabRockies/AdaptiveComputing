@@ -8,7 +8,7 @@ Pre-requisites
         conda activate acEnv
 
     SMT 1.3
-        pip install smt=1.3
+        pip install smt==1.3
 
     numpy
         conda install numpy
@@ -24,11 +24,12 @@ Usage
         XX = Python version number
 
         Troubleshooting
-            DSO Error - A DSO error is received during compilation, 
-                Double check library path for libpython 3.XX.so
+            DSO Error - A DSO error is received during compilation,
+                Double check library path for libpython3.XX.so
             Cannot open shared objct file: Shared library cannot be found
                 Update LD_LIBRARY_PATH file to contain virtual environment library
-                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH: /path/to/libpython
+                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/libpython
+		    Where /path/to/libpython is the path following -L in the compile command.
                         
         Additional notes
             - the output file output only contains the cpp file and a python EMBEDDER, this means that any additional changes made to the referenced python files after compilation

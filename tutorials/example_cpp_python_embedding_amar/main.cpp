@@ -1,5 +1,5 @@
 //
-#include <python.h>
+#include <Python.h>
 #include <iostream>
 #include "func_4d.h"
 #include <ctime>
@@ -40,8 +40,10 @@ int main(int argc, char*argv[])
     double cpu_budget = 50000; //specifies amount of computing hours budgeted
     double hrs_per_sim = 500; //specifies projected time it takes for one simulation
 
-
-
+    PyObject* sys = PyImport_ImportModule("sys");
+    PyObject* path = PyObject_GetAttrString(sys, "path");
+    PyObject* cur_dir = PyUnicode_FromString("");
+    PyList_Append(path, cur_dir);
     PyObject* myModule = PyImport_ImportModule("func");
     PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
     FILE * fp = _Py_fopen_obj(obj, "r+");

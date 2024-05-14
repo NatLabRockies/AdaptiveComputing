@@ -136,7 +136,3 @@ def plot_graphs():
 if __name__ == '__main__':
     print("Calling func.py")
 
-
-    
-
-
