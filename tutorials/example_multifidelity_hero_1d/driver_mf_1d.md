@@ -70,7 +70,7 @@ def driver_mf_1d():
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(3,surrogate,bo_ops=bo_ops)
     my_dataset.wait_for_workers(surrogate)

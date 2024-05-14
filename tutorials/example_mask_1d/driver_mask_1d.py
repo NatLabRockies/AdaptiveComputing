@@ -125,7 +125,7 @@ def driver_mask_1d():
     viz_ops.plot_1d=True
     viz_ops.show_exact = True
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(10,surrogate,viz_ops=viz_ops)
     my_dataset.write_samples_csv('output_data.csv')

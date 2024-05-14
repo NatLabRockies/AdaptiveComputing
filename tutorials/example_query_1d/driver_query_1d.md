@@ -60,7 +60,7 @@ def driver_query_1d():
     viz_ops.plot_1d=True
     viz_ops.show_exact = True
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(2,surrogate,viz_ops=viz_ops)
 

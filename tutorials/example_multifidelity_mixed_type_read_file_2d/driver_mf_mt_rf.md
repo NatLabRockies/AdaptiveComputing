@@ -94,7 +94,7 @@ def driver_mf_mt_rf():
     bo_ops = BoOptions()
     bo_ops.cpu_hrs_per_sim = [1, 5]
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(20,surrogate,bo_ops=bo_ops,viz_ops=viz_ops)
     my_dataset.write_samples_csv(['lf_output_data.csv','hf_output_data.csv'])
