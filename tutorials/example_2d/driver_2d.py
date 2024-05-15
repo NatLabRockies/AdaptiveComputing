@@ -60,7 +60,7 @@ def driver_2d():
     viz_ops = VizOptions()
     viz_ops.animation_2d=True
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     bo_ops = BoOptions()
     bo_ops.dont_run_sims = True

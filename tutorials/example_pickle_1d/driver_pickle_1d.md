@@ -60,7 +60,7 @@ def driver_pickle_1d():
         pickle.dump(my_dataset, file)
 
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(7,surrogate,viz_ops=viz_ops)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)

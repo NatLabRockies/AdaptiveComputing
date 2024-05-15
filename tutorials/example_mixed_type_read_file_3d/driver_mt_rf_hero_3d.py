@@ -88,7 +88,7 @@ def driver_mt_rf_3d():
     # my_dataset.add_file_samples('input_data_parameters_only.csv')
     viz_ops = VizOptions()
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(6,surrogate,viz_ops=viz_ops)
     my_dataset.wait_for_workers(surrogate)
