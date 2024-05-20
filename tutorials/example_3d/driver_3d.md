@@ -65,7 +65,7 @@ def driver_3d():
     viz_ops = VizOptions()
     viz_ops.plot_nd = True
     # use the SMT implementation of the Gaussian Process model
-    from ac_common.surrogate_wrappers import SMTWrapper
+    from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     my_dataset.add_bo_samples(30,surrogate,viz_ops=viz_ops)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)

@@ -105,12 +105,9 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level):
             x_et_k = x_et_k_array[ind_which_lvl,:]
         
         # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
-        # This computes the value of the user-defined objective function at the location where the acquisition function is minimal
-        # Just return the location of the samples (don't run the correpsonding simulations and don't put them in the hero queue)
-        if bo_ops.dont_run_sims: 
-            dataset.mask_xnum_sample(ind_which_lvl,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
+        # This runs the user-defined simulation at the location where the acquisition function is minimal
         # Add sample to the Hero queue instead of running it locally immediately
-        elif dataset.ds_ops.use_hero:
+        if dataset.ds_ops.use_hero:
             dataset.queue_hero_sample(ind_which_lvl,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
         # Run the simulation on the current process (blocking)
         else:

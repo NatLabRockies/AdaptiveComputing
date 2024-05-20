@@ -63,7 +63,6 @@ def driver_2d():
     from ac_common.surrogates import SMTWrapper
     surrogate= SMTWrapper(my_dataset)
     bo_ops = BoOptions()
-    bo_ops.dont_run_sims = True
     my_dataset.add_bo_samples(10,surrogate,viz_ops=viz_ops,bo_ops=bo_ops)
     [x_opt, y_opt] = my_dataset.find_min(surrogate)
     t = time.time() - t

@@ -88,6 +88,15 @@ def driver_mf_mt_rf_mask():
     # Define the options for surrogate modeling and optimization
     ds_ops = DataSetOptions()
 
+    # # Mask NaNs:
+    ds_ops.exit_on_nans = False
+    ds_ops.mask_nans = True
+    
+    # # Skip NaNs: (exclude them from the surrogate)
+    # Since using acquisition function, this reaches a NaN and then keeps requerying the same point because it's not being added to the surrogate (not masked) so the acq func max is in the skipped region everytime
+    # ds_ops.exit_on_nans = False
+    # ds_ops.mask_nans = False
+
     # Compute the multi-fidelity model
     import time
     t = time.time()
