@@ -20,6 +20,13 @@ def EI(GP,points,f_min,fidelity_level):
         raise Exception('Must evaluate EI for more than one point.') #return 0.0
     ei = args1 + args2
     return ei
+
+def ConstrainedEI(GP,points,f_min,fidelity_level):
+    ei = EI(GP,points,f_min,fidelity_level)
+    c = GP.predict_constraint(points,fidelity_level)
+
+    return ei*c
+
 #########################################################
 # surrogate Based optimization: min of the surrogate model by using the expected value mu
 def SBO(GP,points,fidelity_level):
@@ -42,6 +49,8 @@ def MSD(GP,points,fidelity_level):
 def get_acq_func(IC,gpr,f_min_k,fidelity_level):
     if IC == 'EI':
         obj_k = lambda x: -EI(gpr,np.atleast_2d(x),f_min_k,fidelity_level)[:,0]
+    elif IC == 'ConstrainedEI':
+        obj_k = lambda x: -ConstrainedEI(gpr,np.atleast_2d(x),f_min_k,fidelity_level)[:,0]
     elif IC =='SBO':
         obj_k = lambda x: SBO(gpr,np.atleast_2d(x),fidelity_level)
     elif IC == 'LCB':
