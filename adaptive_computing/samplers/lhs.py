@@ -16,12 +16,12 @@ class LHSSampler(SamplerBase):
         self._check_sample(N_samples)
 
         if self.mixed_type:
-            sampling = MixedIntegerSamplingMethod(self.xtypes,
-                                                  self.xlimits, 
+            sampling = MixedIntegerSamplingMethod(self.x_types,
+                                                  self.x_limits, 
                                                   LHS, criterion="maximin", 
                                                   random_state=self._rand_seed)
         else:
-            sampling = LHS(xlimits=self.xlimits, 
+            sampling = LHS(xlimits=self.x_limits, 
                            criterion='maximin', 
                            random_state=self._rand_seed)
         

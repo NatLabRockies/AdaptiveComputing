@@ -1,14 +1,14 @@
 from smt.surrogate_models import KRG
 from smt.applications.mfk import MFK
 from smt.applications.mixed_integer import MixedIntegerSurrogateModel
-from ac_common.surrogates import SurrogateModelBase
+from adaptive_computing.surrogates.base import SurrogateModelBase
 import numpy as np
 
 # Implement surrogate modeling using the Surrogate Modeling Toolbox (SMT)
 class SMTWrapper(SurrogateModelBase):
-    def __init__(self, dataset, smt_kwargs=None,i_out=0):
+    def __init__(self, dataset, smt_kwargs=None):
         # Call the constructor of the base class
-        super().__init__(dataset, i_out)
+        super().__init__(dataset)
 
         if smt_kwargs is None:
             smt_kwargs = {}
@@ -35,10 +35,10 @@ class SMTWrapper(SurrogateModelBase):
             # Set the training values for all levels below the current fidelity level by indicating the name field
             # Note: other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
             for ii_fl in range(i_fl):
-                self.surrogate_model[i_fl].set_training_values(x_data[ii_fl],y_data[ii_fl][:,self.i_out], name=ii_fl)
+                self.surrogate_model[i_fl].set_training_values(x_data[ii_fl],y_data[ii_fl], name=ii_fl)
             # Set the training values for the current fidelity level
             # Note: the name field should not be specified for the current fidelity level    )
-            self.surrogate_model[i_fl].set_training_values(x_data[i_fl],y_data[i_fl][:,self.i_out])
+            self.surrogate_model[i_fl].set_training_values(x_data[i_fl],y_data[i_fl])
             
             # Update the surrogate model using this data
             self.surrogate_model[i_fl].train()
