@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.stats import norm
 
-def expected_improvement(x, surrogate, f_min, fidelity_level):
+def expected_improvement(x, surrogate, dataset, fidelity_level):
     pred = surrogate.predict_values(x,fidelity_level)
     var = surrogate.predict_variances(x,fidelity_level)
+    f_min = np.min(dataset.y_data[0])
     args0 = (f_min - pred)/np.sqrt(var)
     args1 = (f_min - pred)*norm.cdf(args0)
     args2 = np.sqrt(var)*norm.pdf(args0)

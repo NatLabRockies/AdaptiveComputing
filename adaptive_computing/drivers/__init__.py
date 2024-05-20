@@ -1,1 +1,2 @@
 from adaptive_computing.drivers.active_sf import ActiveLoopDriverSF
+from adaptive_computing.drivers.active_mf import ActiveLoopDriverMF

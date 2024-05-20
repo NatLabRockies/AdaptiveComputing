@@ -10,7 +10,6 @@ class ActiveLoopDriverSF():
 
         if dataset is None:
             self.dataset = DatasetBase(params)
-            print(self.dataset._sampler_ranges)
 
         self.evaluate_sample = simulation
 
@@ -40,7 +39,6 @@ class ActiveLoopDriverSF():
         x = self.sampler.get_sample(self.surrogate, self.dataset)
         y = self.evaluate_sample(x)
 
-        print(x,y)
         self.dataset.add_samples(x,y, n_fidelity=0)
         self.surrogate.train(self.dataset.x_data,
                              self.dataset.y_data)

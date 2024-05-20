@@ -42,11 +42,11 @@ class BayesianSampler(SamplerBase):
             x_samples.append(x_est)
 
         return np.concatenate(x_samples,axis=0)
-    
+
+
     def minimize_acq_func(self, surrogate, dataset, n_fidelity=0):
         xstart = self.init_sample(self.n_eval_pts)
-        f_min_k = np.min(dataset.y_data[n_fidelity])
-        obj_k = lambda x: self.acq_func(x,surrogate, f_min_k, n_fidelity)
+        obj_k = lambda x: self.acq_func(x,surrogate, dataset, n_fidelity)
         x = self._min_cont_vars(xstart, obj_k)
         return np.atleast_2d(x)
     
