@@ -200,7 +200,7 @@ Fields of `ModelOptions()`:
 | `show_EI`  | `False` | boolean | `True` or `False` |  Option applies to animation_1d with nfl=1. For animations with 1 parameter functions and 1 fidelity level. `True`: plot a curve for the expected improvement acquisition function. |
 
 
-Bayesian optimization options are set with `BoOptions()`, which is another optional argument for `add_bo_samples`. The fields of `BoOptions` are:
+Bayesian optimization options are set with `BoOptions()`, which is another optional argument for `add_bo_samples`. These options are also used by `get_bo_sample`, which is an alternative to `add_bo_samples` for users interested in customized workflows. `get_bo_sample` can only get one sample at a time because it does not add the sample to the dataset object (does not evaulate simulations or use masking) and does not retrain the surrogate, thus multiple successive evaluations may give the same output. The fields of `BoOptions` are:
 
 | Field name | Default value |  Acceptable types |  Acceptable values | <div style="width:500px">Description</div>  |
 |---|---|---|---|---|

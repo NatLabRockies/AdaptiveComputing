@@ -439,34 +439,3 @@ def train_on_all_data(dataset,surrogate,update_masked):
         dataset.train_on_unmasked_data(surrogate) # this updates the predictions at masked data locations since they will be used by the next step
         # if the unmasked data is already up to date, this step could be skipped for computational efficiency
     surrogate.train(dataset.x_data, dataset.y_data)
-
-# #########################################################
-# # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
-# def check_all_lower_sims(dataset):
-#     if dataset.ds_ops.perform_lower_sims:
-#         for i_fl in range(dataset.n_fl-1,0,-1): # for all levels greater than zero, counting backwards
-#             for j_d_upper in range(dataset.n_samp[i_fl]): # for all data points in this level
-#                 # check if this point exists on the next lowest level
-#                 pt_exists = False 
-#                 for j_d_lower in range(dataset.n_samp[i_fl-1]): # for all data in the level below
-#                     if np.array_equal(dataset.x_data[i_fl][j_d_upper,:],dataset.x_data[i_fl-1][j_d_lower,:]):
-#                         pt_exists = True
-#                 if not pt_exists: # add it to the lower level
-#                     y_eval = dataset.funcs[i_fl-1](dataset.x_data[i_fl][j_d_upper,:])
-#                     dataset.y_data[i_fl-1] = np.atleast_2d(np.append(dataset.y_data[i_fl-1],y_eval)).T
-#                     dataset.x_data[i_fl-1] = np.append(dataset.x_data[i_fl-1],np.atleast_2d(dataset.x_data[i_fl][j_d_upper,:]),axis=0)
-#                     dataset.n_samp[i_fl-1] = dataset.n_samp[i_fl-1] + 1
-
-# #########################################################
-# # Mask data that is NaN or outside allowable bounds
-# def check_all_nan_oob(dataset):
-#     for ind_which_lvl in range(dataset.n_fl):
-#         dataset.unmasked_data[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], True)
-#         for i in range(dataset.n_samp[ind_which_lvl]):
-#             dataset.unmasked_data[ind_which_lvl][i,surrogate.i_out] = check_nan_oob(dataset.y_data[ind_which_lvl][i,surrogate.i_out],dataset.ds_ops)
-#         # don't put these points in the hero queue
-#         dataset.hero_todo[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], False)
-#         dataset.hero_task_id[ind_which_lvl] = np.full([dataset.n_samp[ind_which_lvl],1], 'None')
-
-
-

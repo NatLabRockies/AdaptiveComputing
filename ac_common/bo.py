@@ -31,11 +31,6 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level):
                 raise Exception('cpu_hrs_per_sim must be > 0.')
     else:
         bo_ops.cpu_hrs_per_sim = [1]
-
-    from .acq_func import get_acq_func, minimize_acq_func
-    from smt.sampling_methods import LHS
-    if dataset.mixed_type:
-        from smt.applications.mixed_integer import MixedIntegerSamplingMethod
     
     if dataset.ds_ops.use_hero:
         dataset.sync_hero_results(surrogate,viz_ops)
@@ -45,73 +40,20 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level):
     for k in range(n_iter):
         print('Beginning AC optimization iteration ' + str(k))
 
-        # Retrain surrogate using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
-        dataset.train_on_all_data(surrogate,update_masked=False)
-
-        af_array = np.zeros([dataset.n_fl,1]) # acquisition function min values for each fidelity level
-        x_et_k_array = np.zeros([dataset.n_fl,dataset.n_in]) # acquisition function argmin for each fidelity level
+        # Choose where to sample (x location) and the fidelity level. In other words, minimize the acquisition function.
         if bo_fidelity_level == None:
-            for i in range(dataset.n_fl):
-                if dataset.ds_ops.deterministic:
-                    # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
-                    # Note: that the sampler will increment the rand_state for each sample
-                    rand_state = int(sum(dataset.n_samp+1) + (k+1)*(i+1)*bo_ops.n_opt_pts)
-
-                if dataset.mixed_type:
-                    sampling_opt = MixedIntegerSamplingMethod(dataset.xtypes, dataset.xlimits, LHS, criterion="maximin", random_state=rand_state)
-                else:
-                    sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
-                # x_start is an array of initial guess used in the search for the minimum of the acquisition function
-                x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-                f_min_k = np.min(dataset.y_data[i][:,surrogate.i_out]) # this is an argument needed by the EI acquisition function
-                obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,i) # this is the acquistion function which will be minimized
-                x_et_k_array[i,:] = minimize_acq_func(dataset,obj_k,x_start,bo_ops)
-                af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
-            # We will divide af_array by the computational cost array and then take a min. So this only applies a penalty to expensive simulations if the acquisition function
-            # is guaranteed to be <0. For LCB and SBO, this is not the case. So these acqusition functions are not appropriate.
-            if dataset.n_fl > 1:
-                if bo_ops.acq_func == 'LCB' or bo_ops.acq_func == 'SBO':
-                    raise Exception('SBO and LCB are not appropriate for multifidelity problems')
-                    # Since it is unclear how to weight these acquisition functions by cost and
-                    # the lower fidelity surrogates may have errors that without correcting by the bridging functions
-                    # will invalidate the direct comparison of acq funcs across fidelity levels
-                if np.any(af_array>0.0):
-                    raise Exception('The method for choosing ind_which_lvl requires the acquisition function to be defined so that it is always negative.')
-            ind_which_lvl = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
-            # Option 1: Always select the location of sample point from the high fidelity model
-            x_et_k = x_et_k_array[-1,:]
-            # Option 2: Select the location of sample point from the fidelity level with the deepest acq func minimum
-            #x_et_k = x_et_k_array[ind_which_lvl,:]
-        else: # if the fidelity was specified as an argument
-            i = bo_fidelity_level
-                
-            if dataset.ds_ops.deterministic:
-                # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
-                # Note: that the sampler will increment the rand_state for each sample
-                rand_state = int(sum(dataset.n_samp+1) + (k+1)*(i+1)*bo_ops.n_opt_pts)
-
-            if dataset.mixed_type:
-                sampling_opt = MixedIntegerSamplingMethod(dataset.xtypes, dataset.xlimits, LHS, criterion="maximin", random_state=rand_state)
-            else:
-                sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
-            # x_start is an array of initial guess used in the search for the minimum of the acquisition function
-            x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
-            f_min_k = np.min(dataset.y_data[i][:,surrogate.i_out]) # this is an argument needed by the EI acquisition function
-            obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,i) # this is the acquistion function which will be minimized
-            x_et_k_array[i,:] = minimize_acq_func(dataset,obj_k,x_start,bo_ops)
-            af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum    
-            ind_which_lvl = bo_fidelity_level
-            
-            x_et_k = x_et_k_array[ind_which_lvl,:]
+            [x_et_k, bo_fidelity_level] = dataset.get_bo_sample(surrogate,bo_ops,viz_ops,iter=k)
+        else:
+            x_et_k = dataset.get_bo_sample(surrogate,bo_ops,viz_ops,bo_fidelity_level,iter=k)
         
         # Add the chosen sample data to the surrogate model training set and retrain using only the unmasked data
         # This runs the user-defined simulation at the location where the acquisition function is minimal
         # Add sample to the Hero queue instead of running it locally immediately
         if dataset.ds_ops.use_hero:
-            dataset.queue_hero_sample(ind_which_lvl,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
+            dataset.queue_hero_sample(bo_fidelity_level,x_et_k,surrogate,viz_ops=viz_ops,frame_id=k)
         # Run the simulation on the current process (blocking)
         else:
-            dataset.add_xnum_sample(ind_which_lvl,x_et_k,y_eval=None,viz_ops=viz_ops,frame_id=k,surrogate=surrogate)
+            dataset.add_xnum_sample(bo_fidelity_level,x_et_k,y_eval=None,viz_ops=viz_ops,frame_id=k,surrogate=surrogate)
         
         # The comment below is for a different way of deciding which fidelity level to use for the bayesian optimization.
         # if dataset.ds_ops.deterministic:
@@ -132,22 +74,93 @@ def add_bo_samples(dataset,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level):
         #     # A = [];
         #     # for i_var_check in range(dataset.n_fl-1):
         #     #     A.append(surrogate.predict_variances(x_et_k,i_var_check))
-        #     # ind_which_lvl = 0
-        #     # y_et_k = dataset.funcs[ind_which_lvl](x_et_k)
+        #     # bo_fidelity_level = 0
+        #     # y_et_k = dataset.funcs[bo_fidelity_level](x_et_k)
         #     # dataset.y_data[i] = np.atleast_2d(np.append(dataset.y_data,y_et_k)).T
         #     # dataset.x_data[i] = np.append(dataset.x_data[i],np.atleast_2d(x_et_k),axis=0)
         #     # for i_var_check in range(dataset.n_fl-1):
         #     #     if surrogate.predict_variances(x_et_k,i_var_check + 1) > A[i_var_check]
         #     ??
         # else: # always use fidelity level 0
-        #     ind_which_lvl = 0
-        #     y_et_k = dataset.funcs[ind_which_lvl](x_et_k)
+        #     bo_fidelity_level = 0
+        #     y_et_k = dataset.funcs[bo_fidelity_level](x_et_k)
         #     dataset.y_data[i] = np.atleast_2d(np.append(dataset.y_data,y_et_k)).T
         #     dataset.x_data[i] = np.append(dataset.x_data[i],np.atleast_2d(x_et_k),axis=0)
 
     if viz_ops is not None:
         viz_finalize(dataset,surrogate,viz_ops,n_iter-1)
         viz_show_plots(viz_ops,n_frames=n_iter)
+
+#########################################################
+# Choose where to sample (x location) and the fidelity level. In other words, minimize the acquisition function.
+# iter is used for deterministic random seeds used for the multi-start minimization of the acquisition functions.
+# If you want to the same random seed, then you can leave iter at its default value of 0. 
+# If you want the random seed to vary, then increment iter with each call of get_bo_sample.
+def get_bo_sample(dataset,surrogate,bo_ops,viz_ops,bo_fidelity_level,iter):
+    from .acq_func import get_acq_func, minimize_acq_func
+    from smt.sampling_methods import LHS
+    if dataset.mixed_type:
+        from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+    
+    # Retrain surrogate using x_data, y_data (so this includes unmasked data and predictions at masked data locations)
+    dataset.train_on_all_data(surrogate,update_masked=False)
+
+    af_array = np.zeros([dataset.n_fl,1]) # acquisition function min values for each fidelity level
+    x_et_k_array = np.zeros([dataset.n_fl,dataset.n_in]) # acquisition function argmin for each fidelity level
+    if bo_fidelity_level == None:
+        for i in range(dataset.n_fl):
+            if dataset.ds_ops.deterministic:
+                # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+                # Note: that the sampler will increment the rand_state for each sample
+                rand_state = int(sum(dataset.n_samp+1) + (iter+1)*(i+1)*bo_ops.n_opt_pts)
+
+            if dataset.mixed_type:
+                sampling_opt = MixedIntegerSamplingMethod(dataset.xtypes, dataset.xlimits, LHS, criterion="maximin", random_state=rand_state)
+            else:
+                sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
+            # x_start is an array of initial guess used in the search for the minimum of the acquisition function
+            x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+            f_min_k = np.min(dataset.y_data[i][:,surrogate.i_out]) # this is an argument needed by the EI acquisition function
+            obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,i) # this is the acquistion function which will be minimized
+            x_et_k_array[i,:] = minimize_acq_func(dataset,obj_k,x_start,bo_ops)
+            af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum
+        # We will divide af_array by the computational cost array and then take a min. So this only applies a penalty to expensive simulations if the acquisition function
+        # is guaranteed to be <0. For LCB and SBO, this is not the case. So these acqusition functions are not appropriate.
+        if dataset.n_fl > 1:
+            if bo_ops.acq_func == 'LCB' or bo_ops.acq_func == 'SBO':
+                raise Exception('SBO and LCB are not appropriate for multifidelity problems')
+                # Since it is unclear how to weight these acquisition functions by cost and
+                # the lower fidelity surrogates may have errors that without correcting by the bridging functions
+                # will invalidate the direct comparison of acq funcs across fidelity levels
+            if np.any(af_array>0.0):
+                raise Exception('The method for choosing bo_fidelity_level requires the acquisition function to be defined so that it is always negative.')
+        bo_fidelity_level = np.argmin(np.atleast_2d(af_array)/np.atleast_2d(bo_ops.cpu_hrs_per_sim).T) # chose the fidelity level with the deeper minimum when weighted by the cost of a simulation for that fidelity level
+        # Option 1: Always select the location of sample point from the high fidelity model
+        x_et_k = x_et_k_array[-1,:]
+        # Option 2: Select the location of sample point from the fidelity level with the deepest acq func minimum
+        #x_et_k = x_et_k_array[bo_fidelity_level,:]
+        return [x_et_k, bo_fidelity_level]
+    else: # if the fidelity was specified as an argument
+        i = bo_fidelity_level
+            
+        if dataset.ds_ops.deterministic:
+            # Ensurses the fidelity levels all have unique seeds on all optimization iterations. 
+            # Note: that the sampler will increment the rand_state for each sample
+            rand_state = int(sum(dataset.n_samp+1) + (iter+1)*(i+1)*bo_ops.n_opt_pts)
+
+        if dataset.mixed_type:
+            sampling_opt = MixedIntegerSamplingMethod(dataset.xtypes, dataset.xlimits, LHS, criterion="maximin", random_state=rand_state)
+        else:
+            sampling_opt = LHS(xlimits=dataset.xlimits, criterion='maximin', random_state=rand_state)
+        # x_start is an array of initial guess used in the search for the minimum of the acquisition function
+        x_start = sampling_opt(bo_ops.n_opt_pts) # 1st dim is which init_guess, 2nd dim is which param
+        f_min_k = np.min(dataset.y_data[i][:,surrogate.i_out]) # this is an argument needed by the EI acquisition function
+        obj_k = get_acq_func(bo_ops.acq_func,surrogate,f_min_k,i) # this is the acquistion function which will be minimized
+        x_et_k_array[i,:] = minimize_acq_func(dataset,obj_k,x_start,bo_ops)
+        af_array[i] = obj_k(x_et_k_array[i,:]) # this is the value of the acquisition at its min (note, it is not the value of the user-defined simulation at the minimum    
+        
+        x_et_k = x_et_k_array[bo_fidelity_level,:]
+        return x_et_k
 
 #########################################################
 # Find the optimal point that has been evaluated by the high fidelity model

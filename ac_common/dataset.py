@@ -142,6 +142,10 @@ class DataSet:
         from ac_common.bo import add_bo_samples
         add_bo_samples(self,n_iter,surrogate,bo_ops,viz_ops,bo_fidelity_level)
 
+    def get_bo_sample(self,surrogate,bo_ops=None,viz_ops=None,bo_fidelity_level=None,iter=0):
+        from ac_common.bo import get_bo_sample
+        return get_bo_sample(self,surrogate,bo_ops,viz_ops,bo_fidelity_level,iter)
+
     def add_xnum_sample(self,fidelity_level,x_eval_num,y_eval=None,viz_ops=None,frame_id=None,surrogate=None):
         from ac_common.static_sampling import add_xnum_sample
         add_xnum_sample(self,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,surrogate)
