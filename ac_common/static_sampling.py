@@ -134,11 +134,10 @@ def add_xnum_sample(dataset,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,su
         dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
         dataset.y_data[fidelity_level] = np.append(dataset.y_data[fidelity_level],np.atleast_2d(y_eval),axis=0)
         dataset.n_samp[fidelity_level] += 1
-
+        # Check for NaNs and out of bounds y_data
         dataset.unmasked_data[fidelity_level] = np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
         for i_o in range(dataset.n_out):
             dataset.unmasked_data[fidelity_level][-1,i_o] = check_unmasked(dataset.y_data[fidelity_level][-1,i_o],dataset.ds_ops)
-            
         # the function has been evaluated, so no need to add to the hero queue
         dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],False)).T
         dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],'None')).T
@@ -164,24 +163,12 @@ def add_xnum_sample(dataset,fidelity_level,x_eval_num,y_eval,viz_ops,frame_id,su
 
 #########################################################
 # Add a sim to the dataset and retrain the surrogate model using all unmasked data.
-# Unlike add_xnum_sample, this is a non-blocking operation. The sim is added to a hero
-# queue of simulations to run and the function returns, storing a temporary result
-# in the mean time.
+# Unlike add_xnum_sample, instead of running the sim locally, but it in the Hero task queue.
+# Options control if this is a blocking or non-blocking operation. In the non-blocking case,
+# options control if masking is used (temporary value).
 # The x_eval_num argument has variable types converted to floats as SMT expects
 def queue_hero_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_id):
-    dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
-    # set a placeholder value using the surrogate's prediction
-    if surrogate is not None:
-        y_eval = surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
-        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], y_eval)).T
-    else:
-        dataset.y_data[fidelity_level] = np.atleast_2d(np.append(dataset.y_data[fidelity_level], np.full((1,dataset.n_out), np.NaN))).T
-    dataset.n_samp[fidelity_level] += 1
-
-    # Mark the data as masked
-    dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), False, dtype=bool))).T
-    # Mark the data as in the hero queue
-    dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],True)).T
+    # Prepare the sample input arguments
     x_eval_native = num_to_native(x_eval_num,dataset.params)
     x_eval_str = [str(variable) for variable in x_eval_native]
     # Since Hero only allows string arguments, convert args to strings and append the variable types
@@ -193,10 +180,50 @@ def queue_hero_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_
         elif dataset.params[j].type == 'ordered':
             x_eval_str[j] += '_ordered'
         else:
-            raise Exception('Unrecognized type for parameter '+str(j)) 
-    task_id = dataset.hero_objs[fidelity_level].put_tasks([{"name": "test_"+str(fidelity_level)+"_"+str(dataset.n_samp[fidelity_level]), "args": x_eval_str}])[0]
-    dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],task_id)).T
+            raise Exception('Unrecognized type for parameter '+str(j))
 
+    # Add the sample to the Hero task queue
+    if not dataset.ds_ops.hero_blocking and dataset.ds_ops.hero_masking: # don't store the sample in the persistent memory but rather use a temporary buffer (until the hero task completes and the output is collected)
+        task_id = dataset.hero_objs_unallocated[fidelity_level].put_tasks([{"name": "test_"+str(fidelity_level)+"_"+str(dataset.n_samp_unallocated[fidelity_level]+1), "args": x_eval_str}])[0]
+        dataset.n_samp_unallocated[fidelity_level] += 1
+        dataset.x_data_unallocated[fidelity_level] = np.append(dataset.x_data_unallocated[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
+        dataset.hero_task_id_unallocated[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id_unallocated[fidelity_level],task_id)).T
+    else: # allocate memory for this data point (either for the masked value or the final value if blocking)
+        task_id = dataset.hero_objs[fidelity_level].put_tasks([{"name": "test_"+str(fidelity_level)+"_"+str(dataset.n_samp[fidelity_level]+1), "args": x_eval_str}])[0]
+        
+        if dataset.ds_ops.hero_masking: # set a placeholder value using the surrogate's prediction
+            assert(surrogate is not None)
+            y_eval = surrogate.predict_values(np.atleast_2d(x_eval_num),fidelity_level)[0]
+            # Mark the data as masked
+            dataset.unmasked_data[fidelity_level] = np.atleast_2d(np.append(dataset.unmasked_data[fidelity_level],np.full((1,dataset.n_out), False, dtype=bool))).T
+            dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],True)).T
+            
+        else: # wait for Hero worker to complete the simulation
+            assert(dataset.ds_ops.hero_blocking)
+            print('Wait until worker completes this blocking task.')
+            while True:
+                task_data = dataset.hero_objs[i_fl].get_task(task_id)
+                if task_data["status"] == 'complete':
+                    print(f'Task {task_id} completed with simulation result = {task_data["results_s3"]}')
+                    y_eval_str = task_data["results"]["objective"]
+                    # Parsing the string representation into a NumPy array
+                    y_eval = np.fromstring(objective_str[1:-1], dtype=float, sep=' ')
+                    break
+                dataset.hero_objs[0].wait(1)
+
+            # Check for NaNs and out of bounds y_data
+            dataset.unmasked_data[i_fl] = np.append(dataset.unmasked_data[i_fl],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
+            for i_o in range(dataset.n_out):
+                dataset.unmasked_data[i_fl][-1,i_o] = check_unmasked(dataset.y_data[i_fl][-1,i_o],dataset.ds_ops)
+            dataset.hero_todo[fidelity_level] = np.atleast_2d(np.append(dataset.hero_todo[fidelity_level],False)).T
+            
+        dataset.n_samp[fidelity_level] += 1
+        dataset.x_data[fidelity_level] = np.append(dataset.x_data[fidelity_level],np.atleast_2d(x_eval_num),axis=0)
+        dataset.y_data[fidelity_level] = np.append(dataset.y_data[fidelity_level],np.atleast_2d(y_eval),axis=0)
+        dataset.hero_task_id[fidelity_level] = np.atleast_2d(np.append(dataset.hero_task_id[fidelity_level],task_id)).T
+        if surrogate is not None and dataset.ds_ops.hero_blocking: # if the simulation has been evaluated, retrain the surrogate if provided
+            dataset.train_on_unmasked_data(surrogate)
+        
     # At every point in the design space where a simulation is performed, compute all lower fidelity level simulations there too
     if dataset.ds_ops.perform_lower_sims:        
         pt_exists = False 
@@ -247,6 +274,8 @@ def mask_xnum_sample(dataset,fidelity_level,x_eval_num,surrogate,viz_ops,frame_i
 def sync_hero_results(dataset,surrogate,viz_ops):
     # if viz_ops is not None:
     #     from .viz import viz_animate
+
+    # check for Hero tasks that have been tracked in x_data and y_data
     for i_fl in range(dataset.n_fl):
         for i in range(dataset.n_samp[i_fl]):
             if dataset.hero_todo[i_fl][i] == True:
@@ -254,16 +283,52 @@ def sync_hero_results(dataset,surrogate,viz_ops):
                 task_data = dataset.hero_objs[i_fl].get_task(task_id)
                 if task_data["status"] == 'complete':
                     print(f'Found a complete task = {task_id} with simulation result = {task_data["results_s3"]}')
-                    y_eval = float(task_data["results"]["objective"])
+                    y_eval_str = task_data["results"]["objective"]
+                    # Parsing the string representation into a NumPy array
+                    y_eval = np.fromstring(objective_str[1:-1], dtype=float, sep=' ')
+                    #y_eval = float(task_data["results"]["objective"]) # this only works for a scalar
                     dataset.y_data[i_fl][i,:] = np.atleast_2d(y_eval)
                     # Check for NaNs and out of bounds y_data
                     for i_o in range(dataset.n_out):
                         dataset.unmasked_data[i_fl][i,i_o] = check_unmasked(y_eval[i_o],dataset.ds_ops)
                     dataset.hero_todo[i_fl][i] = False
+                    
                     # Visualize the next point to add and the surrogate that has not yet been trained on this point
                     # if viz_ops is not None:
                     #     viz_animate(dataset,surrogate,viz_ops,frame_id)
 
+    # check for Hero tasks that have not been allocated in x_data, y_data, etc.
+    for i_fl in range(dataset.n_fl):
+        for i in range(dataset.n_samp_unallocated[i_fl]):
+            task_id = dataset.hero_task_id_unallocated[i_fl][i][0]
+            task_data = dataset.hero_objs_unallocated[i_fl].get_task(task_id)
+            if task_data["status"] == 'complete':
+                print(f'Found a complete task = {task_id} with simulation result = {task_data["results_s3"]}')
+                y_eval_str = task_data["results"]["objective"]
+                # Parsing the string representation into a NumPy array
+                y_eval = np.fromstring(objective_str[1:-1], dtype=float, sep=' ')
+                #y_eval = float(task_data["results"]["objective"]) # this only works for a scalar
+
+                # Allocate memory in the persistent data structures
+                dataset.n_samp[i_fl] += 1
+                dataset.x_data[i_fl] = np.append(dataset.x_data[i_fl],np.atleast_2d(dataset.x_data_unallocated[i_fl][i]),axis=0)
+                dataset.y_data[i_fl] = np.append(dataset.y_data[i_fl],np.atleast_2d(y_eval),axis=0)
+                dataset.hero_todo[i_fl] = np.atleast_2d(np.append(dataset.hero_todo[i_fl],False)).T
+                dataset.hero_task_id[i_fl] = np.atleast_2d(np.append(dataset.hero_task_id[i_fl],dataset.hero_task_id_unallocated[i_fl][i])).T
+                # Check for NaNs and out of bounds y_data
+                dataset.unmasked_data[i_fl] = np.append(dataset.unmasked_data[i_fl],np.full((1,dataset.n_out), True, dtype=bool),axis=0)
+                for i_o in range(dataset.n_out):
+                    dataset.unmasked_data[i_fl][-1,i_o] = check_unmasked(dataset.y_data[i_fl][-1,i_o],dataset.ds_ops)
+
+                # Remove sample from the temporary data structures
+                n_samp_unallocated[i_fl] -= 1
+                dataset.x_data_unallocated[i_fl] = np.delete(dataset.x_data_unallocated[i_fl], i)
+                dataset.hero_task_id_unallocated[i_fl] = np.delete(dataset.hero_task_id_unallocated[i_fl], i)
+
+                # Visualize the next point to add and the surrogate that has not yet been trained on this point
+                # if viz_ops is not None:
+                #     viz_animate(dataset,surrogate,viz_ops,frame_id)
+                    
     if surrogate is not None:
         dataset.train_on_unmasked_data(surrogate)
 
@@ -272,14 +337,17 @@ def sync_hero_results(dataset,surrogate,viz_ops):
 def wait_for_workers(dataset,surrogate,viz_ops):
     print('Wait until workers complete all tasks in all hero queues.')
     while True:
+        sync_hero_results(dataset,viz_ops)
+        # Determine how many Hero tasks are outstanding (not finished or not processed yet). First just counting those with x_data and y_data allocated.
         total_in_queue = np.sum([np.sum(arr) for arr in dataset.hero_todo])
-        if total_in_queue > 0:
-            print(f'Number of remaining tasks in hero queues = {total_in_queue}')
-            dataset.hero_objs[0].wait(1)
-            sync_hero_results(dataset,viz_ops)
-        else:
+        # Also count those that are not yet allocated in x_data and y_data arrays.
+        total_in_queue += np.sum(n_samp_unallocated)
+        if total_in_queue == 0:
             print('Workers are done. All Hero queues are empty.')
             break
+        else:
+            print(f'Number of remaining tasks in hero queues = {total_in_queue}')
+            dataset.hero_objs[0].wait(1)
     
     if surrogate is not None:
         dataset.train_on_unmasked_data(surrogate)

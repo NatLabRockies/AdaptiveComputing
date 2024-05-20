@@ -59,7 +59,12 @@ class DataSetOptions:
     exit_on_oob_values = False # True: throw a ValueError if an out-of-bounds (OOB) value is encountered. The user specifies the bounds (see README). False: behavior determined by mask_oob_values.
     mask_oob_values = False # True: out-of-bounds (OOB) values are replaced with estimates from the surrogate model (allows Bayesian Optimization to advance). False: OOB values are excluded from the surrogate model if user specified bounds are provided.
     # If no bounds are specified by the user, then all values will be in bounds.
-    use_hero = False # True: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. False: simulations are run locally and serially.
+    use_hero = False # True: AC adds simulations to a Hero queue and (multiple) Hero workers complete the jobs asynchronously. False: simulations are run locally and serially. The code can not advance until each simulation completes.
+    hero_blocking = False # True: AC puts tasks (simulations) in a Hero queue and waits for each of them to complete before advancing. False: AC puts tasks in Hero queue and proceeds, later syncing as simulation outputs become available (as Hero workers complete tasks). Specific behavior determined by hero masking.
+    hero_masking = False # True: the dataset is populated and (surrogate is trained) with a dynamic temporary point (the surrogate's current expected value) as a placeholder for the output of the simulation in the Hero queue. Once the Hero task completes, the placeholder value is overwritten with the simulation output. False: the point is omitted from the dataset (and surrogate training set) until the Hero task completes and the output is available.
+    if use_hero and hero_blocking==False and hero_masking==True:
+        assert(mask_nans==True or exit_on_nans==True) # can't skip NaNs if Hero masking is used. Must set ds_ops.mask_nans=True or ds_ops.hero_blocking=True or ds_ops.hero_masking=True.
+        assert(mask_oob_values==True or exit_on_oob_values==True) # can't skip OOB values if Hero masking is used. Must set ds_ops.mask_oob_values=True or ds_ops.hero_blocking=True or ds_ops.hero_masking=True.
 
 #########################################################
 class VizOptions:
