@@ -6,7 +6,7 @@ import numpy as np
 
 class ActiveLoopDriverMFNonBlock(ActiveLoopDriverMF):
     def __init__(self, simulations, fidelity_costs, params, surrogate=None, dataset=None):
-        super().__init__(simulations, fidelity_costs, params, surrogate=None, dataset=None)
+        super().__init__(simulations, fidelity_costs, params, surrogate=surrogate)
 
         # setup hero stuff
         self.data_repo = None
