@@ -29,7 +29,6 @@ class CustomMFDriver(ActiveLoopDriverMF):
 
         for f_i in range(0, fi_eval):
             y = self.evaluate_sample(x, f_i)
-
             self.dataset.add_samples(x,y, n_fidelity=f_i)
 
 def example_bayesian_1d_sf():
