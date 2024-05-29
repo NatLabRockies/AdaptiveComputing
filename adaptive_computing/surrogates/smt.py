@@ -31,7 +31,10 @@ class SMTWrapper(SurrogateModelBase):
         #dataset.train_on_unmasked_data(self)
 
     def train(self, x_data, y_data):
+        x_data, y_data = self._validate_data(x_data, y_data)
+
         for i_fl in range(self.n_fl):
+
             # Set the training values for all levels below the current fidelity level by indicating the name field
             # Note: other fidelities are accessed with names from 0 to n_fl-2 listed in order of increasing fidelity.
             for ii_fl in range(i_fl):

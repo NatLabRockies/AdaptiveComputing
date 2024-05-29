@@ -6,7 +6,8 @@ from adaptive_computing.samplers.acquisition_functions import expected_improveme
 import numpy as np
 
 class ActiveLoopDriverMF():
-    def __init__(self,simulations, fidelity_costs, params, surrogate=None, dataset=None):
+    def __init__(self,simulations, fidelity_costs, params, surrogate=None, dataset=None,
+                 nan_behavior='fail'):
         self.params = params
 
         self.fidelity_costs = fidelity_costs
@@ -14,7 +15,8 @@ class ActiveLoopDriverMF():
         self.n_fl = len(simulations)
 
         if dataset is None:
-            self.dataset = DatasetBase(params, n_fidelity=self.n_fl)
+            self.dataset = DatasetBase(params, n_fidelity=self.n_fl, 
+                                       nan_behavior=nan_behavior)
 
         if isinstance(surrogate, SurrogateModelBase):
             self.surrogate = surrogate
@@ -43,7 +45,7 @@ class ActiveLoopDriverMF():
         for f_i in range(self.n_fl):
             self._initialize_fidelity(f_i, N_samples_init=N_samples_init)
         self.surrogate.train(self.dataset.x_data,
-                        self.dataset.y_data)
+                             self.dataset.y_data)
         self._bopt_initialized = True
 
     def get_next_sample(self):
