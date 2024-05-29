@@ -46,8 +46,7 @@ class ActiveLoopDriverMF():
                         self.dataset.y_data)
         self._bopt_initialized = True
 
-    def step(self):
-        
+    def get_next_sample(self):
         x_samples = np.zeros((self.n_fl, 1, self.dataset.n_in))
         objs = np.zeros(self.n_fl)
         for f_i in range(self.n_fl):
@@ -59,6 +58,12 @@ class ActiveLoopDriverMF():
 
         fi_eval = np.argmin(objs/self.fidelity_costs)
         x = x_samples[fi_eval]
+
+        return x, fi_eval
+
+    def step(self):
+        
+        x, fi_eval = self.get_next_sample()
         y = self.evaluate_sample(x, fi_eval)
 
         self.dataset.add_samples(x,y, n_fidelity=fi_eval)
