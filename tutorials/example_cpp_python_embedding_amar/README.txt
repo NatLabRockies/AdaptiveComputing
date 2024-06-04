@@ -2,25 +2,21 @@ Getting Started
 
 Pre-requisites
 
-    Python > 3.9
+    Python >3.9 and <3.12
         module load anaconda3
-        conda create --name AC-AMAR
-        conda activate AC-AMAR
+        conda create --name AC-AMAR-3.11-v2 python=3.11
+        conda activate AC-AMAR-3.11-v2
 
-    SMT 1.3
-        pip install smt==1.3
-
-    numpy
-        conda install numpy
-
-    matplotlib
-        conda install matplotlib
+    pip install smt==1.3
+    conda install numpy
+    conda install IPython
+    conda install matplotlib
 
 Usage
 
     Compilation Instructions: 
         Libraries for python must be specified via -L and -I flags
-        i.e. g++ main.cpp -L ~/.conda-envs/AC-AMAR/lib -lpython3.XX -I ~/.conda-envs/
+        i.e. g++ main.cpp -L ~/.conda-envs/AC-AMAR-3.11-v2/lib -lpython3.XX -I ~/.conda-envs/
         XX = Python version number
 
         Troubleshooting
@@ -28,8 +24,8 @@ Usage
                 Double check library path for libpython3.XX.so
             Cannot open shared objct file: Shared library cannot be found
                 Update LD_LIBRARY_PATH file to contain virtual environment library
-                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda-envs/AC-AMAR/lib
-		    Where /path/to/libpython is the path where libpython3.XX.so is located
+                    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda-envs/AC-AMAR-3.11-v2/lib
+		    Where ~/.conda-envs/AC-AMAR-3.11-v2/lib is the path where libpython3.XX.so is located
                         
         Additional notes
             - the output file output only contains the cpp file and a python EMBEDDER, this means that any additional changes made to the referenced python files after compilation

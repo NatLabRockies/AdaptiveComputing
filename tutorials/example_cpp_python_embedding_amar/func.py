@@ -54,16 +54,13 @@ def init_surrogate(my_dataset):
 
 def if_query(my_dataset, surrogate, x_queries, threshold_std_mean):
     # Query with a std/mean threshold. Conducts simulations if the standard deviation is too high.
-    import numpy as np   
-    y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)            
+    import numpy as np
+    y_queries = my_dataset.query_cpp(surrogate,x_queries,threshold_std_mean=threshold_std_mean)
     return y_queries
     #return expected_values, computed_values, tolerances
     
-def add_xnum_sample(my_dataset, fidelity_level, x_eval_num, y_eval):
-    print("Re-evaluating HF model")
-    viz_ops = VizOptions()
-    viz_ops.plot_nd = True
-    my_dataset.add_xnum_sample(fidelity_level, x_eval_num, y_eval = y_eval, viz_ops = viz_ops)    
+def add_xnum_sample(my_dataset, fidelity_level, x_eval_num, y_eval, surrogate):
+    my_dataset.add_xnum_sample(fidelity_level, x_eval_num, y_eval = y_eval, surrogate=surrogate)    
 
 def dynamic_if_query(my_dataset, surrogate, x_queries, time_ratio, computer_budget_ratio):
     y_queries = my_dataset.dynamic_query_cpp(surrogate, x_queries, time_ratio = time_ratio, computer_budget_ratio = computer_budget_ratio)

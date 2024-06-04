@@ -65,10 +65,7 @@ def query(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std
     return y_queries, y_queries_var
 
 def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold_std_mean,threshold_std_tv):
-    #if len(x_queries.shape) == 1: # if x_queries is a 1d array
-    #    print("query_cpp line 66")
     x_queries = np.array([np.array([float(x) for x in x_queries])]) #cast to proper format
-    print("x_queries: ", x_queries)
     if len(x_queries.shape) == 1: # if x_queries is a 1d array 
         x_queries = x_queries[:, np.newaxis]
     assert(x_queries.shape[1]==dataset.n_in)    
@@ -76,11 +73,11 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
     n_queries = x_queries.shape[0]
 
     if threshold_std is not None:
-        assert(threshold_std > 0.0)
+        assert(threshold_std >= 0.0)
     if threshold_std_mean is not None:
-        assert(threshold_std_mean > 0.0)
+        assert(threshold_std_mean >= 0.0)
     if threshold_std_tv is not None:
-        assert(threshold_std_tv > 0.0)
+        assert(threshold_std_tv >= 0.0)
 
 
     y_queries = np.zeros([n_queries,1])
@@ -100,18 +97,18 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
         y_queries[i] = surrogate.predict_values(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         y_queries_var[i] = surrogate.predict_variances(np.atleast_2d(x_queries_num[i]),fidelity_level)[0]
         
-        print("Threshold: ", threshold_std_mean)
-        print("threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
-        print("Variance: ", np.sqrt(y_queries_var[i]))
-        print("Checking if Variance >= Threshold")        
+        #print("Threshold: ", threshold_std_mean)
+        #print("threshold_std_mean*y_queries",  threshold_std_mean*y_queries[i])
+        #print("Standard dev: ", np.sqrt(y_queries_var[i]))
+        #print("Checking if std >= Threshold")        
         
-        import os.path
-        csvfilename = 'variance.csv'
-        row = [threshold_std_mean, np.sqrt(y_queries_var[i])[0]]        
-        import csv
-        with open(csvfilename, 'a', newline='', encoding='utf-8') as fd:
-            csvwriter = csv.writer(fd, delimiter=',')
-            csvwriter.writerow(row)
+        #import os.path
+        #csvfilename = 'variance.csv'
+        #row = [threshold_std_mean, np.sqrt(y_queries_var[i])[0]]        
+        #import csv
+        #with open(csvfilename, 'a', newline='', encoding='utf-8') as fd:
+        #    csvwriter = csv.writer(fd, delimiter=',')
+        #    csvwriter.writerow(row)
 
         # Run simulation at all points where the measured standard deviation >= user-specified threshold value
         if threshold_std is not None:
@@ -123,7 +120,6 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
         if threshold_std_mean is not None:
             if np.sqrt(y_queries_var[i]) >= threshold_std_mean*y_queries[i]:
                 # conduct a simulation and retrain the GPR using this data
-                print("Revaluating")
                 return None
 
         # Run simulation at all points where the std/total_variation >= user-specified threshold value
@@ -133,7 +129,7 @@ def query_cpp(dataset,surrogate,x_queries,fidelity_level,threshold_std,threshold
                 # conduct a simulation and retrain the GPR using this data
                 return None                        
 
-    print("No Re-evaluation necessary")
+    print("Surrogate trusted.")
     return y_queries
 
 
