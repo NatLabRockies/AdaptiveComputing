@@ -36,57 +36,97 @@ int main(int argc, char*argv[])
 
     Py_Initialize();    
          
-    double wall_clock_end = double(clock()) + 100000; //specifies total amount of time to run simulation
+    double wall_clock_end = double(clock()) + 100000*1000; //specifies total amount of time to run simulation
     double cpu_elapsed = 0;
     double cpu_budget = 50000; //specifies amount of computing hours budgeted
     double hrs_per_sim = 500; //specifies projected time it takes for one simulation
 
-    PyObject* sys = PyImport_ImportModule("sys");
-    PyObject* path = PyObject_GetAttrString(sys, "path");
+    PyObject *sysName = NULL;
+    PyObject *sys = NULL;
+    PyObject *path = NULL;
+    PyObject *cur_dir = NULL;
+    if ((sysName = PyUnicode_FromString("sys"))) {
+      if ((sys = PyImport_Import(sysName))) {
+	if ((path = PyObject_GetAttrString(sys,"path"))) {
+	  if ((cur_dir = PyUnicode_FromString(""))) {
+	    PyList_Append(path, cur_dir);
+	  }
+	}
+      }
+    }
+    if (PyErr_Occurred()) PyErr_Print();
+
+    Py_DECREF(sysName);
     Py_DECREF(sys);
-    PyObject* cur_dir = PyUnicode_FromString("");
-    PyList_Append(path, cur_dir);
     Py_DECREF(path);
     Py_DECREF(cur_dir);
-    PyObject* myModule = PyImport_ImportModule("func");
-    PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
-    FILE * fp = _Py_fopen_obj(obj, "r+");
-    Py_DECREF(obj);
-    if(fp != NULL)
-    {
-        PyRun_SimpleFile(fp, "func.py");
-	fclose(fp);
-    } else
-      assert(0);
-    
+    if (PyErr_Occurred()) PyErr_Print();
 
-    if (myModule == nullptr){
+    PyObject *myModuleName = NULL;
+    PyObject *myModule = NULL;
+    if ((myModuleName = PyUnicode_FromString("func"))) {
+      if ((myModule = PyImport_Import(myModuleName))) {
+	if ((myModuleName = PyUnicode_FromString("func"))) {
+	  if ((myModule = PyImport_Import(myModuleName))) {
+	  }
+	}
+      }
+    }
+    Py_DECREF(myModuleName);
+    if (PyErr_Occurred()) PyErr_Print();
+
+    if (myModule == NULL) {
       std::cerr << "Failed to import module.\n";
       Py_DECREF(myModule);
       Py_Finalize();
       return 1;
     }
 
+    const bool run_func_dot_py = false;
+    if (run_func_dot_py) {
+      // This code just "runs" the func.py file, saving nothing.
+      PyObject * obj = NULL;
+      FILE * fp = NULL;
+      obj = Py_BuildValue("s", "func.py"); // load objects in variable
+      fp = _Py_fopen_obj(obj, "r+");
+      if (fp == NULL) {
+      std::cout << "Could not open func.py" << std::endl;
+      Py_Finalize();
+      return 1;
+      }
+      else
+      {
+      std::cout << "running simple file" << std::endl;
+      PyRun_SimpleFile(fp, "func.py");
+      std::cout << "success simple file" << std::endl;
+      fclose(fp);
+      }
+      Py_DECREF(obj);
+      if (PyErr_Occurred()) PyErr_Print();
+    }
 
     //initalize dataset
-    PyObject* init_dataset = PyObject_GetAttrString(myModule, (char*)"init_dataset");
-    PyObject* my_dataset = PyObject_CallObject(init_dataset, nullptr);
+    PyObject* init_dataset = NULL;
+    PyObject* my_dataset = NULL;
+    if ((init_dataset = PyObject_GetAttrString(myModule, "init_dataset"))) {
+      if ((my_dataset = PyObject_CallObject(init_dataset, nullptr))) {
+      }
+    }
     Py_DECREF(init_dataset);
-    //   
+    if (PyErr_Occurred()) PyErr_Print();
 
-    // Initialize the surrogate model. The surrogate model allows us to interpolate between those simulations.
-
-    PyObject* my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
+    PyObject* my_surrogate = NULL;
+    my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
+    if (PyErr_Occurred()) PyErr_Print();
   
     // Run the continuum simulation
-    int N_iter = 100; 
+    int N_iter = 100;
     int thres_iter = 10;
     int boundary_pts = 64; 
     int count_HF = 0;
     int count_LF = 0;
     int n = 0;
 
-    
     //for (int n = 0; n < N_iter; n++){    
     while (double(clock()) < wall_clock_end)
     {      
@@ -102,7 +142,7 @@ int main(int argc, char*argv[])
       double r_0 = 0;
       double threshold_std_mean = 0.05;
 
-      for (int m = 0; m < thres_iter; m++){// loop over variance threshold choices   t                
+      for (int m = 0; m < thres_iter; m++){// loop over variance threshold choices
         int num_simulations = 0;
         
         for (int i = 0; i < boundary_pts; i++){
@@ -117,19 +157,22 @@ int main(int argc, char*argv[])
           float x[4] = {T[i], P[i], x0[i], x1[i]};
           int length = sizeof(cpp_x_query) / sizeof(cpp_x_query[0]);
 
-          PyObject* x_queries = initializeFloatArray(cpp_x_query, length); //used to convert c++ float array to PyObject
+          PyObject* x_queries = NULL;
+	  x_queries = initializeFloatArray(cpp_x_query, length); //used to convert c++ float array to PyObject
           if (x_queries == NULL) {
             PyErr_Print();
 	    Py_DECREF(myModule);
             Py_Finalize();
             return 1;
           }
+	  if (PyErr_Occurred()) PyErr_Print();
 
-          PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean); //query dataset
-	  // XXX we don't check if the memory allocation fails... is Py_None == NULL?
-          if (y_query == Py_None){      
+          PyObject* y_query = NULL;
+	  y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean); //query dataset
+          if (y_query == Py_None){
             num_simulations += 1;
           }
+	  if (PyErr_Occurred()) PyErr_Print();
 
           if (m == thres_iter - 1) { //simulation on last iteration
             if (y_query == Py_None && cpu_elapsed < cpu_budget){         
@@ -138,7 +181,8 @@ int main(int argc, char*argv[])
               double y_val = func_4d(cpp_x_query); //query original function via cpp call
               int stop = clock(); //timing code here
               cpu_elapsed += stop - start;
-              PyObject_CallMethod(myModule, "add_xnum_sample", "OdOd", my_dataset, -1, x_queries, y_val); //PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold_std_mean);// call add_xnum_sample
+              PyObject_CallMethod(myModule, "add_xnum_sample", "OiOd", my_dataset, -1, x_queries, y_val);
+	      if (PyErr_Occurred()) PyErr_Print();
             }
             else{       // else query returns mean, no need to sample
               count_LF += 1;
@@ -146,14 +190,14 @@ int main(int argc, char*argv[])
             double curr_time = double(clock());
             PyObject_CallMethod(myModule, "write_output", "idddii", (n - 1) * boundary_pts + i,  cpu_elapsed/ cpu_budget, curr_time / wall_clock_end, threshold_std_mean,  count_HF, count_LF);
           }        
-          //Dereference
+          // Clean up Py array memory
           Py_DECREF(x_queries);
           Py_DECREF(y_query);
         }
         double curr_time = double(clock());
         double time_ratio = curr_time/ wall_clock_end;
         double computer_budget_ratio = (cpu_elapsed + num_simulations * hrs_per_sim)/ cpu_budget;
-        //update variance threshold based on num_simulations      
+        //update variance threshold based on num_simulations
 
         if (m < thres_iter - 1){ //update threshold values
           //secant method
@@ -180,7 +224,7 @@ int main(int argc, char*argv[])
             }
           }
         }                              
-      }    
+      }
       //check for convergence print out ratios , print out ratios and threshold
 
       // Query the surrogate model. If the variances is too high, run a simulation, otherwise, interpolate the surrogate model.            
