@@ -30,6 +30,13 @@ PyObject* initializeFloatArray(float* array, int length) {
     return pyList;
 }
 
+// Helper function to print errors
+int print_err() {
+    PyErr_Print();
+    Py_Finalize();
+    return 1;
+}
+
 int main(int argc, char*argv[])
 {
 
@@ -38,40 +45,62 @@ int main(int argc, char*argv[])
     double cpu_elapsed = 0;
 
     PyObject* sys = PyImport_ImportModule("sys");
+    if (!sys || PyErr_Occurred())
+        return print_err();
     PyObject* path = PyObject_GetAttrString(sys, "path");
     Py_DECREF(sys);
+    if (!path || PyErr_Occurred())
+      return print_err();
     PyObject* cur_dir = PyUnicode_FromString("");
+    if (!cur_dir || PyErr_Occurred()) {
+	Py_DECREF(path);
+        return print_err();
+    }
     PyList_Append(path, cur_dir);
     Py_DECREF(path);
     Py_DECREF(cur_dir);
     PyObject* myModule = PyImport_ImportModule("func");
+    if (!myModule || PyErr_Occurred())
+        return print_err();
+    /* // This code just runs func.py, saving nothing
     PyObject * obj = Py_BuildValue("s", "func.py"); // load objects in variable
+    if (!obj || PyErr_Occurred()) {
+        Py_DECREF(myModule);
+        return print_err();
+    }
     FILE * fp = _Py_fopen_obj(obj, "r+");
     Py_DECREF(obj);
-    if(fp != NULL)
+    if(fp != NULL && !PyErr_Occurred())
     {
         PyRun_SimpleFile(fp, "func.py");
 	fclose(fp);
-    } else
-      assert(0);
-    
-
-    if (myModule == nullptr){
-      std::cerr << "Failed to import module.\n";
-      Py_DECREF(myModule);
-      Py_Finalize();
-      return 1;
+    } else {
+	Py_DECREF(myModule);
+        return print_err();
     }
-
+    */
 
     //initalize dataset
     PyObject* init_dataset = PyObject_GetAttrString(myModule, (char*)"init_dataset");
+    if (!init_dataset || PyErr_Occurred()) {
+	Py_DECREF(myModule);
+        return print_err();
+    }
     PyObject* my_dataset = PyObject_CallObject(init_dataset, nullptr);
     Py_DECREF(init_dataset);
+    if (!my_dataset || PyErr_Occurred()) {
+	Py_DECREF(myModule);
+        return print_err();
+    }
 
     // Initialize the surrogate model. The surrogate model allows us to interpolate between simulations.
     PyObject* my_surrogate = PyObject_CallMethod(myModule, "init_surrogate", "O", my_dataset);
-  
+    if (!my_surrogate || PyErr_Occurred()) {
+	Py_DECREF(myModule);
+	Py_DECREF(my_dataset);
+        return print_err();
+    }
+    
     // Run the continuum simulation
     int N_iter = 2; // number of continuum time steps
     int N_boundary_pts = 2; // number of grid points
@@ -100,20 +129,21 @@ int main(int argc, char*argv[])
 	int length = sizeof(cpp_x_query) / sizeof(cpp_x_query[0]);
 
 	PyObject* x_queries = initializeFloatArray(cpp_x_query, length); //used to convert c++ float array to PyObject
-	if (x_queries == NULL) {
-	  PyErr_Print();
+	if (!x_queries || PyErr_Occurred()) {
 	  Py_DECREF(myModule);
-	  Py_Finalize();
-	  return 1;
+	  Py_DECREF(my_dataset);
+	  Py_DECREF(my_surrogate);
+	  return print_err();
 	}
 
 	std::cout << "x_query = [" << cpp_x_query[0] << ", " << cpp_x_query[1] << ", " << cpp_x_query[2] << ", " << cpp_x_query[3] << "]" << std::endl;
 	PyObject* y_query = PyObject_CallMethod(myModule, "if_query", "OOOd", my_dataset, my_surrogate, x_queries, threshold); //query dataset
-	if (y_query == NULL) {
-	  PyErr_Print();
+	if (!y_query || PyErr_Occurred()) {
 	  Py_DECREF(myModule);
-	  Py_Finalize();
-	  return 1;
+	  Py_DECREF(my_dataset);
+	  Py_DECREF(my_surrogate);
+	  Py_DECREF(x_queries);
+	  return print_err();
 	}
 
 	if (y_query == Py_None){ // run a simulation
@@ -123,13 +153,25 @@ int main(int argc, char*argv[])
 	  double y_val = func_4d(cpp_x_query); //query original function via cpp call
 	  int stop = clock(); //timing code here
 	  cpu_elapsed += stop - start;
-	  PyObject_CallMethod(myModule, "add_xnum_sample", "OiOdO", my_dataset, -1, x_queries, y_val, my_surrogate);
+	  PyObject *result = PyObject_CallMethod(myModule, "add_xnum_sample", "OiOdO", my_dataset, -1, x_queries, y_val, my_surrogate);
+	  // Check if the call was successful
+	  if (!result || PyErr_Occurred()) {
+	    std::cerr << "Error calling Python method 'add_xnum_sample'.\n";
+	    Py_DECREF(myModule);
+	    Py_DECREF(my_dataset);
+	    Py_DECREF(my_surrogate);
+	    Py_DECREF(x_queries);
+	    Py_DECREF(y_query);
+	    return print_err();
+	  } else {
+	    Py_DECREF(result);
+	  }
 	}
 	else{       // else query returns mean, no need to sample
 	  count_LF += 1;
 	}
 	
-	//Dereference
+	// Clean up Py array memory
 	Py_DECREF(x_queries);
 	Py_DECREF(y_query);
       }
@@ -142,6 +184,8 @@ int main(int argc, char*argv[])
     std::cout << "CPU used on micro simulations = " << cpu_elapsed  << std::endl;
 
     Py_DECREF(myModule);
+    Py_DECREF(my_dataset);
+    Py_DECREF(my_surrogate);
 
     Py_Finalize();
 
