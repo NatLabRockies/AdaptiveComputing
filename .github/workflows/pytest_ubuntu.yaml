@@ -2,9 +2,11 @@ name: Run pytest on Ubuntu (Python 3.9-11)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - '**'
   pull_request:
-    branches: [ main ]
+    branches:
+      - '**'
 
 jobs:
   build:
