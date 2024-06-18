@@ -1,3 +1,9 @@
+import matplotlib.pyplot as plt
+import sys
+import os
+# add the path to the adaptive_computing module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverMF
 import numpy as np
@@ -31,7 +37,7 @@ class CustomMFDriver(ActiveLoopDriverMF):
             y = self.evaluate_sample(x, f_i)
             self.dataset.add_samples(x,y, n_fidelity=f_i)
 
-def example_bayesian_1d_sf():
+def bayesian_1d_sf():
 
     params = [ContinuousVariable(min=0, max=10)]
 
@@ -43,7 +49,7 @@ def example_bayesian_1d_sf():
     
     ac_driver.run(N_steps = 10)
 
-
+    return ac_driver
 
 if __name__ == "__main__":
-    example_bayesian_1d_sf()
+    bayesian_1d_sf()
