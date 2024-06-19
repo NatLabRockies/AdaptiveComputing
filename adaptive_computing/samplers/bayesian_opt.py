@@ -8,7 +8,8 @@ from copy import deepcopy
 
 class BayesianSampler(SamplerBase):
     def __init__(self,dataset, acquistion_function, 
-                 rand_seed=None, n_eval_pts=20):
+                 rand_seed=-1, # set rand_seed=None for non-determinstic behavior, -1 to never repeat samples, and some specific integer for testing
+                 n_eval_pts=30):
         self._rand_seed = rand_seed
         self.acq_func = acquistion_function
         self.n_eval_pts = n_eval_pts
@@ -19,11 +20,8 @@ class BayesianSampler(SamplerBase):
         if dataset.mixed_type:
             raise(NotImplementedError)
         else:
-            self.init_sample = LHS(xlimits= dataset.x_limits,
-                                   criterion='maximin',
-                                   random_state=self._rand_seed)
             self._minimizer = self._min_cont_vars
-
+            
         super().__init__(dataset)
 
     def get_sample(self, surrogate, dataset,n_fidelity=0, N_samples=1):
@@ -45,6 +43,18 @@ class BayesianSampler(SamplerBase):
 
 
     def minimize_acq_func(self, surrogate, dataset, n_fidelity=0):
+        # cannot create the sampler in the constructor (must be done here) since the random_state may need to be updated with each call of minimize_acq_func
+        if dataset.mixed_type:
+            raise(NotImplementedError)
+        else:
+            # increment the random seed, so that future samples are not duplicates
+            random_state = self._rand_seed
+            if self._rand_seed == -1:
+                random_state = sum(array.shape[0] for array in dataset._x_data)*self.n_eval_pts
+            self.init_sample = LHS(xlimits= dataset.x_limits,
+                                   criterion='maximin',
+                                   random_state=random_state)
+
         xstart = self.init_sample(self.n_eval_pts)
         obj_k = lambda x: self.acq_func(x,surrogate, dataset, n_fidelity)
         x = self._min_cont_vars(xstart, obj_k)
