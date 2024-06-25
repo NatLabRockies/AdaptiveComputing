@@ -2,7 +2,7 @@ from adaptive_computing.datasets import DatasetBase
 from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initializer
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
 from adaptive_computing.samplers.acquisition_functions import expected_improvement
-
+from adaptive_computing.evaluators import BaseEvaluator
 import numpy as np
 
 class ActiveLoopDriverMF():
@@ -11,7 +11,8 @@ class ActiveLoopDriverMF():
         self.params = params
 
         self.fidelity_costs = fidelity_costs
-        self.evaluate_sample_mf = simulations
+        self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for
+                           simulation in simulations]
         self.n_fl = len(simulations)
 
         if dataset is None:
@@ -29,9 +30,6 @@ class ActiveLoopDriverMF():
                                        expected_improvement)
 
         self._bopt_initialized = False
-        
-        self.evaluate_sample = lambda x, n_fidelity: \
-            self.evaluate_sample_mf[n_fidelity](x)
 
     def _initialize_fidelity(self, n_fidelity, N_samples_init=3):
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
@@ -80,3 +78,5 @@ class ActiveLoopDriverMF():
         for i in range(N_steps):
             self.step()
         
+    def evaluate_sample(self, points, n_fidelity):
+        return self.evaluators[n_fidelity].evaluate_points(points)
