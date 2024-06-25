@@ -45,6 +45,8 @@ class DatasetBase():
         return self._y_data
     
     def _validate_data(self, x_data, y_data, n_fidelity):
+        x_data = np.asarray(x_data)
+        y_data = np.asarray(y_data)
         if np.any(np.isnan(y_data)):
             if self.nan_behavior == 'mask_ignore':
                 idx = ~np.isnan(y_data)

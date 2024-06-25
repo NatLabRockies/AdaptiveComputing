@@ -34,7 +34,7 @@ class BayesianSampler(SamplerBase):
         for i_sample in range(N_samples):
             tmp_surrogate.train(tmp_dataset.x_data, tmp_dataset.y_data)
             
-            x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, n_fidelity=n_fidelity)            
+            x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, n_fidelity=n_fidelity)  
             y_est = tmp_surrogate.predict_values(x_est)
             tmp_dataset.add_samples(x_est, y_est, n_fidelity=n_fidelity)
             x_samples.append(x_est)
@@ -58,7 +58,7 @@ class BayesianSampler(SamplerBase):
         xstart = self.init_sample(self.n_eval_pts)
         obj_k = lambda x: self.acq_func(x,surrogate, dataset, n_fidelity)
         x = self._min_cont_vars(xstart, obj_k)
-        return np.atleast_2d(x)
+        return np.array([x])
     
     def _min_cont_vars(self,xstart, obj_k):
         opt_all = np.array([])

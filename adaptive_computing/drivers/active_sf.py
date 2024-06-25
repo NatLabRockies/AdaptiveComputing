@@ -2,7 +2,7 @@ from adaptive_computing.datasets import DatasetBase
 from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initializer
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
 from adaptive_computing.samplers.acquisition_functions import expected_improvement
-
+from adaptive_computing.evaluators import BaseEvaluator
 
 class ActiveLoopDriverSF():
     def __init__(self,simulation, params, surrogate=None, dataset=None):
@@ -11,7 +11,8 @@ class ActiveLoopDriverSF():
         if dataset is None:
             self.dataset = DatasetBase(params)
 
-        self.evaluate_sample = simulation
+        self.evaluator = BaseEvaluator(simulation,
+                            n_in=len(self.params))
 
         if isinstance(surrogate, SurrogateModelBase):
             self.surrogate = surrogate
@@ -27,7 +28,7 @@ class ActiveLoopDriverSF():
 
     def initialize(self, N_samples_init=3):
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
-        y = self.evaluate_sample(x)
+        y = self.evaluator.evaluate_points(x)
         self.dataset.add_samples(x,y, n_fidelity=0)
         self.surrogate.train(self.dataset.x_data,
                              self.dataset.y_data)
@@ -37,7 +38,7 @@ class ActiveLoopDriverSF():
     def step(self):
 
         x = self.sampler.get_sample(self.surrogate, self.dataset)
-        y = self.evaluate_sample(x)
+        y = self.evaluator.evaluate_points(x)
 
         self.dataset.add_samples(x,y, n_fidelity=0)
         self.surrogate.train(self.dataset.x_data,
