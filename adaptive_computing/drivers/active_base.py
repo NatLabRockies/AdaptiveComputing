@@ -3,7 +3,8 @@ from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initiali
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
 from adaptive_computing.samplers.acquisition_functions import expected_improvement
 from adaptive_computing.evaluators import BaseEvaluator
-class ActiveLoopDriverSF():
+
+class ActiveLoopDriver():
     def __init__(self,simulation, params, surrogate=None, dataset=None,
                  nan_behavior='fail'):
         

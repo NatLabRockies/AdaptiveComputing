@@ -3,10 +3,10 @@ from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initiali
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
 from adaptive_computing.samplers.acquisition_functions import expected_improvement
 from adaptive_computing.evaluators import BaseEvaluator
-from adaptive_computing.drivers.active_sf import ActiveLoopDriverSF
+from adaptive_computing.drivers import ActiveLoopDriver
 import numpy as np
 
-class ActiveLoopDriverMF(ActiveLoopDriverSF):
+class ActiveLoopDriverMF(ActiveLoopDriver):
     def __init__(self,simulations, fidelity_costs, params, surrogate=None, dataset=None,
                  nan_behavior='fail'):
         self.params = params
