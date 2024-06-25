@@ -3,6 +3,8 @@ from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initiali
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
 from adaptive_computing.samplers.acquisition_functions import expected_improvement
 from adaptive_computing.evaluators import BaseEvaluator
+from adaptive_computing.drivers.query_validators import get_query_validator
+import numpy as np
 
 class ActiveLoopDriver():
     def __init__(self,simulations, params, surrogate=None, dataset=None,
@@ -71,12 +73,38 @@ class ActiveLoopDriver():
 
     def add_points(self, points):
         for x in points:
-            y = self.evaluate_sample(x)
-            self.dataset.add_samples(x,y, n_fidelity=0, surrogate=self.surrogate)
+            y = self.evaluate_sample(x, n_fidelity=0)
+            self.dataset.add_samples(x,y, n_fidelity=0)
 
     def evaluate_sample(self, points, n_fidelity):
         return self.evaluators[n_fidelity].evaluate_points(points)
     
+
+    def query(self, points, error_criterion, **kwargs):
+        points = np.asarray(points)
+        values = np.zeros((points.shape[0],1))
+        validator = get_query_validator(criterion=error_criterion)
+
+        for i in range(points.shape[0]):
+            surrogate_value = self.surrogate.predict_values(points[[i]])
+            surrogate_variance = self.surrogate.predict_variances(points[[i]])
+            valid = validator(surrogate_value,surrogate_variance, **kwargs)
+
+            if not valid:
+                print(f"Error too large for point {points[i]}, running simulation")
+                y = self.evaluate_sample(points[[i]], n_fidelity=0)
+                self.dataset.add_samples(points[[i]],y, n_fidelity=0)
+
+                self.surrogate.train(self.dataset.x_data,
+                                    self.dataset.y_data)
+                
+                values[i] = y
+            else:
+                values[i] = surrogate_value
+
+        return values
+
+
     @property
     def nan_behavior(self):
         return self._nan_behavior
