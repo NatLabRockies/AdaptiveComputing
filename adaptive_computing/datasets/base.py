@@ -50,21 +50,19 @@ class DatasetBase():
         if np.any(np.isnan(y_data)):
             if self.nan_behavior == 'mask_ignore':
                 idx = ~np.isnan(y_data)
-                x_data = x_data[idx]
-                y_data = y_data[idx]
-                print("Ignoring NaN data point at  {x_data}, n_fidelity {n_fidelity}")
-                print("This may result in repeated sampling of the same value")
-            elif self.nan_behavior == 'mask_replace':
-                print("Found NaN data point at  {x_data}, n_fidelity {n_fidelity}")
+                x_data = x_data[idx].reshape(-1,self.n_in)
+                y_data = y_data[idx].reshape(-1,1)
+                print(f"Ignoring NaN data point at  {x_data}, n_fidelity {n_fidelity}")
+                print(f"This may result in repeated sampling of the same value")
             else:
-                print("Simulation at {x_data}, n_fidelity {n_fidelity} returned NaN value")
-                print("{y_data}")
+                print(f"Simulation at {x_data}, n_fidelity {n_fidelity} returned NaN value")
+                print(f"{y_data}")
                 raise(ValueError)
         
         if self.y_bounds is not None:
             if np.any(y_data < self.y_bounds[0]) or np.any(y_data > self.y_bounds[1]):
-                print("Simulation at {x_data}, n_fidelity {n_fidelity} returned OOB value")
-                print("{y_data}")
+                print(f"Simulation at {x_data}, n_fidelity {n_fidelity} returned OOB value")
+                print(f"{y_data}")
                 raise(ValueError)
 
         return x_data, y_data
@@ -78,7 +76,10 @@ class DatasetBase():
         self._y_data[n_fidelity] = np.concatenate([self._y_data[n_fidelity],
                                              y_data])
         
-  
+    @property
+    def N_samples(self):
+        return [self.x_data[i_fl].shape[0] for i_fl in range(self.n_fl)]
+
     @property
     def _sampler_ranges(self):
         ranges = ()
