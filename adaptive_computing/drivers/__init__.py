@@ -1,2 +1,2 @@
 from adaptive_computing.drivers.active_base import ActiveLoopDriver
-from adaptive_computing.drivers.active_mf import ActiveLoopDriverMF
+from adaptive_computing.drivers.active_cost_ratio import ActiveLoopDriverCostRatio
