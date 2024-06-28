@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import sys
 import os
 # add the path to the adaptive_computing module
@@ -19,15 +18,14 @@ def bayesian_1d_sf():
                                    params=params,
                                    surrogate='SMT')
     
-    ac_driver.run(N_steps = 10)
+    ac_driver.initialize()
 
-    # plot the result
-    plt.figure(figsize=(10, 6))
-    plt.scatter(ac_driver.dataset.x_data[0], ac_driver.dataset.y_data[0], marker='o', linestyle='-', color='b')
-    plt.xlabel('x_data')
-    plt.ylabel('y_data')
-    plt.show()
+    y = ac_driver.query([[1],[3],[6],[2.8],[5]], 
+                        error_criterion='absolute_variance',max_var=0.1)
+    
 
+    y = ac_driver.query([[1.1],[3.5],[100]], 
+                        error_criterion='percent_variance',max_percent_var=10)
     return ac_driver
 
 if __name__ == "__main__":
