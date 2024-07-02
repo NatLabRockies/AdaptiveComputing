@@ -53,7 +53,7 @@ class DatasetBase():
                 x_data = x_data[idx].reshape(-1,self.n_in)
                 y_data = y_data[idx].reshape(-1,1)
                 print(f"Ignoring NaN data point at  {x_data}, n_fidelity {n_fidelity}")
-                print(f"This may result in repeated sampling of the same value")
+                print("This may result in repeated sampling of the same value")
             else:
                 print(f"Simulation at {x_data}, n_fidelity {n_fidelity} returned NaN value")
                 print(f"{y_data}")
