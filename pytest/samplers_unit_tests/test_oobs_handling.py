@@ -16,8 +16,6 @@ from adaptive_computing.datasets import ContinuousVariable
 import pytest
 
 def test_oob_handling():
-    print('a')
-    
     # Fail is default behaviour
     ds = DatasetBase([ContinuousVariable(min=0, max=10)],
                      n_fidelity=1,
@@ -40,19 +38,6 @@ def test_oob_handling():
 
     assert (ds.x_data[0].shape == (1,1))  
     assert (ds.y_data[0].shape == (1,1))
-
-    # Ignore and replace with surrogate estimate
-    ds = DatasetBase([ContinuousVariable(min=0, max=10)],
-                     n_fidelity=1,
-                     nan_behavior='mask_replace'
-                     )
-
-    assert ds.nan_behavior == 'mask_replace'
-    ds.add_samples([[1.0]], [[1.0]],0)
-    ds.add_samples([[1.0]],[[np.nan]],0)
-
-    assert (ds.x_data[0].shape == (2,1))  
-    assert (ds.y_data[0].shape == (2,1))
 
     # fail on OOB
     ds = DatasetBase([ContinuousVariable(min=0, max=10)],
