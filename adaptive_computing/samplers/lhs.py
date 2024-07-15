@@ -3,8 +3,25 @@ from smt.sampling_methods import LHS
 from smt.applications.mixed_integer import MixedIntegerSamplingMethod
 
 class LHSSampler(SamplerBase):
-    def __init__(self,dataset,
-                 rand_seed=-1): # set rand_seed=None for non-determinstic behavior
+    """
+    A class for sampling points using Latin Hypercube Sampling (LHS).
+    
+    Attributes:
+        _rand_seed (int): Random seed for deterministic behavior.
+        
+    Methods:
+        _check_sample(N_samples): Checks if the number of samples is valid.
+        get_sample(N_samples): Generates samples using LHS.
+    """
+    
+    def __init__(self, dataset, rand_seed=-1):
+        """
+        Initializes the LHSSampler with the dataset and random seed.
+        
+        Args:
+            dataset (DatasetBase): The dataset used to setup sampling limits.
+            rand_seed (int): Random seed for deterministic behavior. Defaults to -1 for never repeating samples.
+        """
         if rand_seed == -1:
             self._rand_seed = sum(array.shape[0] for array in dataset._x_data)
         else:
@@ -12,11 +29,31 @@ class LHSSampler(SamplerBase):
         super().__init__(dataset)
 
     def _check_sample(self, N_samples):
+        """
+        Checks if the number of samples is valid.
+        
+        Args:
+            N_samples (int): The number of samples to generate.
+        
+        Raises:
+            Exception: If the number of samples is 1, which is invalid for Latin Hypercube Sampling.
+        """
         if N_samples == 1:
-            raise Exception('LatinHypercubeSampler requires n_lhs_samp ==0 or >=2')
-
+            raise Exception('LatinHypercubeSampler requires n_lhs_samp == 0 or >= 2')
 
     def get_sample(self, N_samples=1):
+        """
+        Generates samples using Latin Hypercube Sampling (LHS).
+        
+        Args:
+            N_samples (int): The number of samples to generate. Defaults to 1.
+        
+        Returns:
+            x (N samples, N input dimension): The generated samples.
+        
+        Raises:
+            Exception: If the number of samples is 1, which is invalid for Latin Hypercube Sampling.
+        """
         self._check_sample(N_samples)
 
         if self.mixed_type:
