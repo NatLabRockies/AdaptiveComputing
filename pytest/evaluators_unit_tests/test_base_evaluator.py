@@ -1,3 +1,10 @@
+import sys
+import os
+# add the path to the adaptive_computing module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# add the path to test_examples
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from adaptive_computing.evaluators import BaseEvaluator
 import numpy as np
 import pytest
