@@ -1,10 +1,10 @@
-from adaptive_computing.drivers import ActiveLoopDriverMF
+from adaptive_computing.drivers import ActiveLoopDriver
 from adaptive_computing.datasets import HeroDataset
 from time import sleep
 
 import numpy as np
 
-class ActiveLoopDriverMFNonBlock(ActiveLoopDriverMF):
+class ActiveLoopDriverMFNonBlock(ActiveLoopDriver):
     def __init__(self, simulations, fidelity_costs, params, surrogate=None, dataset=None):
         super().__init__(simulations, fidelity_costs, params, surrogate=surrogate)
 
