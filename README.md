@@ -28,10 +28,10 @@
    ```bash
    conda activate AC
 
-4. **Install additional dependencies**
+4. **Add AC to your conda python path
 
    ```bash
-   pip install -r requirements.txt
+   conda develop .
 
 5. **Run the tests**
 
@@ -41,3 +41,22 @@
 2. **Create the conda environment**
 
    ```bash
+
+## Developer instructions
+
+### Testing
+
+1. Before pushing or opening a pull request, make sure your code passes the test suite:
+
+   ```bash
+   # cd to the AdaptiveComputing home directory
+   pytest
+   # stop the build if there are Python syntax errors or undefined names
+   ruff check --select=E9,F63,F7,F82 --target-version=py37 .
+   # check for style and potential bugs
+   ruff check --target-version=py37 .
+
+
+### Pull requests
+
+1. Most users of the Adaptive Computing repository have triage access. If you attempt to push your code, you will be guided to open a pull request. A bot will comment on the pull request when the tests complete and someone with write access will need to approve and merge your pull request.
