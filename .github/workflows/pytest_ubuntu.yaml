@@ -33,7 +33,7 @@ jobs:
           ruff check --target-version=py312 .
       - name: Test with pytest
         run: |
-          pytest --junitxml=pytest_report.xml
+          python -m pytest --junitxml=pytest_report.xml
       - name: Publish Test Results
         uses: actions/upload-artifact@v3
         with:

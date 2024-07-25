@@ -3,10 +3,11 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - pip
   - numpy
   - matplotlib
   - ipython
+  - pytest
+  - pip
   - pip:
     - smt
     - ruff

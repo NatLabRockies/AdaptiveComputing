@@ -35,7 +35,7 @@
 5. **Run the tests**
 
    ```bash
-   pytest
+   python -m pytest
    
 ## Developer instructions
 
@@ -45,7 +45,7 @@
 
    ```bash
    # cd to the AdaptiveComputing home directory
-   pytest
+   python -m pytest
    # stop the build if there are Python syntax errors or undefined names
    ruff check --select=E9,F63,F7,F82 --target-version=py312 .
    # check for style and potential bugs
