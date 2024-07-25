@@ -15,24 +15,36 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9","3.10","3.11","3.12"]
-
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.python-version }}	  
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest matplotlib smt ipython
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Lint with ruff
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          ruff check --select=E9,F63,F7,F82 --target-version=py37 .
+          ruff check --select=E9,F63,F7,F82 --target-version=py312 .
           # default set of ruff rules with GitHub Annotations
-          ruff check --target-version=py37 .
+          ruff check --target-version=py312 .
       - name: Test with pytest
         run: |
-          pytest
+          pytest --junitxml=pytest_report.xml
+      - name: Publish Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: pytest-report
+          path: pytest_report.xml
+      - name: Comment test results on PR
+        if: github.event_name == 'pull_request'
+        uses: mikepenz/action-junit-report@v3
+        with:
+          report_paths: '**/pytest_report.xml'
+          check_name: pytest tests
+          require_tests: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+	  

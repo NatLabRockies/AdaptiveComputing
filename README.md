@@ -16,7 +16,6 @@
    ```bash
    git clone https://github.com/NREL/AdaptiveComputing.git
    cd AdaptiveComputing
-   git checkout ac_2.0
 
 2. **Create the conda environment**
 
@@ -28,7 +27,7 @@
    ```bash
    conda activate AC
 
-4. **Add AC to your conda python path
+4. **Add AC to your conda python path**
 
    ```bash
    conda develop .
@@ -38,10 +37,6 @@
    ```bash
    pytest
    
-2. **Create the conda environment**
-
-   ```bash
-
 ## Developer instructions
 
 ### Testing
@@ -52,9 +47,9 @@
    # cd to the AdaptiveComputing home directory
    pytest
    # stop the build if there are Python syntax errors or undefined names
-   ruff check --select=E9,F63,F7,F82 --target-version=py37 .
+   ruff check --select=E9,F63,F7,F82 --target-version=py312 .
    # check for style and potential bugs
-   ruff check --target-version=py37 .
+   ruff check --target-version=py312 .
 
 
 ### Pull requests
