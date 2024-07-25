@@ -20,7 +20,9 @@ from adaptive_computing.samplers.acquisition_functions import maximum_variance
 def test_acq_func_minimum_variance():
     params = [ContinuousVariable(min=0, max=4)]
     dataset = DatasetBase(params)
-    # should this work? Should warn not to do this? Add_samples is misleading if can only do 1 sample. Maybe with different array structure this would work, since this ends up being 1 sample that is 4d by 4d. could print message that to clarify how AC is interpretting this input (dimension and number of samples)
+    # should this work? Should warn not to do this? Add_samples is misleading if can only do 1 sample.
+    # Maybe with different array structure this would work, since this ends up being 1 sample that is 4d by 4d.
+    # could print message that to clarify how AC is interpretting this input (dimension and number of samples)
     #x_inputs = np.atleast_2d(np.array([0.0, 1.0, 3.0, 4.0]))
     #y_inputs = np.atleast_2d(np.array([0.0, 1.0, 1.0, 0.0]))
     # Should this work? Or fail with a more helpful error message

@@ -47,9 +47,9 @@
    # cd to the AdaptiveComputing home directory
    pytest
    # stop the build if there are Python syntax errors or undefined names
-   ruff check --select=E9,F63,F7,F82 --target-version=py37 .
+   ruff check --select=E9,F63,F7,F82 --target-version=py312 .
    # check for style and potential bugs
-   ruff check --target-version=py37 .
+   ruff check --target-version=py312 .
 
 
 ### Pull requests
