@@ -16,7 +16,6 @@
    ```bash
    git clone https://github.com/NREL/AdaptiveComputing.git
    cd AdaptiveComputing
-   git checkout ac_2.0
 
 2. **Create the conda environment**
 
@@ -28,7 +27,7 @@
    ```bash
    conda activate AC
 
-4. **Add AC to your conda python path
+4. **Add AC to your conda python path**
 
    ```bash
    conda develop .
@@ -38,10 +37,6 @@
    ```bash
    pytest
    
-2. **Create the conda environment**
-
-   ```bash
-
 ## Developer instructions
 
 ### Testing
