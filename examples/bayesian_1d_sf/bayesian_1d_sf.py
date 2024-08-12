@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriver
-from adaptive_computing.surrogates import SMTWrapper
 
 def func_1d(x):
     return (x-3)**2

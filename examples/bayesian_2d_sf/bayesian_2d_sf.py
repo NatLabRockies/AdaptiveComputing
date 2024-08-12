@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriver
-from adaptive_computing.surrogates import SMTWrapper
 
 def func_2d(x):
     # x will have shape (n_samples, n_in,)
