@@ -1,0 +1,145 @@
+Commencing example AC run... 
+2 timesteps.
+7 boundary points.
+3 high-fidelity samples per timestep.
+
+---------- TIMESTEP 001. ----------
+
+
+STARTING PASS 1 over the boundary layer:
+
+Boundary point 0: [0.5, 0.5, 0, 0.5, 0.5, 0.5, 0, 0.5] --> variance: 13.6314
+Boundary point 1: [0.571429, 0.514286, 0.0714286, 0.428571, 0.571429, 0.514286, 0.0714286, 0.428571] --> variance: 13.6238
+Boundary point 2: [0.642857, 0.528571, 0.142857, 0.357143, 0.642857, 0.528571, 0.142857, 0.357143] --> variance: 13.616
+Boundary point 3: [0.714286, 0.542857, 0.214286, 0.285714, 0.714286, 0.542857, 0.214286, 0.285714] --> variance: 13.6079
+Boundary point 4: [0.785714, 0.557143, 0.285714, 0.214286, 0.785714, 0.557143, 0.285714, 0.214286] --> variance: 13.5995
+Boundary point 5: [0.857143, 0.571429, 0.357143, 0.142857, 0.857143, 0.571429, 0.357143, 0.142857] --> variance: 13.5909
+Boundary point 6: [0.928571, 0.585714, 0.428571, 0.0714285, 0.928571, 0.585714, 0.428571, 0.0714285] --> variance: 13.5819
+Boundary point 0 had the highest variance.
+
+STARTING MICRO SIMULATION 1.
+
+Query: 0.5, 0.5, 0, 0.5, 0.5, 0.5, 0, 0.5
+Result: 10, 0, 0, 0, 0.25, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+STARTING PASS 2 over the boundary layer:
+
+Boundary point 0: [0.5, 0.5, 0, 0.5, 0.5, 0.5, 0, 0.5] --> variance: 1.85867e-06
+Boundary point 1: [0.571429, 0.514286, 0.0714286, 0.428571, 0.571429, 0.514286, 0.0714286, 0.428571] --> variance: 1.01603
+Boundary point 2: [0.642857, 0.528571, 0.142857, 0.357143, 0.642857, 0.528571, 0.142857, 0.357143] --> variance: 1.98699
+Boundary point 3: [0.714286, 0.542857, 0.214286, 0.285714, 0.714286, 0.542857, 0.214286, 0.285714] --> variance: 2.87363
+Boundary point 4: [0.785714, 0.557143, 0.285714, 0.214286, 0.785714, 0.557143, 0.285714, 0.214286] --> variance: 3.64716
+Boundary point 5: [0.857143, 0.571429, 0.357143, 0.142857, 0.857143, 0.571429, 0.357143, 0.142857] --> variance: 4.29188
+Boundary point 6: [0.928571, 0.585714, 0.428571, 0.0714285, 0.928571, 0.585714, 0.428571, 0.0714285] --> variance: 4.80537
+Boundary point 6 had the highest variance.
+
+STARTING MICRO SIMULATION 2.
+
+Query: 0.928571, 0.585714, 0.428571, 0.0714285, 0.928571, 0.585714, 0.428571, 0.0714285
+Result: 7.69796, 1.16327, 1.16816, 0.385714, 0.947959, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+STARTING PASS 3 over the boundary layer:
+
+Boundary point 0: [0.5, 0.5, 0, 0.5, 0.5, 0.5, 0, 0.5] --> variance: 2.14207e-06
+Boundary point 1: [0.571429, 0.514286, 0.0714286, 0.428571, 0.571429, 0.514286, 0.0714286, 0.428571] --> variance: 0.214178
+Boundary point 2: [0.642857, 0.528571, 0.142857, 0.357143, 0.642857, 0.528571, 0.142857, 0.357143] --> variance: 0.346316
+Boundary point 3: [0.714286, 0.542857, 0.214286, 0.285714, 0.714286, 0.542857, 0.214286, 0.285714] --> variance: 0.39052
+Boundary point 4: [0.785714, 0.557143, 0.285714, 0.214286, 0.785714, 0.557143, 0.285714, 0.214286] --> variance: 0.345102
+Boundary point 5: [0.857143, 0.571429, 0.357143, 0.142857, 0.857143, 0.571429, 0.357143, 0.142857] --> variance: 0.212689
+Boundary point 6: [0.928571, 0.585714, 0.428571, 0.0714285, 0.928571, 0.585714, 0.428571, 0.0714285] --> variance: 2.14207e-06
+Boundary point 3 had the highest variance.
+
+STARTING MICRO SIMULATION 3.
+
+Query: 0.714286, 0.542857, 0.214286, 0.285714, 0.714286, 0.542857, 0.214286, 0.285714
+Result: 8.80306, 0.397959, 0.484898, 0.192857, 0.553061, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+---------- TIMESTEP 002. ----------
+
+
+STARTING PASS 1 over the boundary layer:
+
+Boundary point 0: [1, 0.6, 0.5, 0, 1, 0.6, 0.5, 0] --> variance: 0.0654939
+Boundary point 1: [1.07143, 0.614286, 0.571429, -0.0714285, 1.07143, 0.614286, 0.571429, -0.0714285] --> variance: 0.158046
+Boundary point 2: [1.14286, 0.628571, 0.642857, -0.142857, 1.14286, 0.628571, 0.642857, -0.142857] --> variance: 0.262196
+Boundary point 3: [1.21429, 0.642857, 0.714286, -0.214286, 1.21429, 0.642857, 0.714286, -0.214286] --> variance: 0.36189
+Boundary point 4: [1.28571, 0.657143, 0.785714, -0.285714, 1.28571, 0.657143, 0.785714, -0.285714] --> variance: 0.445399
+Boundary point 5: [1.35714, 0.671429, 0.857143, -0.357143, 1.35714, 0.671429, 0.857143, -0.357143] --> variance: 0.507527
+Boundary point 6: [1.42857, 0.685714, 0.928571, -0.428571, 1.42857, 0.685714, 0.928571, -0.428571] --> variance: 0.549004
+Boundary point 6 had the highest variance.
+
+STARTING MICRO SIMULATION 1.
+
+Query: 1.42857, 0.685714, 0.928571, -0.428571, 1.42857, 0.685714, 0.928571, -0.428571
+Result: 5.47653, 4.37755, 3.53388, 0.835714, 2.22653, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+STARTING PASS 2 over the boundary layer:
+
+Boundary point 0: [1, 0.6, 0.5, 0, 1, 0.6, 0.5, 0] --> variance: 0.0764121
+Boundary point 1: [1.07143, 0.614286, 0.571429, -0.0714285, 1.07143, 0.614286, 0.571429, -0.0714285] --> variance: 0.169778
+Boundary point 2: [1.14286, 0.628571, 0.642857, -0.142857, 1.14286, 0.628571, 0.642857, -0.142857] --> variance: 0.249074
+Boundary point 3: [1.21429, 0.642857, 0.714286, -0.214286, 1.21429, 0.642857, 0.714286, -0.214286] --> variance: 0.284049
+Boundary point 4: [1.28571, 0.657143, 0.785714, -0.285714, 1.28571, 0.657143, 0.785714, -0.285714] --> variance: 0.254647
+Boundary point 5: [1.35714, 0.671429, 0.857143, -0.357143, 1.35714, 0.671429, 0.857143, -0.357143] --> variance: 0.156316
+Boundary point 6: [1.42857, 0.685714, 0.928571, -0.428571, 1.42857, 0.685714, 0.928571, -0.428571] --> variance: 2.93995e-06
+Boundary point 3 had the highest variance.
+
+STARTING MICRO SIMULATION 2.
+
+Query: 1.21429, 0.642857, 0.714286, -0.214286, 1.21429, 0.642857, 0.714286, -0.214286
+Result: 6.36735, 2.7551, 2.38776, 0.642857, 1.61735, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+STARTING PASS 3 over the boundary layer:
+
+Boundary point 0: [1, 0.6, 0.5, 0, 1, 0.6, 0.5, 0] --> variance: 0.0071373
+Boundary point 1: [1.07143, 0.614286, 0.571429, -0.0714285, 1.07143, 0.614286, 0.571429, -0.0714285] --> variance: 0.01106
+Boundary point 2: [1.14286, 0.628571, 0.642857, -0.142857, 1.14286, 0.628571, 0.642857, -0.142857] --> variance: 0.00855789
+Boundary point 3: [1.21429, 0.642857, 0.714286, -0.214286, 1.21429, 0.642857, 0.714286, -0.214286] --> variance: 3.51894e-06
+Boundary point 4: [1.28571, 0.657143, 0.785714, -0.285714, 1.28571, 0.657143, 0.785714, -0.285714] --> variance: 0.00994419
+Boundary point 5: [1.35714, 0.671429, 0.857143, -0.357143, 1.35714, 0.671429, 0.857143, -0.357143] --> variance: 0.0131258
+Boundary point 6: [1.42857, 0.685714, 0.928571, -0.428571, 1.42857, 0.685714, 0.928571, -0.428571] --> variance: 3.52777e-06
+Boundary point 5 had the highest variance.
+
+STARTING MICRO SIMULATION 3.
+
+Query: 1.35714, 0.671429, 0.857143, -0.357143, 1.35714, 0.671429, 0.857143, -0.357143
+Result: 5.76327, 3.79592, 3.1298, 0.771429, 2.01327, 0
+Added sample to unmasked data.
+Trained 6 surrogates on new unmasked data.
+
+---------- AC RUN COMPLETED ----------
+
+Number of micro simulations run = 6
+Number of surrogates trusted = 14
+CPU used on micro simulations = 1584
+
+PYTHON OUTPUTS:
+
+Number of fidelity levels detected from len(simulations) = 1
+Added unmasked data point [0.5 0.5 0.  0.5 0.5 0.5 0.  0.5] --> [10.    0.    0.    0.    0.25  0.  ]
+Trained 6 surrogates on new data.
+Added unmasked data point [0.92857146 0.5857143  0.42857143 0.07142854 0.92857146 0.5857143
+ 0.42857143 0.07142854] --> [7.697959  1.1632655 1.1681634 0.3857143 0.9479592 0.       ]
+Trained 6 surrogates on new data.
+Added unmasked data point [0.71428573 0.54285717 0.21428572 0.28571427 0.71428573 0.54285717
+ 0.21428572 0.28571427] --> [8.8030615  0.39795923 0.48489797 0.19285715 0.55306125 0.        ]
+Trained 6 surrogates on new data.
+Added unmasked data point [ 1.4285715   0.6857143   0.92857146 -0.42857146  1.4285715   0.6857143
+  0.92857146 -0.42857146] --> [5.4765306  4.377551   3.5338778  0.83571434 2.2265308  0.        ]
+Trained 6 surrogates on new data.
+Added unmasked data point [ 1.2142857   0.64285713  0.71428573 -0.21428573  1.2142857   0.64285713
+  0.71428573 -0.21428573] --> [6.367347  2.7551022 2.3877554 0.6428572 1.617347  0.       ]
+Trained 6 surrogates on new data.
+Added unmasked data point [ 1.3571429   0.67142856  0.85714287 -0.35714293  1.3571429   0.67142856
+  0.85714287 -0.35714293] --> [5.763265  3.795919  3.1297965 0.7714287 2.0132654 0.       ]
+Trained 6 surrogates on new data.
