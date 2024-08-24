@@ -5,10 +5,6 @@ import sys
 import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-# add the path to test_examples
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from test_examples import output_validator
 
 from adaptive_computing.datasets import DatasetBase
 from adaptive_computing.datasets import ContinuousVariable
