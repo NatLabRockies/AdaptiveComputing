@@ -5,7 +5,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriver
-from adaptive_computing.surrogates import SMTWrapper
 
 def func_1d(x):
     return (x-3)**2
