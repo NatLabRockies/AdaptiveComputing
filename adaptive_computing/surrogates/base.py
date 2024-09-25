@@ -5,7 +5,7 @@ class SurrogateModelBase:
     A base class for surrogate models.
     
     Attributes:
-        n_fl (int): Number of fidelity levels.
+        n_fidelity (int): Number of fidelity levels.
         multifidelity (bool): Indicates if the model is multifidelity.
         mixed_type (bool): Indicates if the dataset has mixed types.
         nan_behavior (str): Behavior when encountering NaN values.
@@ -26,7 +26,7 @@ class SurrogateModelBase:
             dataset (DatasetBase): The dataset to used to setup surrogate.
         """
         # initialize variables needed by all derived classes
-        self.n_fl = dataset.n_fl
+        self.n_fidelity = dataset.n_fidelity
         self.multifidelity = dataset.multifidelity
         self.mixed_type = dataset.mixed_type
         self.nan_behavior = dataset.nan_behavior
@@ -62,7 +62,7 @@ class SurrogateModelBase:
         Returns:
             tuple: The validated input and output data arrays.
         """
-        for i in range(self.n_fl):
+        for i in range(self.n_fidelity):
             x_data[i], y_data[i] = self._validate_data_i(x_data[i], y_data[i], i)
         return x_data, y_data
 

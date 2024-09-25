@@ -33,8 +33,8 @@ class SMTGP(SurrogateModelBase):
             smt_kwargs = {}
         
         self.surrogate_model = []
-        for i_fl in range(self.n_fl):
-            if self.multifidelity and i_fl > 0:
+        for i_fidelity in range(self.n_fidelity):
+            if self.multifidelity and i_fidelity > 0:
                 self.surrogate_model.append(MFK(
                     **smt_kwargs,
                     print_global=False))
@@ -43,7 +43,7 @@ class SMTGP(SurrogateModelBase):
                     **smt_kwargs,
                     print_global=False)) 
             if self.mixed_type:
-                self.surrogate_model[i_fl] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fl], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
+                self.surrogate_model[i_fidelity] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fidelity], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
 
     def train(self, x_data, y_data):
         """
@@ -57,11 +57,11 @@ class SMTGP(SurrogateModelBase):
         """
         x_data, y_data = self._validate_data(x_data, y_data)
 
-        for i_fl in range(self.n_fl):
-            for ii_fl in range(i_fl):
-                self.surrogate_model[i_fl].set_training_values(x_data[ii_fl], y_data[ii_fl], name=ii_fl)
-            self.surrogate_model[i_fl].set_training_values(x_data[i_fl], y_data[i_fl])
-            self.surrogate_model[i_fl].train()
+        for i_fidelity in range(self.n_fidelity):
+            for ii_fidelity in range(i_fidelity):
+                self.surrogate_model[i_fidelity].set_training_values(x_data[ii_fidelity], y_data[ii_fidelity], name=ii_fidelity)
+            self.surrogate_model[i_fidelity].set_training_values(x_data[i_fidelity], y_data[i_fidelity])
+            self.surrogate_model[i_fidelity].train()
 
     def predict_values(self, x_data, fidelity_level=-1):
         """

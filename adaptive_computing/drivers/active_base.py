@@ -13,7 +13,7 @@ class ActiveLoopDriver:
     Attributes:
         params (list): List of parameters for the simulations.
         dataset (DatasetBase): Dataset object storing input-output data.
-        n_fl (int): Number of fidelity levels.
+        n_fidelity (int): Number of fidelity levels.
         evaluators (list): List of evaluators for each simulation.
         fidelity_costs (dict or None): Dictionary specifying costs associated with each fidelity level.
         surrogate (SurrogateModelBase): Surrogate model for prediction and optimization.
@@ -25,11 +25,11 @@ class ActiveLoopDriver:
     Methods:
         __init__(simulations, params, surrogate=None, dataset=None, nan_behavior='fail', fidelity_costs=None):
             Initializes the ActiveLoopDriver with simulations, parameters, optional surrogate and dataset, nan behavior, and fidelity costs.
-        _initialize_fidelity(n_fidelity, N_samples_init=3):
+        _initialize_fidelity(i_fidelity, N_samples_init=3):
             Initializes a fidelity level with initial samples.
         initialize(N_samples_init=3):
             Initializes all fidelity levels with initial samples and trains the surrogate model.
-        get_next_sample(f_i=0):
+        get_next_sample(i_fidelity=0):
             Retrieves the next sample to evaluate using the Bayesian sampler.
         step():
             Executes one step of the active learning loop: gets the next sample, evaluates it, and updates the dataset and surrogate.
@@ -37,7 +37,7 @@ class ActiveLoopDriver:
             Runs the active learning loop for a specified number of steps.
         add_points(points):
             Adds additional points to the dataset for evaluation.
-        evaluate_sample(points, n_fidelity):
+        evaluate_sample(points, i_fidelity):
             Evaluates a sample using the corresponding evaluator.
         query(points, error_criterion, **kwargs):
             Queries the surrogate model for predictions and validates them against an error criterion.
@@ -61,7 +61,7 @@ class ActiveLoopDriver:
         if dataset is None:
             self.dataset = DatasetBase(params)
 
-        self.n_fl = len(simulations)
+        self.n_fidelity = len(simulations)
         self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for
                            simulation in simulations]
 
@@ -81,17 +81,17 @@ class ActiveLoopDriver:
 
         self.nan_behavior = nan_behavior
 
-    def _initialize_fidelity(self, n_fidelity, N_samples_init=3):
+    def _initialize_fidelity(self, i_fidelity, N_samples_init=3):
         """
         Initializes a fidelity level with initial samples.
 
         Args:
-            n_fidelity (int): Fidelity level index.
+            i_fidelity (int): Fidelity level index.
             N_samples_init (int, optional): Number of initial samples to generate. Defaults to 3.
         """
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
-        y = self.evaluate_sample(x, n_fidelity=n_fidelity)
-        self.dataset.add_samples(x, y, n_fidelity=n_fidelity)
+        y = self.evaluate_sample(x, i_fidelity=i_fidelity)
+        self.dataset.add_samples(x, y, i_fidelity=i_fidelity)
 
     def initialize(self, N_samples_init=3):
         """
@@ -100,24 +100,24 @@ class ActiveLoopDriver:
         Args:
             N_samples_init (int, optional): Number of initial samples to generate. Defaults to 3.
         """
-        for f_i in range(self.n_fl):
-            self._initialize_fidelity(f_i, N_samples_init=N_samples_init)
+        for i_fidelity in range(self.n_fidelity):
+            self._initialize_fidelity(i_fidelity, N_samples_init=N_samples_init)
         self.surrogate.train(self.dataset.x_data,
                              self.dataset.y_data)
         self._bopt_initialized = True
 
-    def get_next_sample(self, f_i=0):
+    def get_next_sample(self, i_fidelity=0):
         """
         Retrieves the next sample to evaluate using the Bayesian sampler.
 
         Args:
-            f_i (int, optional): Fidelity level index. Defaults to 0.
+            i_fidelity (int, optional): Fidelity level index. Defaults to 0.
 
         Returns:
             tuple: Next sample and its fidelity level index.
         """
-        x = self.sampler.get_sample(self.surrogate, self.dataset, f_i)
-        return x, f_i
+        x = self.sampler.get_sample(self.surrogate, self.dataset, i_fidelity)
+        return x, i_fidelity
 
     def step(self):
         """
@@ -126,7 +126,7 @@ class ActiveLoopDriver:
         """
         x, fi_eval = self.get_next_sample()
         y = self.evaluate_sample(x, fi_eval)
-        self.dataset.add_samples(x, y, n_fidelity=fi_eval)
+        self.dataset.add_samples(x, y, i_fidelity=fi_eval)
         self.surrogate.train(self.dataset.x_data,
                              self.dataset.y_data)
 
@@ -151,21 +151,21 @@ class ActiveLoopDriver:
             points (list or np.ndarray): Points to add to the dataset.
         """
         for x in points:
-            y = self.evaluate_sample(x, n_fidelity=0)
-            self.dataset.add_samples(x, y, n_fidelity=0)
+            y = self.evaluate_sample(x, i_fidelity=0)
+            self.dataset.add_samples(x, y, i_fidelity=0)
 
-    def evaluate_sample(self, points, n_fidelity):
+    def evaluate_sample(self, points, i_fidelity):
         """
         Evaluates a sample using the corresponding evaluator.
 
         Args:
             points (N samples, N input dimension): Sample points to evaluate.
-            n_fidelity (int): Fidelity level index.
+            i_fidelity (int): Fidelity level index.
 
         Returns:
             y (N samples, N Output dimension): Evaluated values.
         """
-        return self.evaluators[n_fidelity].evaluate_points(points)
+        return self.evaluators[i_fidelity].evaluate_points(points)
 
     def query(self, points, error_criterion, **kwargs):
         """
@@ -190,8 +190,8 @@ class ActiveLoopDriver:
 
             if not valid:
                 print(f"Error too large for point {points[i]}, running simulation")
-                y = self.evaluate_sample(points[[i]], n_fidelity=0)
-                self.dataset.add_samples(points[[i]], y, n_fidelity=0)
+                y = self.evaluate_sample(points[[i]], i_fidelity=0)
+                self.dataset.add_samples(points[[i]], y, i_fidelity=0)
                 self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
                 values[i] = y
             else:

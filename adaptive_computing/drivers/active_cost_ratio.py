@@ -27,16 +27,16 @@ class ActiveLoopDriverCostRatio(ActiveLoopDriver):
             np.ndarray: Next sample to evaluate.
             int: Fidelity level index for the sample.
         """
-        x_samples = np.zeros((self.n_fl, 1, self.dataset.n_in))
-        objs = np.zeros(self.n_fl)
+        x_samples = np.zeros((self.n_fidelity, 1, self.dataset.n_in))
+        objs = np.zeros(self.n_fidelity)
 
         # Iterate over fidelity levels
-        for f_i in range(self.n_fl):
-            x = self.sampler.get_sample(self.surrogate, self.dataset, f_i)
-            y = self.sampler.acq_func(x, self.surrogate, self.dataset, f_i)
+        for i_fidelity in range(self.n_fidelity):
+            x = self.sampler.get_sample(self.surrogate, self.dataset, i_fidelity)
+            y = self.sampler.acq_func(x, self.surrogate, self.dataset, i_fidelity)
 
-            x_samples[f_i] = x
-            objs[f_i] = y
+            x_samples[i_fidelity] = x
+            objs[i_fidelity] = y
 
         # Determine fidelity level based on minimum objective function value divided by fidelity costs
         fi_eval = np.argmin(objs / self.fidelity_costs)

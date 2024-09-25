@@ -16,7 +16,7 @@ class ActiveLoopDriverMFNonBlock(ActiveLoopDriver):
         self.resources = None
 
         if dataset is None:
-            self.dataset = HeroDataset(params, n_fidelity=self.n_fl, 
+            self.dataset = HeroDataset(params, n_fidelity=self.n_fidelity, 
                                        data_repo=self.data_repo)
 
     def add_sample_queue(self, x, fidelity):
@@ -29,9 +29,9 @@ class ActiveLoopDriverMFNonBlock(ActiveLoopDriver):
         # can take new tasks
         return False
 
-    def _initialize_fidelity(self, n_fidelity, N_samples_init=3):
+    def _initialize_fidelity(self, i_fidelity, N_samples_init=3):
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
-        self.add_sample_queue(x,n_fidelity=n_fidelity)
+        self.add_sample_queue(x,i_fidelity=i_fidelity)
         
     
     def step(self):

@@ -14,7 +14,7 @@ class DatasetBase():
     Methods:
         x_data (property): Returns the input data.
         y_data (property): Returns the output data.
-        add_samples(x_data, y_data, n_fidelity): Adds new samples to the dataset after validation.
+        add_samples(x_data, y_data, i_fidelity): Adds new samples to the dataset after validation.
         N_samples (property): Returns the number of samples at each fidelity level.
         _sampler_ranges (property): Returns the ranges for sampling.
     """
@@ -33,8 +33,8 @@ class DatasetBase():
         Raises:
             ValueError: If invalid values are provided for nan_behavior or oob_behavior.
         """
-        self.n_fl = n_fidelity
-        self.multifidelity = self.n_fl > 1
+        self.n_fidelity = n_fidelity
+        self.multifidelity = self.n_fidelity > 1
         self.params = params
 
         self.n_in = len(params)
@@ -45,10 +45,10 @@ class DatasetBase():
         self.mixed_type = np.any([t != 'continuous' for t in self.x_types])
 
         self.n_out = 1
-        # x_data and y_data are lists of length n_fl
-        # Each entry will be an n_samp[i_fl] x (n_in or n_out) np array
-        self._x_data = [np.empty([0, self.n_in])] * self.n_fl
-        self._y_data = [np.empty([0, self.n_out])] * self.n_fl
+        # x_data and y_data are lists of length n_fidelity
+        # Each entry will be an n_samp[i_fidelity] x (n_in or n_out) np array
+        self._x_data = [np.empty([0, self.n_in])] * self.n_fidelity
+        self._y_data = [np.empty([0, self.n_out])] * self.n_fidelity
 
         self.y_bounds = y_bounds
 
@@ -75,14 +75,14 @@ class DatasetBase():
         """Returns the output data."""
         return self._y_data
     
-    def _validate_data(self, x_data, y_data, n_fidelity):
+    def _validate_data(self, x_data, y_data, i_fidelity):
         """
         Validates the provided data for NaNs and out-of-bounds values.
         
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
             y_data (N Samples, N output dimensions): The output data.
-            n_fidelity (int): The fidelity level of the data.
+            i_fidelity (int): The fidelity level of the data.
         
         Returns:
             tuple: Validated input and output data arrays.
@@ -97,39 +97,39 @@ class DatasetBase():
                 idx = ~np.isnan(y_data)
                 x_data = x_data[idx].reshape(-1, self.n_in)
                 y_data = y_data[idx].reshape(-1, 1)
-                print(f"Ignoring NaN data point at {x_data}, n_fidelity {n_fidelity}")
+                print(f"Ignoring NaN data point at {x_data}, i_fidelity {i_fidelity}")
                 print("This may result in repeated sampling of the same value")
             else:
-                print(f"Simulation at {x_data}, n_fidelity {n_fidelity} returned NaN value")
+                print(f"Simulation at {x_data}, i_fidelity {i_fidelity} returned NaN value")
                 print(f"{y_data}")
                 raise ValueError
         
         if self.y_bounds is not None:
             if np.any(y_data < self.y_bounds[0]) or np.any(y_data > self.y_bounds[1]):
-                print(f"Simulation at {x_data}, n_fidelity {n_fidelity} returned OOB value")
+                print(f"Simulation at {x_data}, i_fidelity {i_fidelity} returned OOB value")
                 print(f"{y_data}")
                 raise ValueError
 
         return x_data, y_data
             
-    def add_samples(self, x_data, y_data, n_fidelity):
+    def add_samples(self, x_data, y_data, i_fidelity):
         """
         Validates and adds new samples to the dataset.
         
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
             y_data (N Samples, N output dimensions): The output data.
-            n_fidelity (int): The fidelity level of the data.
+            i_fidelity (int): The fidelity level of the data.
         """
-        x_data, y_data = self._validate_data(x_data, y_data, n_fidelity)
+        x_data, y_data = self._validate_data(x_data, y_data, i_fidelity)
 
-        self._x_data[n_fidelity] = np.concatenate([self._x_data[n_fidelity], x_data])
-        self._y_data[n_fidelity] = np.concatenate([self._y_data[n_fidelity], y_data])
+        self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
+        self._y_data[i_fidelity] = np.concatenate([self._y_data[i_fidelity], y_data])
         
     @property
     def N_samples(self):
         """Returns the number of samples at each fidelity level."""
-        return [self.x_data[i_fl].shape[0] for i_fl in range(self.n_fl)]
+        return [self.x_data[i_fidelity].shape[0] for i_fidelity in range(self.n_fidelity)]
 
     @property
     def _sampler_ranges(self):
@@ -141,7 +141,7 @@ class DatasetBase():
 
 
 """# self.funcs =[]
-        # for i in range(self.n_fl):
+        # for i in range(self.n_fidelity):
         #     self.funcs.append(ComposedFunction(self.simulations[i],self.params))
 
         # Define xlimits, the domain for the design parameters

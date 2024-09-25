@@ -20,8 +20,8 @@ class BayesianSampler(SamplerBase):
         _minimizer (callable): Minimization function for continuous variables.
         
     Methods:
-        get_sample(surrogate, dataset, n_fidelity, N_samples): Generates samples using the surrogate model and dataset.
-        minimize_acq_func(surrogate, dataset, n_fidelity): Minimizes the acquisition function.
+        get_sample(surrogate, dataset, i_fidelity, N_samples): Generates samples using the surrogate model and dataset.
+        minimize_acq_func(surrogate, dataset, i_fidelity): Minimizes the acquisition function.
         _min_cont_vars(xstart, obj_k): Minimizes the objective function for continuous variables.
     """
     
@@ -52,14 +52,14 @@ class BayesianSampler(SamplerBase):
             
         super().__init__(dataset)
 
-    def get_sample(self, surrogate, dataset, n_fidelity=0, N_samples=1):
+    def get_sample(self, surrogate, dataset, i_fidelity=0, N_samples=1):
         """
         Generates samples using the surrogate model and dataset.
         
         Args:
             surrogate (Surrogate): The surrogate model.
             dataset (Dataset): The dataset to sample from.
-            n_fidelity (int): The fidelity level. Defaults to 0.
+            i_fidelity (int): The fidelity level. Defaults to 0.
             N_samples (int): The number of samples to generate. Defaults to 1.
         
         Returns:
@@ -73,21 +73,21 @@ class BayesianSampler(SamplerBase):
         for i_sample in range(N_samples):
             tmp_surrogate.train(tmp_dataset.x_data, tmp_dataset.y_data)
             
-            x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, n_fidelity=n_fidelity)  
+            x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)  
             y_est = tmp_surrogate.predict_values(x_est)
-            tmp_dataset.add_samples(x_est, y_est, n_fidelity=n_fidelity)
+            tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
             x_samples.append(x_est)
 
         return np.concatenate(x_samples, axis=0)
 
-    def minimize_acq_func(self, surrogate, dataset, n_fidelity=0):
+    def minimize_acq_func(self, surrogate, dataset, i_fidelity=0):
         """
         Minimizes the acquisition function using the surrogate model and dataset.
         
         Args:
             surrogate (object): The surrogate model.
             dataset (DatasetBase): The dataset to sample from.
-            n_fidelity (int): The fidelity level. Defaults to 0.
+            i_fidelity (int): The fidelity level. Defaults to 0.
         
         Returns:
             np.ndarray: The point that minimizes the acquisition function.
@@ -111,7 +111,7 @@ class BayesianSampler(SamplerBase):
                                    random_state=random_state)
 
         xstart = self.init_sample(self.n_eval_pts)
-        obj_k = lambda x: self.acq_func(x, surrogate, dataset, n_fidelity)
+        obj_k = lambda x: self.acq_func(x, surrogate, dataset, i_fidelity)
         x = self._min_cont_vars(xstart, obj_k)
         return np.array([x])
     
