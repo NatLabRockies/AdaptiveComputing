@@ -58,10 +58,10 @@ class ActiveLoopDriver:
         """
         self.params = params
 
-        if dataset is None:
-            self.dataset = DatasetBase(params)
-
         self.n_fidelity = len(simulations)
+        if dataset is None:
+            self.dataset = DatasetBase(params, n_fidelity=self.n_fidelity)
+
         self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for
                            simulation in simulations]
 

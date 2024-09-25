@@ -17,7 +17,7 @@ def bayesian_1d_sf():
 
     # plot the result
     plt.figure(figsize=(10, 6))
-    plt.scatter(ac_driver.dataset.x_data[0], ac_driver.dataset.y_data[0], marker='o', linestyle='-', color='b')
+    plt.scatter(ac_driver.dataset.x_data[0], ac_driver.dataset.y_data[0], marker='o', color='b')
     plt.xlabel('x_data')
     plt.ylabel('y_data')
     plt.show()
