@@ -40,7 +40,7 @@ def test_bayesian_2d_sf(monkeypatch):
     output_validator(expected_output, computed_output, tolerances)
 
     return
-"""
+
 def test_bayesian_1d_mf(monkeypatch):
     dir_name = 'bayesian_1d_mf'
     py_name = 'bayesian_1d_mf'
@@ -59,6 +59,7 @@ def test_bayesian_1d_mf(monkeypatch):
 
     return
 
+"""
 def test_custom_mf_workflow(monkeypatch):
     dir_name = 'custom_mf_workflow'
     py_name = 'custom_mf_workflow'
