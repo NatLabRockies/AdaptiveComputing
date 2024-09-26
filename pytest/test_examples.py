@@ -17,7 +17,7 @@ def test_bayesian_1d_sf(monkeypatch):
     computed_output = [x_opt[0], y_opt]
 
     # compare expected and computed outputs
-    expected_output = [3.0, 0.0] # analytical solution = [x_min, y_min]
+    expected_output = [0.757249, -6.02074] # analytical solution = [x_min, y_min]
     tolerances = [0.1, 0.1]
     output_validator(expected_output, computed_output, tolerances)
 
