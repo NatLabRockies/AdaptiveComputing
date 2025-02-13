@@ -167,14 +167,14 @@ class ActiveLoopDriver:
         """
         return self.evaluators[i_fidelity].evaluate_points(points)
 
-    def query(self, points, error_criterion, **kwargs):
+    def query(self, points, error_criterion, threshold):
         """
         Queries the surrogate model for predictions and validates them against an error criterion.
 
         Args:
             points (N samples, N input dimension): Points to query.
             error_criterion (str): Error criterion for validation.
-            **kwargs: Additional keyword arguments for the error criterion validator.
+            arg: Additional argument for the error criterion threshold.
 
         Returns:
             np.ndarray: Predicted values.
@@ -186,16 +186,16 @@ class ActiveLoopDriver:
         for i in range(points.shape[0]):
             surrogate_value = self.surrogate.predict_values(points[[i]])
             surrogate_variance = self.surrogate.predict_variances(points[[i]])
-            valid = validator(surrogate_value, surrogate_variance, **kwargs)
+            valid = validator(surrogate_value, surrogate_variance, threshold)
 
             if not valid:
-                print(f"Error too large for point {points[i]}, running simulation")
+                print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
                 y = self.evaluate_sample(points[[i]], i_fidelity=0)
                 self.dataset.add_samples(points[[i]], y, i_fidelity=0)
                 self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
-                values[i] = y
-            else:
-                values[i] = surrogate_value
+                # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
+                surrogate_value = self.surrogate.predict_values(points[[i]])
+            values[i] = surrogate_value
 
         return values
 
