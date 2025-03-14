@@ -1,0 +1,25 @@
+# Set up AC conda environment on Kestrel and Vermillion
+conda env create -f environment.yaml
+conda activate AC_hero
+pip install -e .
+
+# In a terminal, on Kestrel, launch the hero controller that does not use an AC driver as the controller:
+cd examples/hero_2clusters
+module load conda
+conda activate AC_hero
+python controller_noAC.py
+
+# In another terminal, on Kestrel, launch a hero worker:
+cd examples/hero_2clusters
+module load conda
+conda activate AC_hero
+python worker_kestrel.py
+
+# In a terminal, on Vermillion, launch a hero worker:
+cd examples/hero_2clusters
+module load conda
+conda activate AC_hero
+python worker_vermillion.py
+
+
+

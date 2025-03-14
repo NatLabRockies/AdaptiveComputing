@@ -140,3 +140,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# excecutables and simulation output
+examples/cpp_embedding/query
+examples/hero_2clusters/simulation_files/log.lammps
+examples/hero_2clusters/simulation_files/out_*.out
+examples/hero_2clusters/simulation_files/err_*.err

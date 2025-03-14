@@ -29,12 +29,12 @@ The Adaptive Computing (AC) software stack supports goal-based computing, for wh
 3. **Activate the conda environment**
 
    ```bash
-   conda activate AC
+   conda activate AC_hero
 
 4. **Add AC to your conda python path**
 
    ```bash
-   conda develop .
+   pip install -e .
 
 5. **Run the tests**
 
