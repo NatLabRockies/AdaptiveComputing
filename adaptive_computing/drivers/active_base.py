@@ -60,10 +60,13 @@ class ActiveLoopDriver:
 
         self.n_fidelity = len(simulations)
         if dataset is None:
-            self.dataset = DatasetBase(params, n_fidelity=self.n_fidelity)
+            dataset = DatasetBase(params, n_fidelity=self.n_fidelity)
+        self.dataset = dataset
 
-        self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for
-                           simulation in simulations]
+        if simulations is not None:
+            self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for simulation in simulations]
+        else:
+            assert(self.use_hero) # since the user has opted to use Hero, simulations should be set to None and the definition of the simulations should be implemented in the worker script. If Hero is not used, then simulations should not be specified by the user as a list of python functions
 
         self.fidelity_costs = fidelity_costs
 

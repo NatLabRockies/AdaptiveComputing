@@ -28,9 +28,9 @@ def hero_worker():
     task_engine = hero.TaskEngine(APPLICATION_ID)
     hero.authenticate()
 
-    # Get an existing project, or create one if it doesn't exist.
-    queue_record = task_engine.add_queue(name='Degrees queue')
-    #print(json.dumps(queue_record, indent=2))
+    # Use the queue corresponding to fidelity level zero
+    queue_record = task_engine.add_queue(name='0')
+
     print('Continuously check the queue, claim a ready task, and launch a slurm process...')
     os.chdir('simulation_files')
     
@@ -47,7 +47,7 @@ def hero_worker():
         ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
         for current_task in ready_tasks:
             if current_task['metadata']['slurm_job_id']['vermillion'] == -1:
-                t = current_task['metadata']['temperature']
+                t = current_task['metadata']['x_data']
                 command = f"sbatch script_vermillion.sh {t} {current_task['id']}"
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)

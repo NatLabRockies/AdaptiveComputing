@@ -28,13 +28,12 @@ def hero_finalize(cond,task_id):
     task_engine = hero.TaskEngine(APPLICATION_ID)
     hero.authenticate()
 
-    # Get an existing project, or create one if it doesn't exist.
-    queue_record = task_engine.add_queue(name='Degrees queue')
-    #print(json.dumps(queue_record, indent=2))
+    # Use the queue corresponding to fidelity level zero
+    queue_record = task_engine.add_queue(name='0')
 
     # Update the task's metatdata and mark it as done
     current_task = task_engine.read_task(task_id)
-    current_task['metadata']['conductivity'] = cond
+    current_task['metadata']['y_data'] = cond
     task_engine.update_task(task_id=task_id, state='done', name=current_task['name'], metadata=current_task['metadata'])
     current_task['metadata']['running']['kestrel'] = False
     print(f"Task {task_id}: state = done, metadata = {current_task['metadata']}")

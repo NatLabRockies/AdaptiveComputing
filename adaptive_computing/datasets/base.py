@@ -139,30 +139,3 @@ class DatasetBase():
             ranges = ranges + (slice(self.x_limits[i][0], self.x_limits[i][-1] + 1, 1),)
         return ranges
 
-
-"""# self.funcs =[]
-        # for i in range(self.n_fidelity):
-        #     self.funcs.append(ComposedFunction(self.simulations[i],self.params))
-
-        # Define xlimits, the domain for the design parameters
-        if self.mixed_type:
-            from smt.applications.mixed_integer import (FLOAT, ORD, ENUM)
-            self.xtypes = []
-            self.xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
-            self.xlimits_num = [] # this is the domain with the categoricals and integers converted to continuous types. Categoricals are a list of floats.
-            for i in range(self.n_in):
-                if self.params[i].type == 'continuous':
-                    self.xtypes.append(FLOAT)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'ordered':
-                    self.xtypes.append(ORD)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'categorical':
-                    self.xtypes.append((ENUM, len(self.params[i].categories)))
-                    self.xlimits.append(self.params[i].categories)
-                    self.xlimits_num.append(list(range(len(self.params[i].categories))))
-                else:
-                    raise Exception('Unrecognized type for parameter '+str(i)) 
-        else:"""

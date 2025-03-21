@@ -28,9 +28,8 @@ def hero_controller():
     task_engine = hero.TaskEngine(APPLICATION_ID)
     hero.authenticate()
 
-    # Get an existing project, or create one if it doesn't exist.
-    queue_record = task_engine.add_queue(name='Degrees queue')
-    #print(json.dumps(queue_record, indent=2))
+    # Use the queue corresponding to fidelity level zero
+    queue_record = task_engine.add_queue(name='0')
 
     # Clear out any existing tasks
     ready_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
@@ -55,7 +54,7 @@ def hero_controller():
     # Add degrees tasks
     temp = np.linspace(0.7, 2.0, 5)
     for t in temp:
-        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'temperature': t, 'conductivity': None, 'slurm_job_id': {'kestrel': -1,'vermillion': -1}, 'running': {'kestrel': False,'vermillion': False}})
+        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': t, 'y_data': None, 'slurm_job_id': {'kestrel': -1,'vermillion': -1}, 'running': {'kestrel': False,'vermillion': False}})
     print('All tasks submitted to Hero queue. Waiting for all tasks to be done...')
 
     while True:
@@ -98,7 +97,7 @@ def hero_controller():
     # Print the conductivities for the done tasks and delete them
     task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
     for task_record in task_records:
-        print(f"The task with temperature={task_record['metadata']['temperature']}, computed conductivity={task_record['metadata']['conductivity']}")
+        print(f"The task with temperature={task_record['metadata']['x_data']}, computed conductivity={task_record['metadata']['y_data']}")
         task_engine.delete_task(task_id=task_record['id'])
         
     # Print the state of the queue

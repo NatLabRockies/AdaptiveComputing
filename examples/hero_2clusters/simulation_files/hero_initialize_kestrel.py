@@ -28,9 +28,8 @@ def hero_initialize(task_id):
     task_engine = hero.TaskEngine(APPLICATION_ID)
     hero.authenticate()
 
-    # Get an existing project, or create one if it doesn't exist.
-    queue_record = task_engine.add_queue(name='Degrees queue')
-    #print(json.dumps(queue_record, indent=2))
+    # Use the queue corresponding to fidelity level zero
+    queue_record = task_engine.add_queue(name='0')
 
     # Update the task's metatdata and mark it as running
     current_task = task_engine.read_task(task_id)
