@@ -27,7 +27,7 @@ fi
 
 # Run hero_initialize_vermillion.py to indicate the job is running and unqueue it.
 module load conda
-source activate hero_py3.11
+source activate AC_hero
 echo "Running command: python hero_initialize_vermillion.py $task_id"
 python hero_initialize_vermillion.py $task_id
 
@@ -44,8 +44,12 @@ srun lmp -in in.langevin -v t $temp -v tlo $t_lo -v thi $t_hi
 # Extract the conductivity output
 JOBID=$SLURM_JOB_ID
 FILE="out_${JOBID}.out"
-# Extract the number at the end of the second-to-last line
-result=$(tail -n 2 "$FILE" | head -n 1 | awk '{print $NF}')
+# Search for the line containing "Running average thermal conductivity" and extract the last field
+result=$(grep "Running average thermal conductivity" "$FILE" | awk '{print $NF}')
+# If grep fails (no matching line found), set result to -1
+if [[ -z "$result" ]]; then
+    result=-1
+fi
 echo "Conductivity passed to python: $result"
 
 # Run hero_finalize_vermillion.py to publish result and mark it as done

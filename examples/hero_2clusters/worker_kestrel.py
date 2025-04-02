@@ -39,6 +39,8 @@ def hero_worker():
         print(f'There are {len(task_records)} in the "ready" state.')
         task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         print(f'There are {len(task_records)} in the "running" state.')
+        task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
+        print(f'There are {len(task_records)} in the "error" state.')
         task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
         print(f'There are {len(task_records)} in the "done" state.')
 
@@ -46,7 +48,7 @@ def hero_worker():
         ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
         for current_task in ready_tasks:
             if current_task['metadata']['slurm_job_id']['kestrel'] == -1:
-                t = current_task['metadata']['x_data']
+                t = current_task['metadata']['x_data'][0]
                 command = f"sbatch script_kestrel.sh {t} {current_task['id']}"
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)

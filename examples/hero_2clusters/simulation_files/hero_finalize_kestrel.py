@@ -31,12 +31,29 @@ def hero_finalize(cond,task_id):
     # Use the queue corresponding to fidelity level zero
     queue_record = task_engine.add_queue(name='0')
 
+    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
+    print(f'There are {len(task_records)} in the "ready" state.')
+    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
+    print(f'There are {len(task_records)} in the "running" state.')
+    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
+    print(f'There are {len(task_records)} in the "error" state.')
+    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
+    print(f'There are {len(task_records)} in the "done" state.')
+
+    cond = float(cond)
+    
     # Update the task's metatdata and mark it as done
     current_task = task_engine.read_task(task_id)
-    current_task['metadata']['y_data'] = cond
-    task_engine.update_task(task_id=task_id, state='done', name=current_task['name'], metadata=current_task['metadata'])
-    current_task['metadata']['running']['kestrel'] = False
-    print(f"Task {task_id}: state = done, metadata = {current_task['metadata']}")
+    if cond == -1:
+        print(f"Task {task_id}: state = error, metadata = {current_task['metadata']}")
+        current_task['metadata']['y_data'] = cond # cond = -1, marking an invalid entry
+        task_engine.update_task(task_id=task_id, state='error', name=current_task['name'], metadata=current_task['metadata'])
+        current_task['metadata']['running']['kestrel'] = False
+    else:
+        print(f"Task {task_id}: state = done, metadata = {current_task['metadata']}")
+        current_task['metadata']['y_data'] = [cond]
+        task_engine.update_task(task_id=task_id, state='done', name=current_task['name'], metadata=current_task['metadata'])
+        current_task['metadata']['running']['kestrel'] = False
 
 if __name__ == "__main__":
     # Validate and parse command-line arguments
