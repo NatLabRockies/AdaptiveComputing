@@ -36,19 +36,28 @@ if __name__ == '__main__':
     
     #XXX temp test code:
     params = [ContinuousVariable(min=0.7, max=2.0)]
-    dataset = HeroDataset(params, n_fidelity=1)
+    machine_names = ['kestrel','vermillion']
+    dataset = HeroDataset(params, machine_names, n_fidelity=1)
+    # queue hero samples at the given x_data values. No initial guess provided.
     dataset.add_samples(np.array([[1.1]]),None,0)
-    dataset.add_samples(np.array([[4.1],[5.1]]),np.array([[4.2],[5.2]]),0)
-    dataset.add_samples_nohero(np.array([[6.1],[7.1],[8.1]]),np.array([[6.2],[7.2],[8.2]]),0)
     dataset.add_samples(np.array([[2.1],[3.1]]),None,0)
-    #dataset.add_samples(np.array([[1.1]]),np.array([[1.2]]),0) # this should not queue the sample since y value is provided
-    #XXX right now this queues the sample, but I may also want to just add samples (prior calcs/offline training)
-    #XXX is there another function for adding samples without the y value? could check if y_data is none and have that be an optional arg
+    # add samples with specified x_data and y_data. No hero queueing used.
+    dataset.add_samples_nohero(np.array([[6.1],[7.1],[8.1]]),np.array([[6.2],[7.2],[8.2]]),0)
+    # queue hero samples at the given x_data values. Initial guesses for y_data provided.
+    dataset.add_samples(np.array([[4.1],[5.1]]),np.array([[4.2],[5.2]]),0)
+    dataset.add_samples(np.array([[1.1]]),np.array([[1.2]]),0)
+    print(f'_x_data = {dataset._x_data}')
+    print(f'_y_data = {dataset._y_data}')
+    print(f'_unmasked_data = {dataset._unmasked_data}')
+    print(f'_hero_todo = {dataset._hero_todo}')
     dataset.hero_wait_for_data()
-    #XXX try adding more than one task at a time with add_samples
-    #XXX If there is a surrogate, have to manually retrain it. Should add a sync and retrain to the driver (every step if nonblocking, use a wait instead of sync if blocking).
+    print(f'_x_data = {dataset._x_data}')
+    print(f'_y_data = {dataset._y_data}')
+    print(f'_unmasked_data = {dataset._unmasked_data}')
+    print(f'_hero_todo = {dataset._hero_todo}')
 
     # ac_driver = initialize_driver()
+    # set the driver to have bounds limits on the output of 0 to inf on the output.
     # print_data(ac_driver)
     # x_queries = [[0.7],[0.9],[1.1],[1.5],[2.0]]
     # print(f"x_queries = {x_queries}")

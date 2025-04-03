@@ -25,7 +25,7 @@ APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 
 class HeroDataset(DatasetBase):
-    def __init__(self, params, n_fidelity=1):
+    def __init__(self, params, machine_names, n_fidelity=1):
         super().__init__(params, n_fidelity=n_fidelity)
 
         # Setup the HERO client and authenticate
@@ -43,6 +43,8 @@ class HeroDataset(DatasetBase):
         for i_fl in range(self.n_fidelity):
             self.hero_objs = np.append(self.hero_objs,self.task_engine.add_queue(name=str(i_fl)))
 
+        self.machine_names = machine_names
+
         # Clear out any existing tasks
         for i_fl in range(self.n_fidelity):
             self.hero_objs[i_fl]
@@ -59,17 +61,7 @@ class HeroDataset(DatasetBase):
             for task_record in done_task_records:
                 self.task_engine.delete_task(task_id=task_record['id'])
 
-        # Print the state of the queue
-        for i_fl in range(self.n_fidelity):
-            ready_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='ready')
-            running_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='running')
-            error_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='error')
-            done_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='done')
-            print(f'Initial state of the queue corresponding to fidelity level {i_fl}:')
-            print(f'There are {len(ready_task_records)} in the "ready" state.')
-            print(f'There are {len(running_task_records)} in the "running" state.')
-            print(f'There are {len(error_task_records)} in the "error" state.')
-            print(f'There are {len(done_task_records)} in the "done" state.')
+        self.print_hero_queue()
 
         # variables used to track hero data:
         # boolean indicating if the sample's output is a valid function return value (False indicates a placeholder value estimated by the surrogate)
@@ -101,7 +93,17 @@ class HeroDataset(DatasetBase):
                 print(f"Point shape: {x_data_i.shape}")
                 print(f"Target input dimension: [{self.n_in}]")
                 raise ValueError 
-            new_task = self.task_engine.add_task(queue_id=self.hero_objs[i_fidelity]['id'], name='Test', metatype='Task', metadata={'x_data': x_data_i.tolist(), 'y_data': None, 'slurm_job_id': {'kestrel': -1,'vermillion': -1}, 'running': {'kestrel': False,'vermillion': False}})
+            new_task = self.task_engine.add_task(
+                queue_id=self.hero_objs[i_fidelity]['id'],
+                name='Test',
+                metatype='Task',
+                metadata={
+                    'x_data': x_data_i.tolist(),
+                    'y_data': None,
+                    'slurm_job_id': {machine: -1 for machine in self.machine_names},
+                    'running': {machine: False for machine in self.machine_names}
+                }
+            )
             new_task_ids[i] =new_task['id']
             print(f'Tasks submitted to Hero queue with x_data={x_data_i}')
 
@@ -155,14 +157,9 @@ class HeroDataset(DatasetBase):
                         print(f"Target output dimension: [{self.n_out}]")
                         raise ValueError 
                     self._y_data[i_fidelity][i,:] = np.atleast_2d(float(y_eval))
-                    #XXX to do: Check for NaNs and out of bounds y_data. and use something like validate to handle this and possibly do masking
-                    #for i_o in range(self.n_out):
-                    #    self._unmasked_data[i_fidelity][i,i_o] = check_nan_oob(y_eval[i_o],self.ds_ops)
-                    assert(~np.isnan(y_eval))
                     for i_o in range(self.n_out):
                         self._unmasked_data[i_fidelity][i,i_o] = True
                     self._hero_todo[i_fidelity][i] = False
-                    # delete the task from the hero queue
                     self.task_engine.delete_task(task_id=task_id)
 
     #########################################################
@@ -175,16 +172,7 @@ class HeroDataset(DatasetBase):
                 self.hero_sync_avail_data(i_fl)
             
             # print the state of the queue
-            for i_fl in range(self.n_fidelity):
-                ready_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='ready')
-                running_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='running')
-                error_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='error')
-                done_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='done')
-                print(f'In the queue corresponding to fidelity level {i_fl},')
-                print(f'There are {len(ready_task_records)} in the "ready" state.')
-                print(f'There are {len(running_task_records)} in the "running" state.')
-                print(f'There are {len(error_task_records)} in the "error" state.')
-                print(f'There are {len(done_task_records)} in the "done" state.')
+            self.print_hero_queue()
             
             total_in_queue = np.sum([np.sum(arr) for arr in self._hero_todo])
             if total_in_queue > 0:
@@ -194,3 +182,56 @@ class HeroDataset(DatasetBase):
             else:
                 print('Workers are done. All Hero queues are empty.')
                 break
+
+    # Print the state of the hero queue
+    def print_hero_queue(self):
+        for i_fl in range(self.n_fidelity):
+            # Read tasks in different states
+            ready_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='ready')
+            running_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='running')
+            error_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='error')
+            done_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='done')
+
+            # Initialize dictionaries to track queued and running tasks for each machine
+            queued_machine = {machine: np.array([task['metadata']['slurm_job_id'].get(machine, -1) != -1 for task in ready_task_records]) for machine in self.machine_names}
+            running_machine = {machine: np.array([task['metadata']['running'].get(machine, False) for task in running_task_records]) for machine in self.machine_names}
+
+            # Ready jobs
+            total_ready_jobs = len(ready_task_records)
+            print(f'Total number of ready jobs: {total_ready_jobs}')
+
+            # Queued jobs
+            queued_counts = {machine: int(np.sum(queued_machine[machine])) for machine in self.machine_names}  # Ensure counts are integers
+            total_queued_jobs = sum(queued_counts.values())
+            print(f'Total number of queued jobs: {total_queued_jobs}')
+            for machine, count in queued_counts.items():
+                print(f'  Jobs queued on {machine}: {count}')
+
+            # Running jobs
+            running_counts = {machine: int(np.sum(running_machine[machine])) for machine in self.machine_names}  # Ensure counts are integers
+            total_running_jobs_sum = sum(running_counts.values())
+            print(f'Total number of running jobs: {total_running_jobs_sum}')
+            assert(len(running_task_records) == int(sum(running_counts.values())))
+            for machine, count in running_counts.items():
+                print(f'  Jobs running on {machine}: {count}')
+            
+            # Check for running jobs on more than one machine
+            for task in running_task_records:
+                running_on_machines = [machine for machine in self.machine_names if task['metadata']['running'].get(machine, False)]
+                if len(running_on_machines) > 1:
+                    raise Exception(f"Task {task['id']} is running on more than one machine: {', '.join(running_on_machines)}.")
+
+            # Error jobs
+            total_error_jobs = len(error_task_records)
+            print(f'Total number of jobs in the error state: {total_error_jobs}')
+
+            # Done jobs
+            total_done_jobs = len(done_task_records)
+            print(f'Total number of jobs in the done state: {total_done_jobs}')
+
+            # Check for done tasks that are still queued on any other machine
+            for task in done_task_records:
+                queued_on_machines = [machine for machine in self.machine_names if task['metadata']['slurm_job_id'].get(machine, -1) != -1]
+                if len(queued_on_machines) > 1:
+                    print(f"Task {task['id']} is done but still queued on: {', '.join(queued_on_machines)}.")
+                    raise Exception(f"Error: Task {task['id']} is done but still queued on another machine.")

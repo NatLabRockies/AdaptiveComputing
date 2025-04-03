@@ -22,7 +22,11 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
+from adaptive_computing.hero_utils.get_machine_name import get_machine_name
+
 def hero_finalize(cond,task_id):
+    machine_name = get_machine_name()
+    
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -48,12 +52,12 @@ def hero_finalize(cond,task_id):
         print(f"Task {task_id}: state = error, metadata = {current_task['metadata']}")
         current_task['metadata']['y_data'] = cond # cond = -1, marking an invalid entry
         task_engine.update_task(task_id=task_id, state='error', name=current_task['name'], metadata=current_task['metadata'])
-        current_task['metadata']['running']['kestrel'] = False
+        current_task['metadata']['running'][machine_name] = False
     else:
         print(f"Task {task_id}: state = done, metadata = {current_task['metadata']}")
         current_task['metadata']['y_data'] = [cond]
         task_engine.update_task(task_id=task_id, state='done', name=current_task['name'], metadata=current_task['metadata'])
-        current_task['metadata']['running']['kestrel'] = False
+        current_task['metadata']['running'][machine_name] = False
 
 if __name__ == "__main__":
     # Validate and parse command-line arguments

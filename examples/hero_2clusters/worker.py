@@ -21,7 +21,11 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
+from adaptive_computing.hero_utils.get_machine_name import get_machine_name
+
 def hero_worker():
+    machine_name = get_machine_name()
+    
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -47,30 +51,35 @@ def hero_worker():
         # For all ready tasks, if it's not queued on my machine, queue it
         ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
         for current_task in ready_tasks:
-            if current_task['metadata']['slurm_job_id']['vermillion'] == -1:
+            if current_task['metadata']['slurm_job_id'][machine_name] == -1:
                 t = current_task['metadata']['x_data'][0]
-                command = f"sbatch script_vermillion.sh {t} {current_task['id']}"
+                if machine_name == 'kestrel':
+                    command = f"sbatch script_kestrel.sh {t} {current_task['id']}"
+                elif machine_name == 'vermillion':
+                    command = f"sbatch script_vermillion.sh {t} {current_task['id']}"
+                else:
+                    raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
                 job_id = result.stdout.strip().split()[-1] # parse the job_id from the string returned
-                current_task['metadata']['slurm_job_id']['vermillion'] = job_id
+                current_task['metadata']['slurm_job_id'][machine_name] = job_id
                 task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
                 print(f"Task {current_task['id']}: state = ready, metadata = {current_task['metadata']}")
         
         # For all running tasks which are not running on my machine, if it's queued on my machine, cancel it and mark it as unqueue on my machine.
         running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         for current_task in running_tasks:
-            if current_task['metadata']['running']['vermillion'] == False:
-                if current_task['metadata']['slurm_job_id']['vermillion'] != -1:
-                    job_id = current_task['metadata']['slurm_job_id']['vermillion']
+            if current_task['metadata']['running'][machine_name] == False:
+                if current_task['metadata']['slurm_job_id'][machine_name] != -1:
+                    job_id = current_task['metadata']['slurm_job_id'][machine_name]
                     command = f"scancel {job_id}"
                     print(f"Running command: {command}")
                     subprocess.run(command, shell=True, check=True)
-                    current_task['metadata']['slurm_job_id']['vermillion'] = -1
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
                     task_engine.update_task(task_id=current_task['id'], state='running', name=current_task['name'], metadata=current_task['metadata'])
                     print(f"Task {current_task['id']}: state = running, metadata = {current_task['metadata']}")
         
         time.sleep(5)
-
+        
 if __name__ == "__main__":
     hero_worker()

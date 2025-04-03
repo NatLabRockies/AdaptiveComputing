@@ -2,7 +2,6 @@
 #SBATCH --time=0:05:00 
 #SBATCH --nodes=1
 #SBATCH --account=degrees
-# #SBATCH --partition=debug
 #SBATCH --job-name=lammps_test
 #SBATCH --output=out_%j.out
 #SBATCH --error=err_%j.err
@@ -26,11 +25,11 @@ if [ -z "$task_id" ]; then
   exit 1
 fi
 
-# Run hero_initialize_kestrel.py to indicate the job is running and unqueue it.
+# Run hero_initialize.py to indicate the job is running and unqueue it.
 module load conda
 source activate AC_hero
-echo "Running command: python hero_initialize_kestrel.py $task_id"
-python hero_initialize_kestrel.py $task_id
+echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id"
+python -m adaptive_computing.hero_utils.hero_initialize $task_id
 
 # Run LAMMPS
 module purge
@@ -53,9 +52,9 @@ if [[ -z "$result" ]]; then
 fi
 echo "Conductivity passed to python: $result"
 
-# Run hero_finalize_kestrel.py to publish result and mark it as done
+# Run hero_finalize.py to publish result and mark it as done
 module load conda
-source activate hero_py3.11
-echo "Running command: python hero_finalize_kestrel.py $result $task_id"
-python hero_finalize_kestrel.py $result $task_id
+source activate AC_hero
+echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id"
+python -m adaptive_computing.hero_utils.hero_finalize $result $task_id
 

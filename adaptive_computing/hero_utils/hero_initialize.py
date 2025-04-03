@@ -22,7 +22,11 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
+from adaptive_computing.hero_utils.get_machine_name import get_machine_name
+
 def hero_initialize(task_id):
+    machine_name = get_machine_name()
+    
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -33,8 +37,8 @@ def hero_initialize(task_id):
 
     # Update the task's metatdata and mark it as running
     current_task = task_engine.read_task(task_id)
-    current_task['metadata']['slurm_job_id']['kestrel'] = -1
-    current_task['metadata']['running']['kestrel'] = True
+    current_task['metadata']['slurm_job_id'][machine_name] = -1
+    current_task['metadata']['running'][machine_name] = True
     task_engine.update_task(task_id=task_id, state='running', name=current_task['name'], metadata=current_task['metadata'])
     print(f"Task {task_id}: state = running, metadata = {current_task['metadata']}")
 
