@@ -1,7 +1,7 @@
 from adaptive_computing.datasets import DatasetBase
 from adaptive_computing.surrogates import SurrogateModelBase, surrogate_initializer
 from adaptive_computing.samplers import LHSSampler, BayesianSampler
-from adaptive_computing.samplers.acquisition_functions import expected_improvement
+from adaptive_computing.samplers import acquisition_functions
 from adaptive_computing.evaluators import BaseEvaluator
 from adaptive_computing.drivers.query_validators import get_query_validator
 import numpy as np
@@ -44,7 +44,7 @@ class ActiveLoopDriver:
     """
 
     def __init__(self, simulations, params, surrogate=None, dataset=None,
-                 nan_behavior='fail', fidelity_costs=None):
+                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement'):
         """
         Initializes the ActiveLoopDriver.
 
@@ -74,8 +74,11 @@ class ActiveLoopDriver:
                                                    self.dataset)
             
         self.init_sampler = LHSSampler(self.dataset)
-        self.sampler = BayesianSampler(self.dataset, 
-                                       expected_improvement)
+        try:
+            acq_function = acquisition_functions.acq_func_map[acq_func]
+            self.sampler = BayesianSampler(self.dataset, acq_function)
+        except KeyError:
+            raise ValueError(f"Unsupported acquisition function type: {acq_func}")
 
         self._bopt_initialized = False
 
