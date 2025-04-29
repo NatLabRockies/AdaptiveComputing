@@ -146,10 +146,13 @@ class ActiveLoopDriver:
         if not self._bopt_initialized:
             self.initialize()
 
+        if N_steps == None:
+            N_steps = np.inf
+
         for i in range(N_steps):
             self.step()
 
-    def add_points(self, points):
+    def add_points(self, points, i_fidelity=0):
         """
         Adds additional points to the dataset for evaluation.
 
@@ -157,8 +160,8 @@ class ActiveLoopDriver:
             points (list or np.ndarray): Points to add to the dataset.
         """
         for x in points:
-            y = self.evaluate_sample(x, i_fidelity=0)
-            self.dataset.add_samples(x, y, i_fidelity=0)
+            y = self.evaluate_sample(x, i_fidelity)
+            self.dataset.add_samples(x, y, i_fidelity)
 
     def evaluate_sample(self, points, i_fidelity):
         """
