@@ -44,7 +44,7 @@ class ActiveLoopDriver:
     """
 
     def __init__(self, simulations, params, surrogate=None, dataset=None,
-                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement'):
+                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', retrain=True):
         """
         Initializes the ActiveLoopDriver.
 
@@ -56,6 +56,7 @@ class ActiveLoopDriver:
             nan_behavior (str, optional): Behavior for handling NaN values ('fail', 'mask_replace', 'mask_ignore'). Defaults to 'fail'.
             fidelity_costs (dict or None, optional): Dictionary specifying costs associated with each fidelity level. Defaults to None.
         """
+        self.retrain = retrain
         self.params = params
 
         self.n_fidelity = len(simulations)
@@ -108,8 +109,9 @@ class ActiveLoopDriver:
         """
         for i_fidelity in range(self.n_fidelity):
             self._initialize_fidelity(i_fidelity, N_samples_init=N_samples_init)
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        if self.retrain:
+            self.surrogate.train(self.dataset.x_data,
+                                 self.dataset.y_data)
         self._bopt_initialized = True
 
     def get_next_sample(self, i_fidelity=0):
@@ -133,8 +135,9 @@ class ActiveLoopDriver:
         x, fi_eval = self.get_next_sample()
         y = self.evaluate_sample(x, fi_eval)
         self.dataset.add_samples(x, y, i_fidelity=fi_eval)
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        if self.retrain:
+            self.surrogate.train(self.dataset.x_data,
+                                self.dataset.y_data)
 
     def run(self, N_steps=None):
         """
@@ -160,6 +163,7 @@ class ActiveLoopDriver:
             points (list or np.ndarray): Points to add to the dataset.
         """
         for x in points:
+            x = np.atleast_2d(x)
             y = self.evaluate_sample(x, i_fidelity)
             self.dataset.add_samples(x, y, i_fidelity)
 
@@ -201,7 +205,8 @@ class ActiveLoopDriver:
                 print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
                 y = self.evaluate_sample(points[[i]], i_fidelity=0)
                 self.dataset.add_samples(points[[i]], y, i_fidelity=0)
-                self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+                if self.retrain:
+                    self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
                 # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
                 surrogate_value = self.surrogate.predict_values(points[[i]])
             values[i] = surrogate_value

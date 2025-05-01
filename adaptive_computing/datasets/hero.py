@@ -25,7 +25,8 @@ APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 
 class HeroDataset(DatasetBase):
-    def __init__(self, params, machine_names, n_fidelity=1):
+    def __init__(self, params, machine_names, n_fidelity=1, blocking=False):
+        self.blocking = blocking
         super().__init__(params, n_fidelity=n_fidelity)
 
         # Setup the HERO client and authenticate
@@ -105,7 +106,7 @@ class HeroDataset(DatasetBase):
                 }
             )
             new_task_ids[i] =new_task['id']
-            print(f'Tasks submitted to Hero queue with x_data={x_data_i}')
+            print(f'Task submitted to Hero queue with x_data={x_data_i}')
 
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
         if y_data is None:
@@ -116,6 +117,9 @@ class HeroDataset(DatasetBase):
         true_values = np.full((len(x_data), 1), True)
         self._hero_todo[i_fidelity] = np.concatenate([self._hero_todo[i_fidelity], true_values])
         self._hero_task_id[i_fidelity] = np.concatenate([self._hero_task_id[i_fidelity], new_task_ids])
+
+        if self.blocking:
+            self.hero_wait_for_data()
 
     def add_samples_nohero(self, x_data, y_data, i_fidelity):
         """
@@ -145,7 +149,7 @@ class HeroDataset(DatasetBase):
         # for all the done tasks, find the task id and 
         for i, todo_value in enumerate(self._hero_todo[i_fidelity]):
             # Check only the tasks that remain in the hero queue
-            if todo_value == True: #XXX check todo_value is not a list of True
+            if todo_value == True:
                 task_id = self._hero_task_id[i_fidelity][i][0]
                 task_data = self.task_engine.read_task(task_id)
                 if task_data["state"] == 'done':
@@ -176,7 +180,7 @@ class HeroDataset(DatasetBase):
             
             total_in_queue = np.sum([np.sum(arr) for arr in self._hero_todo])
             if total_in_queue > 0:
-                print(f'Number of remaining tasks across all hero queues = {total_in_queue}')
+                print(f'Number of tasks AC is awaiting for results = {total_in_queue}')
                 time.sleep(1)
                 
             else:
