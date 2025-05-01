@@ -13,13 +13,18 @@ python controller_noAC.py
 cd examples/hero_2clusters
 module load conda
 conda activate AC_hero
-python worker_kestrel.py
+python worker.py
 
 # In a terminal, on Vermillion, launch a hero worker:
 cd examples/hero_2clusters
 module load conda
 conda activate AC_hero
-python worker_vermillion.py
+python worker.py
 
-
+# Examples
+ 1. controller_noAC.py manually adds several tasks to the Hero queue without using AC
+ 2. controller_manual.py manually adds several tasks to the Hero queue without using AC HeroDataset
+ 3. controller_offline_training.py add tasks to the Hero queue using manual, random, and bayesian optimization methods.
+ 4. controller_offline_inference.py read a trained surrogate from a file and use it in an offline manner (no retraining) for inference.
+ 5. controller_online_inference.py read a trained surrogate from a file and use it in an online manner, collecting new training data if the variance exceeds a threshold.
 
