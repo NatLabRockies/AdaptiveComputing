@@ -1,6 +1,5 @@
 # This script use the HeroDataset to manage tasks in a Hero queue
 # Workers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
-# The c++ version of this script performs the same operations as the __main__ function of this script, but demonstrates c++ embedding.
 import numpy as np
 
 import sys

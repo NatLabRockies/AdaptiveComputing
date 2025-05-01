@@ -1,6 +1,5 @@
 # This script initializes an AC driver that puts tasks in a Hero queue
 # Workers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
-# The c++ version of this script performs the same operations as the __main__ function of this script, but demonstrates c++ embedding.
 import numpy as np
 import pickle
 import sys
@@ -56,7 +55,6 @@ if __name__ == '__main__':
     print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
     # Save the driver to a pickle file                                                                     
-    with open('data.pkl', 'wb') as file:
+    with open('offline_training.pkl', 'wb') as file:
         pickle.dump(ac_driver, file)
-    
 
