@@ -51,6 +51,11 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
     def hero_wait_for_data_and_train(self):
         self.dataset.hero_wait_for_data()
         self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)          
+                             self.dataset.y_data)
+    
+    def hero_update_avail_data_and_train(self):
+        self.dataset.hero_update_avail_data()
+        self.surrogate.train(self.dataset.x_data,
+                             self.dataset.y_data)
 
     
