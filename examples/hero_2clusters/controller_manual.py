@@ -1,5 +1,5 @@
 # This script use the HeroDataset to manage tasks in a Hero queue
-# Workers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
+# Managers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
 import numpy as np
 
 import sys

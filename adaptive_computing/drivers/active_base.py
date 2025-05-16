@@ -67,7 +67,7 @@ class ActiveLoopDriver:
         if simulations is not None:
             self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for simulation in simulations]
         else:
-            assert(self.use_hero) # since the user has opted to use Hero, simulations should be set to None and the definition of the simulations should be implemented in the worker script. If Hero is not used, then simulations should not be specified by the user as a list of python functions
+            assert(self.use_hero) # since the user has opted to use Hero, simulations should be set to None and the definition of the simulations should be implemented in the manager script. If Hero is not used, then simulations should not be specified by the user as a list of python functions
 
         self.fidelity_costs = fidelity_costs
 

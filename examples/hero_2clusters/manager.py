@@ -23,7 +23,7 @@ APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 from adaptive_computing.hero_utils.get_machine_name import get_machine_name
 
-def hero_worker():
+def hero_manager():
     machine_name = get_machine_name()
     
     # Setup the HERO client and authenticate
@@ -82,4 +82,4 @@ def hero_worker():
         time.sleep(5)
         
 if __name__ == "__main__":
-    hero_worker()
+    hero_manager()

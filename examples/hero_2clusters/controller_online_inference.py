@@ -1,5 +1,5 @@
 # This script initializes an AC driver that puts tasks in a Hero queue
-# Workers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
+# Managers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
 import numpy as np
 import pickle
 import sys

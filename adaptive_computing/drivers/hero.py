@@ -19,7 +19,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
                          nan_behavior=nan_behavior, fidelity_costs=fidelity_costs, acq_func=acq_func, retrain=retrain)
 
         for sim_i in simulations:
-            assert(sim_i is None) # since the user has opted to use Hero, simulations should be set to a list of Nones of length n_fidelity and the definition of the simulations should be implemented in the worker script.
+            assert(sim_i is None) # since the user has opted to use Hero, simulations should be set to a list of Nones of length n_fidelity and the definition of the simulations should be implemented in the manager script.
         self.evaluators = None
         
     def _initialize_fidelity(self, i_fidelity, N_samples_init=3):
@@ -36,7 +36,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
     
     def evaluate_sample(self, points, i_fidelity):
         """
-        return the surrogate's prediction value as a placeholder, since real output will be computed by a hero worker.
+        return the surrogate's prediction value as a placeholder, since real output will be computed by a hero manager.
         The task is created and the hero_todo list and masking list are updated by add_samples
 
         Args:
