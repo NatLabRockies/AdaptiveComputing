@@ -90,6 +90,9 @@ class HeroDataset(DatasetBase):
         x_data = np.asarray(x_data)
         if y_data is not None:
             y_data = np.asarray(y_data)
+
+        self._validate_input(x_data, i_fidelity)
+
         new_task_ids = np.full((len(x_data), 1), '', dtype=f'<U72') # strings of length 72 characters or less
         for i, x_data_i in enumerate(x_data):
             if x_data_i.shape[0] != self.n_in:
@@ -135,6 +138,7 @@ class HeroDataset(DatasetBase):
             y_data (N Samples, N output dimensions): The output data.
             i_fidelity (int): The fidelity level of the data.
         """
+        self._validate_input(x_data, i_fidelity)
         x_data, y_data = self._validate_data(x_data, y_data, i_fidelity)
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
         self._y_data[i_fidelity] = np.concatenate([self._y_data[i_fidelity], y_data])
@@ -163,6 +167,9 @@ class HeroDataset(DatasetBase):
                         print(f"Point shape: {y_eval.shape}")
                         print(f"Target output dimension: [{self.n_out}]")
                         raise ValueError 
+                    
+                    x_data, y_eval = self._validate_data(task_data["metadata"]["x_data"], y_eval, i_fidelity)
+                    
                     self._y_data[i_fidelity][i,:] = np.atleast_2d(float(y_eval))
                     for i_o in range(self.n_out):
                         self._unmasked_data[i_fidelity][i,i_o] = True

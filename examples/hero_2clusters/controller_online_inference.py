@@ -20,13 +20,13 @@ if __name__ == '__main__':
     ac_driver.dataset.clear_hero_queue()
 
     # threshold for trusting surrogate or running a simulation
-    variance_threshold = 1.0
+    variance_threshold = 1e-4
 
     print_data(ac_driver)
-    x_queries = [[0.7],[0.9],[1.1],[1.5],[2.0]]
+    x_queries = [[0.85],[0.9],[1.1],[1.5],[2.0]]
     print(f"x_queries = {x_queries}")
-    # y_var1 = ac_driver.surrogate.predict_variances(x_queries)
-    # print(f"y_variances = {y_var1}")
+    y_var1 = ac_driver.surrogate.predict_variances(x_queries)
+    print(f"y_variances = {y_var1}")
     y_queries = ac_driver.query(x_queries, 'absolute_variance', variance_threshold)
     
     print(f'_x_data = {ac_driver.dataset._x_data}')

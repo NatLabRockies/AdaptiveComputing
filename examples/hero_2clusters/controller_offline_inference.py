@@ -12,7 +12,7 @@ if __name__ == '__main__':
         ac_driver = pickle.load(file)
 
     # The model is queried at prescribed x locations in this simple example script
-    x_queries = [[0.7],[0.9],[1.1],[1.5],[2.0]]
+    x_queries = [[0.85],[0.9],[1.1],[1.5],[2.0]]
     print(f"x_queries = {x_queries}")
     y_queries = ac_driver.surrogate.predict_values(x_queries)
     print(f"y_queries = {y_queries}")
