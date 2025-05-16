@@ -25,8 +25,8 @@ if __name__ == '__main__':
     print_data(ac_driver)
     x_queries = [[0.85],[0.9],[1.1],[1.5],[2.0]]
     print(f"x_queries = {x_queries}")
-    y_var1 = ac_driver.surrogate.predict_variances(x_queries)
-    print(f"y_variances = {y_var1}")
+    # y_var1 = ac_driver.surrogate.predict_variances(x_queries)
+    # print(f"y_variances = {y_var1}")
     y_queries = ac_driver.query(x_queries, 'absolute_variance', variance_threshold)
     
     print(f'_x_data = {ac_driver.dataset._x_data}')
