@@ -149,7 +149,7 @@ class ActiveLoopDriver:
         if not self._bopt_initialized:
             self.initialize()
 
-        if N_steps == None:
+        if N_steps is None:
             N_steps = np.inf
 
         for i in range(N_steps):

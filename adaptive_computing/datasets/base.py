@@ -91,7 +91,7 @@ class DatasetBase():
         # Check for nans
         if np.any(np.isnan(x_data)):
             print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is a nan value.")
-            raise ValueError(f"x_data contains nan values.")
+            raise ValueError("x_data contains nan values.")
         
         # Check for out of bounds values
         if x_data.shape[1] != len(self.params):

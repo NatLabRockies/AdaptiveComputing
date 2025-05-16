@@ -73,8 +73,8 @@ def hero_controller():
         v_only = np.sum(np.logical_and(np.logical_not(queued_kestrel), queued_vermillion))
         both = np.sum(np.logical_and(queued_kestrel, queued_vermillion))
         print(f'There are {len(ready_task_records)} tasks in the "ready" state. {not_queued} not queued, {k_only} queued on kestrel only, {v_only} queued on vermillion only, {both} queued on both.')
-        running_kestrel = np.array([task['metadata']['running']['kestrel'] for task in running_task_records]) == True
-        running_vermillion = np.array([task['metadata']['running']['vermillion'] for task in running_task_records]) == True
+        running_kestrel = np.array([task['metadata']['running']['kestrel'] for task in running_task_records])
+        running_vermillion = np.array([task['metadata']['running']['vermillion'] for task in running_task_records])
         k_only = np.sum(np.logical_and(running_kestrel, np.logical_not(running_vermillion)))
         v_only = np.sum(np.logical_and(np.logical_not(running_kestrel), running_vermillion))
         both = np.sum(np.logical_and(running_kestrel, running_vermillion))

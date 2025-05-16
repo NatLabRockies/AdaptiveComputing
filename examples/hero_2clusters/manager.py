@@ -69,7 +69,7 @@ def hero_manager():
         # For all running tasks which are not running on my machine, if it's queued on my machine, cancel it and mark it as unqueue on my machine.
         running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         for current_task in running_tasks:
-            if current_task['metadata']['running'][machine_name] == False:
+            if not current_task['metadata']['running'][machine_name]:
                 if current_task['metadata']['slurm_job_id'][machine_name] != -1:
                     job_id = current_task['metadata']['slurm_job_id'][machine_name]
                     command = f"scancel {job_id}"
