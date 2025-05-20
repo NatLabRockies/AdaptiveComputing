@@ -44,6 +44,8 @@ class SMTGP(SurrogateModelBase):
                     print_global=False)) 
             if self.mixed_type:
                 self.surrogate_model[i_fidelity] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fidelity], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
+        
+        self.untrained = True # used to track if the surrogate model has never been trained
 
     def train(self, x_data, y_data):
         """
@@ -62,6 +64,8 @@ class SMTGP(SurrogateModelBase):
                 self.surrogate_model[i_fidelity].set_training_values(x_data[ii_fidelity], y_data[ii_fidelity], name=ii_fidelity)
             self.surrogate_model[i_fidelity].set_training_values(x_data[i_fidelity], y_data[i_fidelity])
             self.surrogate_model[i_fidelity].train()
+        
+        self.untrained = False
 
     def predict_values(self, x_data, fidelity_level=-1):
         """
@@ -74,6 +78,8 @@ class SMTGP(SurrogateModelBase):
         Returns:
             np.ndarray: Predicted values.
         """
+        if self.untrained:
+            raise Exception("Attempting to evaluate the surrogate model values, but user never called train() since initializing the surrogate.")
         return self.surrogate_model[fidelity_level].predict_values(np.atleast_2d(x_data))
 
     def predict_variances(self, x_data, fidelity_level=-1):
@@ -87,6 +93,8 @@ class SMTGP(SurrogateModelBase):
         Returns:
             np.ndarray: Predicted variances.
         """
+        if self.untrained:
+            raise Exception("Attempting to evaluate the surrogate model variances, but user never called train() since initializing the surrogate.")
         return self.surrogate_model[fidelity_level].predict_variances(np.atleast_2d(x_data))
 
 
