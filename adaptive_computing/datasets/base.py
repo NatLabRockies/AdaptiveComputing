@@ -113,7 +113,7 @@ class DatasetBase():
 
         return x_data, y_data
             
-    def add_samples(self, x_data, y_data, i_fidelity):
+    def add_samples(self, x_data, y_data, i_fidelity=0):
         """
         Validates and adds new samples to the dataset.
         
