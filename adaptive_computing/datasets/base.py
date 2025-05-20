@@ -19,7 +19,7 @@ class DatasetBase():
         _sampler_ranges (property): Returns the ranges for sampling.
     """
     
-    def __init__(self, params, n_fidelity=1, y_bounds=None, nan_behavior='fail', oob_behavior=None):
+    def __init__(self, params, n_fidelity=1, y_bounds=None, nan_behavior='fail', oob_behavior=None, n_out=1):
         """
         Initializes the DatasetBase with the given parameters and settings.
         
@@ -44,7 +44,7 @@ class DatasetBase():
         self.n_continuous = sum([t == 'continuous' for t in self.x_types])
         self.mixed_type = np.any([t != 'continuous' for t in self.x_types])
 
-        self.n_out = 1
+        self.n_out = n_out
         # x_data and y_data are lists of length n_fidelity
         # Each entry will be an n_samp[i_fidelity] x (n_in or n_out) np array
         self._x_data = [np.empty([0, self.n_in])] * self.n_fidelity
@@ -92,23 +92,24 @@ class DatasetBase():
         """
         x_data = np.asarray(x_data)
         y_data = np.asarray(y_data)
-        if np.any(np.isnan(y_data)):
+
+        idx_nan = np.isnan(y_data)
+        if np.any(idx_nan):
+            print(f"NaN data point detected at {x_data[idx_nan]}, i_fidelity {i_fidelity}")
             if self.nan_behavior == 'mask_ignore':
-                idx = ~np.isnan(y_data)
-                x_data = x_data[idx].reshape(-1, self.n_in)
-                y_data = y_data[idx].reshape(-1, 1)
-                print(f"Ignoring NaN data point at {x_data}, i_fidelity {i_fidelity}")
-                print("This may result in repeated sampling of the same value")
+                print("Ignoring NaN data point. This may result in repeated sampling of the same value.")
+                x_data = x_data[~idx_nan].reshape(-1, self.n_in)
+                y_data = y_data[~idx_nan].reshape(-1, 1)
             else:
-                print(f"Simulation at {x_data}, i_fidelity {i_fidelity} returned NaN value")
-                print(f"{y_data}")
-                raise ValueError
+                print("NaN data triggers a ValueError. Consider setting mask_ignore=True to ignore NaNs.")
+                raise ValueError("NaN values detected in y_data. Use 'mask_ignore' to ignore them.")
         
         if self.y_bounds is not None:
-            if np.any(y_data < self.y_bounds[0]) or np.any(y_data > self.y_bounds[1]):
-                print(f"Simulation at {x_data}, i_fidelity {i_fidelity} returned OOB value")
-                print(f"{y_data}")
-                raise ValueError
+            idx_oob = (y_data < self.y_bounds[0]) | (y_data > self.y_bounds[1])
+            if np.any(idx_oob):
+                print(f"Simulation at {x_data[idx_oob]}, i_fidelity {i_fidelity} returned OOB value")
+                print(f"{y_data[idx_oob]}")
+                raise ValueError("Out-of-bounds values detected in y_data.")
 
         return x_data, y_data
             
