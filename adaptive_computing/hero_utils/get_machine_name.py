@@ -3,8 +3,8 @@ def get_machine_name():
     hostname = socket.gethostname()
     if hostname.startswith("kl"): # kestrel login node
         machine_name = "kestrel"
-    elif hostname.startswith("vs"): # vermillion login or comput node
-        machine_name = "vermillion"
+    elif hostname.startswith("vs"): # vermilion login or comput node
+        machine_name = "vermilion"
     elif hostname.startswith("x"): # kestrel compute node
         machine_name = "kestrel"
         #machine_name = hostname -f | cut -d '.' -f4 # this works for kestrel compute nodes.

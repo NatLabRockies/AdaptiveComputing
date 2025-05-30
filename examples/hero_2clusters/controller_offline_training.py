@@ -12,7 +12,7 @@ from adaptive_computing.drivers import ActiveLoopDriverHero
 
 if __name__ == '__main__':
     params = [ContinuousVariable(min=0.8, max=2.0)]
-    machine_names = ['kestrel','vermillion']
+    machine_names = ['kestrel','vermilion']
     ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT', acq_func='maximum_variance', blocking=False)
     
     # Sampling techniques that don't use the surrogate model:

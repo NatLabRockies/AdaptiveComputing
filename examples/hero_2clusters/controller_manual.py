@@ -16,7 +16,7 @@ def func_1d(x):
 if __name__ == '__main__':
     
     params = [ContinuousVariable(min=0.7, max=2.0)]
-    machine_names = ['kestrel','vermillion']
+    machine_names = ['kestrel','vermilion']
     dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=False)
     # queue hero samples at the given x_data values. No initial guess provided.
     dataset.add_samples(np.array([[1.1]]),None,0)

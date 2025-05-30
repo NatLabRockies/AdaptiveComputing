@@ -55,8 +55,8 @@ def hero_manager():
                 t = current_task['metadata']['x_data'][0]
                 if machine_name == 'kestrel':
                     command = f"sbatch script_kestrel.sh {t} {current_task['id']}"
-                elif machine_name == 'vermillion':
-                    command = f"sbatch script_vermillion.sh {t} {current_task['id']}"
+                elif machine_name == 'vermilion':
+                    command = f"sbatch script_vermilion.sh {t} {current_task['id']}"
                 else:
                     raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")
                 print(f"Running command: {command}")

@@ -5,24 +5,24 @@ def print_hero_queue():
         done_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
         #print(f'There are {len(ready_task_records)} tasks in the "ready" state.')
         queued_kestrel = np.array([task['metadata']['slurm_job_id']['kestrel'] for task in ready_task_records]) != -1
-        queued_vermillion = np.array([task['metadata']['slurm_job_id']['vermillion'] for task in ready_task_records]) != -1
-        not_queued = np.sum(np.logical_and(np.logical_not(queued_kestrel), np.logical_not(queued_vermillion)))
-        k_only = np.sum(np.logical_and(queued_kestrel, np.logical_not(queued_vermillion)))
-        v_only = np.sum(np.logical_and(np.logical_not(queued_kestrel), queued_vermillion))
-        both = np.sum(np.logical_and(queued_kestrel, queued_vermillion))
-        print(f'There are {len(ready_task_records)} tasks in the "ready" state. {not_queued} not queued, {k_only} queued on kestrel only, {v_only} queued on vermillion only, {both} queued on both.')
+        queued_vermilion = np.array([task['metadata']['slurm_job_id']['vermilion'] for task in ready_task_records]) != -1
+        not_queued = np.sum(np.logical_and(np.logical_not(queued_kestrel), np.logical_not(queued_vermilion)))
+        k_only = np.sum(np.logical_and(queued_kestrel, np.logical_not(queued_vermilion)))
+        v_only = np.sum(np.logical_and(np.logical_not(queued_kestrel), queued_vermilion))
+        both = np.sum(np.logical_and(queued_kestrel, queued_vermilion))
+        print(f'There are {len(ready_task_records)} tasks in the "ready" state. {not_queued} not queued, {k_only} queued on kestrel only, {v_only} queued on vermilion only, {both} queued on both.')
         running_kestrel = np.array([task['metadata']['running']['kestrel'] for task in running_task_records]) == True
-        running_vermillion = np.array([task['metadata']['running']['vermillion'] for task in running_task_records]) == True
-        k_only = np.sum(np.logical_and(running_kestrel, np.logical_not(running_vermillion)))
-        v_only = np.sum(np.logical_and(np.logical_not(running_kestrel), running_vermillion))
-        both = np.sum(np.logical_and(running_kestrel, running_vermillion))
-        print(f'There are {len(running_task_records)} tasks in the "running" state. {k_only} running on kestrel, {v_only} running on vermillion, {both} running on both')
+        running_vermilion = np.array([task['metadata']['running']['vermilion'] for task in running_task_records]) == True
+        k_only = np.sum(np.logical_and(running_kestrel, np.logical_not(running_vermilion)))
+        v_only = np.sum(np.logical_and(np.logical_not(running_kestrel), running_vermilion))
+        both = np.sum(np.logical_and(running_kestrel, running_vermilion))
+        print(f'There are {len(running_task_records)} tasks in the "running" state. {k_only} running on kestrel, {v_only} running on vermilion, {both} running on both')
         if both > 0:
             print(f"WARNING!!!!: {both} tasks are running on both machines.")
         print(f'There are {len(done_task_records)} tasks in the "done" state.')
         queued_kestrel = np.array([task['metadata']['slurm_job_id']['kestrel'] for task in done_task_records]) != -1
-        queued_vermillion = np.array([task['metadata']['slurm_job_id']['vermillion'] for task in done_task_records]) != -1
-        done_queued_tasks = np.sum(np.logical_or(queued_kestrel, queued_vermillion))
+        queued_vermilion = np.array([task['metadata']['slurm_job_id']['vermilion'] for task in done_task_records]) != -1
+        done_queued_tasks = np.sum(np.logical_or(queued_kestrel, queued_vermilion))
         if done_queued_tasks > 0:
             for task in done_task_records:
                 print(f"metadata: {task['metadata']}")
