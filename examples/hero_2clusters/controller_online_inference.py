@@ -16,6 +16,9 @@ if __name__ == '__main__':
     # Unpickle the offline trained surrogate (created by controller_offline_training.py)                                                                               
     with open('offline_training.pkl', 'rb') as file:
         ac_driver = pickle.load(file)
+
+    ac_driver.dataset.restart_hero_server()
+
     # clear all tasks in the Hero queue since we saved the pickle with an empty Hero queue
     ac_driver.dataset.clear_hero_queue()
 
