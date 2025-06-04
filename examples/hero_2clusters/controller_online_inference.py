@@ -17,7 +17,7 @@ if __name__ == '__main__':
     with open('offline_training.pkl', 'rb') as file:
         ac_driver = pickle.load(file)
 
-    ac_driver.dataset.restart_hero_server()
+    ac_driver.dataset.hero_authenticate()
 
     # clear all tasks in the Hero queue since we saved the pickle with an empty Hero queue
     ac_driver.dataset.clear_hero_queue()

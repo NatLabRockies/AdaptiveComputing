@@ -30,6 +30,10 @@ module load conda
 source activate AC_hero
 echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id"
 python -m adaptive_computing.hero_utils.hero_initialize $task_id
+if [ $? -ne 0 ]; then
+    echo "Initialization failed. Exiting."
+    exit 1
+fi
 
 # Run LAMMPS
 source /nopt/nrel/apps/210929a/myenv.2110041605

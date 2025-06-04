@@ -61,14 +61,35 @@ def hero_manager():
                     raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+                if result.returncode != 0:
+                    print("Error occurred during sbatch script.")
+                    print("STDOUT:")
+                    print(result.stdout)
+                    print("STDERR:")
+                    print(result.stderr)
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
+                    current_task['metadata']['running'][machine_name] = False
+                    task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
                 job_id = result.stdout.strip().split()[-1] # parse the job_id from the string returned
                 current_task['metadata']['slurm_job_id'][machine_name] = job_id
                 task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
                 print(f"Task {current_task['id']}: state = ready, metadata = {current_task['metadata']}")
-        
-        # For all running tasks which are not running on my machine, if it's queued on my machine, cancel it and mark it as unqueue on my machine.
+            else: # if the job is queued on this machine, check for errors
+                job_id = current_task['metadata']['slurm_job_id'][machine_name]
+                status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
+                status = status_check.stdout.strip()
+                if 'COMPLETED' in status:
+                    raise Exception("Slurm job succeeded, but this job was not marked as ready still.")
+                if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
+                    print("Slurm job error detected.")
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
+                    current_task['metadata']['running'][machine_name] = False
+                    task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+
+        # For all running tasks
         running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         for current_task in running_tasks:
+            # If not running on my machine, if it's queued on my machine, cancel it and mark it as unqueue on my machine.
             if not current_task['metadata']['running'][machine_name]:
                 if current_task['metadata']['slurm_job_id'][machine_name] != -1:
                     job_id = current_task['metadata']['slurm_job_id'][machine_name]
@@ -78,6 +99,24 @@ def hero_manager():
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
                     task_engine.update_task(task_id=current_task['id'], state='running', name=current_task['name'], metadata=current_task['metadata'])
                     print(f"Task {current_task['id']}: state = running, metadata = {current_task['metadata']}")
+                
+            # If its running on my machine, check if it should be in an error state
+            if current_task['metadata']['running'][machine_name]:
+                job_id = current_task['metadata']['slurm_job_id'][machine_name]
+                status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
+                status = status_check.stdout.strip()
+                if 'COMPLETED' in status:
+                    raise Exception("Slurm job succeeded, but this job was not marked as done.")
+                    #XXX alternate implementation could omit hero_finalize and perform those duties here (don't raise Exception in that case)
+                if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
+                    print("Slurm job error detected.")
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
+                    current_task['metadata']['running'][machine_name] = False
+                    task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                    
+        
+        # For all jobs in an error state, could retry them on all machines, could try to run them on only different machines, or could unqueue them from other machines
+        #XXX depends which strategy we want to pursue. Probably requeueing them on machines where they haven't failed yet would be good. Make sure the error is clearly printed.
         
         time.sleep(5)
         
