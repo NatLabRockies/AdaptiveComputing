@@ -106,7 +106,8 @@ def hero_manager():
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
-                    raise Exception("Slurm job succeeded, but this job was not marked as done.")
+                    pass
+                    # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue.
                     #XXX alternate implementation could omit hero_finalize and perform those duties here (don't raise Exception in that case)
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                     print("Slurm job error detected.")
