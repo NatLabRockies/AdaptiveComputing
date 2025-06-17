@@ -11,4 +11,4 @@ tmux send-keys -t $SESSION_NAME C-c
 sleep 1
 # For all tasks in the Hero queue that have a slurm job id, cancel the slurm job
 # Terminate the current tmux session
-tmux send-keys -t $SESSION_NAME "cd $WORK_DIR && python -u kill_slurm_jobs.py > \"$LOG_FILE\" 2>&1 && tmux kill-session -t $SESSION_NAME" C-m
+tmux send-keys -t $SESSION_NAME "cd $WORK_DIR && python -u kill_slurm_jobs.py $1 > \"$LOG_FILE\" 2>&1 && tmux kill-session -t $SESSION_NAME" C-m

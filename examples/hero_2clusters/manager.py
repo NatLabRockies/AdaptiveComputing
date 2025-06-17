@@ -21,10 +21,12 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
-from adaptive_computing.hero_utils.get_machine_name import get_machine_name
-
 def hero_manager():
-    machine_name = get_machine_name()
+    import sys
+    if len(sys.argv) > 1:
+        machine_name = sys.argv[1]
+    else:
+        print("Missing the machine_name as a command line argument when manager.py is run.")
     
     # Setup the HERO client and authenticate
     hero = HeroClient()
@@ -53,9 +55,9 @@ def hero_manager():
         for current_task in ready_tasks:
             if current_task['metadata']['slurm_job_id'][machine_name] == -1:
                 t = current_task['metadata']['x_data'][0]
-                if machine_name == 'kestrel':
+                if machine_name.startswith('kestrel'):
                     command = f"sbatch script_kestrel.sh {t} {current_task['id']}"
-                elif machine_name == 'vermilion':
+                elif machine_name.startswith('vermilion'):
                     command = f"sbatch script_vermilion.sh {t} {current_task['id']}"
                 else:
                     raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")

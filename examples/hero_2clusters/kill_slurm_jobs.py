@@ -19,10 +19,12 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
-from adaptive_computing.hero_utils.get_machine_name import get_machine_name
-
 def kill_slurm_jobs():
-    machine_name = get_machine_name()
+    import sys
+    if len(sys.argv) > 1:
+        machine_name = sys.argv[1]
+    else:
+        print("Missing the machine_name as a command line argument when kill_slurm_jobs.py is run.")
     
     # Setup the HERO client and authenticate
     hero = HeroClient()

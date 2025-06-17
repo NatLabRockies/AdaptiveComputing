@@ -10,20 +10,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 import subprocess
 
 # global variables used by the signal handler
-# machine_names = ['kestrel','vermilion']
+# for testing, use two managers on vermilion on different login nodes
+machine_names = ['vermilion1','vermilion2']
+remote_usernames = {'vermilion1':'kgriffin','vermilion2':'kgriffin'}
+remote_hosts = {'vermilion1':'vs-login-1.hpc.nrel.gov','vermilion2':'vs-login-2.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
+remote_dirs = {'vermilion1':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/','vermilion2':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
+
+# # machine_names = ['kestrel','vermilion']
 # machine_names = ['kestrel']
-machine_names = ['vermilion']
-remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
-# Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
-remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'}
-remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
+# # machine_names = ['vermilion']
+# remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
+# remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
+# remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
 
 def run_remote_managers():
     for machine_name in machine_names:
         ssh_command = [
             "ssh",
             f"{remote_usernames[machine_name]}@{remote_hosts[machine_name]}",
-            f"{remote_dirs[machine_name]}run_manager.sh"
+            f"{remote_dirs[machine_name]}run_manager.sh {machine_name}"
         ]
         subprocess.run(ssh_command)
 
@@ -33,7 +38,7 @@ def cleanup_remote_managers():
         ssh_command = [
             "ssh",
             f"{remote_usernames[machine_name]}@{remote_hosts[machine_name]}",
-            f"{remote_dirs[machine_name]}run_kill_slurm_jobs.sh"
+            f"{remote_dirs[machine_name]}run_kill_slurm_jobs.sh {machine_name}"
         ]
         try:
             subprocess.run(ssh_command, check=True)
