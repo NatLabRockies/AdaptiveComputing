@@ -4,7 +4,7 @@ SESSION_NAME="manager_session"
 # Get the directory of the currently executing script
 WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-LOG_FILE="$WORK_DIR/kill_slurm_jobs.output"
+LOG_FILE="$WORK_DIR/kill_slurm_jobs.output.$1"
 
 # Kill manager.py, which was running
 tmux send-keys -t $SESSION_NAME C-c

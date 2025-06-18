@@ -7,54 +7,6 @@ import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-import subprocess
-
-# global variables used by the signal handler
-# for testing, use two managers on vermilion on different login nodes
-machine_names = ['vermilion1','vermilion2']
-remote_usernames = {'vermilion1':'kgriffin','vermilion2':'kgriffin'}
-remote_hosts = {'vermilion1':'vs-login-1.hpc.nrel.gov','vermilion2':'vs-login-2.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
-remote_dirs = {'vermilion1':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/','vermilion2':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
-
-# # machine_names = ['kestrel','vermilion']
-# machine_names = ['kestrel']
-# # machine_names = ['vermilion']
-# remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
-# remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
-# remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
-
-def run_remote_managers():
-    for machine_name in machine_names:
-        ssh_command = [
-            "ssh",
-            f"{remote_usernames[machine_name]}@{remote_hosts[machine_name]}",
-            f"{remote_dirs[machine_name]}run_manager.sh {machine_name}"
-        ]
-        subprocess.run(ssh_command)
-
-def cleanup_remote_managers():
-    print(f"\nCanceling all slurm jobs and then terminating the remote queue managers...")
-    for machine_name in machine_names:
-        ssh_command = [
-            "ssh",
-            f"{remote_usernames[machine_name]}@{remote_hosts[machine_name]}",
-            f"{remote_dirs[machine_name]}run_kill_slurm_jobs.sh {machine_name}"
-        ]
-        try:
-            subprocess.run(ssh_command, check=True)
-            print(f"Remote cleanup completed on {remote_hosts[machine_name]} successfully.")
-        except subprocess.CalledProcessError as e:
-            print(f"Cleanup command failed on {remote_hosts[machine_name]} with exit code {e.returncode}:\n{e}")
-
-def signal_handler(sig, frame):
-    print("\nReceived signal {sig}. Canceling all slurm jobs and then terminating the remote queue managers...")
-    cleanup_remote_managers()
-    os._exit(0) # unlike sys.exit(0), os._exit(0) avoids sending SystemExit signal to Hero, which it doesn't know how to handle
-
-# Register the signal handler
-import signal
-signal.signal(signal.SIGINT, signal_handler)  # For Ctrl-C
-
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHero
 
@@ -63,10 +15,26 @@ from adaptive_computing.drivers import ActiveLoopDriverHero
 # How to manually terminate the session: tmux kill-session -t manager_session
 
 if __name__ == '__main__':
+    # for testing, use two managers on vermilion on different login nodes
+    machine_names = ['vermilion1','vermilion2']
+    remote_usernames = {'vermilion1':'kgriffin','vermilion2':'kgriffin'}
+    remote_hosts = {'vermilion1':'vs-login-1.hpc.nrel.gov','vermilion2':'vs-login-2.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
+    remote_dirs = {'vermilion1':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/','vermilion2':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
+
+    # # machine_names = ['kestrel','vermilion']
+    # machine_names = ['kestrel']
+    # # machine_names = ['vermilion']
+    # remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
+    # remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
+    # remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
+
+    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state
+    # register a signal handler and set up the variables it needs to operate
+    setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs)
+    run_remote_managers()
+
     params = [ContinuousVariable(min=0.8, max=2.0)]
     ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT', acq_func='maximum_variance', blocking=False)
-    
-    run_remote_managers()
 
     # Sampling techniques that don't use the surrogate model:
     # 1) queue hero samples at the given x_data values. No initial guess provided.
