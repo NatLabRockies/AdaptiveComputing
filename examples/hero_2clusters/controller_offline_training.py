@@ -49,7 +49,7 @@ def cleanup_remote_managers():
 def signal_handler(sig, frame):
     print("\nReceived signal {sig}. Canceling all slurm jobs and then terminating the remote queue managers...")
     cleanup_remote_managers()
-    sys.exit(0)
+    os._exit(0) # unlike sys.exit(0), os._exit(0) avoids sending SystemExit signal to Hero, which it doesn't know how to handle
 
 # Register the signal handler
 import signal

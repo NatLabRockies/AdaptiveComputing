@@ -22,10 +22,7 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
-from adaptive_computing.hero_utils.get_machine_name import get_machine_name
-
-def hero_initialize(task_id):
-    machine_name = get_machine_name()
+def hero_initialize(task_id, machine_name):
     
     # Setup the HERO client and authenticate
     hero = HeroClient()
@@ -39,19 +36,23 @@ def hero_initialize(task_id):
     # Use the queue corresponding to fidelity level zero
     queue_record = task_engine.add_queue(name='0')
 
-    # Update the task's metatdata and mark it as running
     current_task = task_engine.read_task(task_id)
+    if current_task['state'] == 'running':
+        print("Task is already running on another machine. Skipping.")
+        sys.exit(2) # terminate the slurm job successfully because the task has already started running on a different machine and don't want to run it twice
+        
+    # Update the task's metatdata and mark it as running
     current_task['metadata']['running'][machine_name] = True
     task_engine.update_task(task_id=task_id, state='running', name=current_task['name'], metadata=current_task['metadata'])
     print(f"Task {task_id}: state = running, metadata = {current_task['metadata']}")
-
+            
 if __name__ == "__main__":
     # Validate and parse command-line arguments
-    if len(sys.argv) != 2:
-        print("Usage: python hero_initialize.py <task_id>")
+    if len(sys.argv) != 3:
+        print("Usage: python hero_initialize.py <task_id> <machine_name>")
         sys.exit(1)
 
-    # Extract the first argument as a string
     task_id = sys.argv[1]
+    machine_name = sys.argv[2]
 
-    hero_initialize(task_id)
+    hero_initialize(task_id, machine_name)

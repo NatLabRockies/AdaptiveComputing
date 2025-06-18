@@ -56,9 +56,9 @@ def hero_manager():
             if current_task['metadata']['slurm_job_id'][machine_name] == -1:
                 t = current_task['metadata']['x_data'][0]
                 if machine_name.startswith('kestrel'):
-                    command = f"sbatch script_kestrel.sh {t} {current_task['id']}"
+                    command = f"sbatch script_kestrel.sh {t} {current_task['id']} {machine_name}"
                 elif machine_name.startswith('vermilion'):
-                    command = f"sbatch script_vermilion.sh {t} {current_task['id']}"
+                    command = f"sbatch script_vermilion.sh {t} {current_task['id']} {machine_name}"
                 else:
                     raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")
                 print(f"Running command: {command}")
@@ -81,7 +81,7 @@ def hero_manager():
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
-                    raise Exception("Slurm job succeeded, but this job was not marked as ready still.")
+                    pass # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue. Or the job may have started on another machine first and that why the corresponding job on this machine ended without marking the job as done.
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                     print("Slurm job error detected.")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
@@ -108,9 +108,7 @@ def hero_manager():
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
-                    pass
-                    # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue.
-                    #XXX alternate implementation could omit hero_finalize and perform those duties here (don't raise Exception in that case)
+                    pass # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue. Or the job may have started on another machine first and that why the corresponding job on this machine ended without marking the job as done.
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                     print("Slurm job error detected.")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1

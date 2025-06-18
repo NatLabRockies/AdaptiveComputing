@@ -25,11 +25,23 @@ if [ -z "$task_id" ]; then
   exit 1
 fi
 
+machine_name=$3
+# Check if the machine_name is provided
+if [ -z "$machine_name" ]; then
+  echo "Error: No machine_name provided."
+  echo "Usage: sbatch script.sh <temp> <task-id> <machine_name>"
+  exit 1
+fi
+
 # Run hero_initialize.py to indicate the job is running and unqueue it.
 module load conda
 source activate AC_hero
-echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id"
-python -m adaptive_computing.hero_utils.hero_initialize $task_id
+echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name"
+python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name
+if [ $? -ne 0 ]; then
+    echo "python hero_initialize failed. Exiting."
+    exit 1
+fi
 
 # Run LAMMPS
 module purge
@@ -55,6 +67,9 @@ echo "Conductivity passed to python: $result"
 # Run hero_finalize.py to publish result and mark it as done
 module load conda
 source activate AC_hero
-echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id"
-python -m adaptive_computing.hero_utils.hero_finalize $result $task_id
-
+echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name"
+python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name
+if [ $? -ne 0 ]; then
+    echo "python hero_finalize failed. Exiting."
+    exit 1
+fi

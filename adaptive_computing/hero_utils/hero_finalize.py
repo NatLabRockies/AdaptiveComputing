@@ -22,11 +22,7 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
-from adaptive_computing.hero_utils.get_machine_name import get_machine_name
-
-def hero_finalize(cond,task_id):
-    machine_name = get_machine_name()
-    
+def hero_finalize(cond, task_id, machine_name):
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -61,8 +57,8 @@ def hero_finalize(cond,task_id):
 
 if __name__ == "__main__":
     # Validate and parse command-line arguments
-    if len(sys.argv) != 3:
-        print("Usage: python hero_finalize.py <cond> <task_id>")
+    if len(sys.argv) != 4:
+        print("Usage: python hero_finalize.py <cond> <task_id> <machine_name>")
         sys.exit(1)
 
     try:
@@ -72,7 +68,7 @@ if __name__ == "__main__":
         print("Error: <cond> must be a valid number.")
         sys.exit(1)
 
-    # Extract the second argument as a string
     task_id = sys.argv[2]
+    machine_name = sys.argv[3]
 
-    hero_finalize(cond, task_id)
+    hero_finalize(cond, task_id, machine_name)
