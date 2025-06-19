@@ -39,7 +39,7 @@ if __name__ == '__main__':
     with open('offline_training.pkl', 'rb') as file:
         ac_driver = pickle.load(file)
 
-    assert(ac_driver.dataset.machine_names == machine_names)
+    assert(ac_driver.dataset.machine_names == machine_names) # check that the pickled data has the same machine names as the managers were given
 
     ac_driver.dataset.hero_authenticate()
 

@@ -31,4 +31,23 @@ python manager.py
 
 # Running in C++
 ## Instead of running the .py controllers, it is possible to run the .cpp counterpart instead using the following steps:
-...
+
+~~~{.bash}
+module load conda
+conda activate AC_hero
+~~~
+
+Export library path
+~~~{.bash}
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda-envs/AC_hero/lib
+~~~
+Assuming that this is the path where `libpython3.11.so` is located
+
+Compile c++ code
+~~~{.bash}
+g++ controller_offline_inference.cpp -o controller_offline_inference -L ~/.conda-envs/AC_hero/lib -lpython3.11 -I ~/.conda-envs/AC_hero/include/python3.11
+~~~
+Assuming `libpython3.XX.so` can be found at the library path
+And Assuming `Python.h` can be found at the include path
+
+Note: C++ program loads and executes the Python file at runtime, not during compilation. So you can change the python file after compilation.
