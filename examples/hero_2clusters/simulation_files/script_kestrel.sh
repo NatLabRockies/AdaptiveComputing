@@ -38,8 +38,12 @@ module load conda
 source activate AC_hero
 echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name"
 python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name
-if [ $? -ne 0 ]; then
-    echo "python hero_initialize failed. Exiting."
+return_code=$?
+if [ $return_code -ne 0 ]; then
+    echo "python hero_initialize detected task already running on another machine. Terminating this slurm job successfully."
+    exit 0
+elif [ $return_code -ne 0 ]; then
+    echo "python hero_initialize failed with code $return_code. Exiting Slurm job with failure."
     exit 1
 fi
 

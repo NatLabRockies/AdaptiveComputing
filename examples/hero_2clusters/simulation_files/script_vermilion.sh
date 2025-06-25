@@ -48,6 +48,7 @@ elif [ $return_code -ne 0 ]; then
 fi
 
 # Run LAMMPS
+module purge
 source /nopt/nrel/apps/210929a/myenv.2110041605
 ml lammps/20230802
 cd $SLURM_SUBMIT_DIR
