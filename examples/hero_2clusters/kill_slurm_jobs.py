@@ -1,14 +1,9 @@
 from hero import HeroClient, get_env_variable
 import subprocess
-
 import os
-os.environ["HERO_ENV"] = "dev"
-os.environ["HERO_PROJECT"] = "adaptive-computing-app"
-os.environ["HERO_CLIENT_ID"] = "f4om7c738a1um7fgjao6msve7"
-os.environ["HERO_CLIENT_SECRET"] = "mbk361rg0eedkd6k34t5cujukl19clbv50qnteqi829gnpufkde"
-os.environ["HERO_QUEUE"] = "queue-degrees"
-os.environ["HERO_QUEUE_VISIBILITY_TIMEOUT"] = "60"
-os.environ["HERO_DATABASE_PASSWORD"] = "8fc2a2e2-ed9e-413d-996a-72da94e11c5c"
+
+from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+set_hero_env_vars()
 
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
