@@ -11,6 +11,7 @@ set_hero_env_vars()
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
+    HERO_QUEUE = get_env_variable('HERO_QUEUE')
 except EnvironmentError as e:
     print(e)
     exit(1)
@@ -25,15 +26,10 @@ class HeroDataset(DatasetBase):
         # Setup the HERO client and authenticate
         self.hero_authenticate()
 
-        # Get an existing project, or create one if it doesn't exist.
-        # queue_record = self.task_engine.add_queue(name='Degrees queue')
-        #print(json.dumps(queue_record, indent=2))
-        # now self.hero_objs[i_fl] is used instead of queue_record
-
         # one queue for each fidelity
         self.hero_objs = np.array([], dtype=object)
         for i_fl in range(self.n_fidelity):
-            self.hero_objs = np.append(self.hero_objs,self.task_engine.add_queue(name=str(i_fl)))
+            self.hero_objs = np.append(self.hero_objs,self.task_engine.add_queue(name=HERO_QUEUE+str(i_fl)))
 
         self.machine_names = machine_names
 
