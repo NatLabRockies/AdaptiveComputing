@@ -10,6 +10,7 @@ set_hero_env_vars()
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
+    HERO_QUEUE = get_env_variable('HERO_QUEUE')
 except EnvironmentError as e:
     print(e)
     exit(1)
@@ -23,7 +24,7 @@ def hero_finalize(cond, task_id, machine_name):
     hero.authenticate()
 
     # Use the queue corresponding to fidelity level zero
-    queue_record = task_engine.add_queue(name='0')
+    queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')
 
     task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
     print(f'There are {len(task_records)} in the "ready" state.')
