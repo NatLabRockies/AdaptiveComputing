@@ -21,7 +21,11 @@ def hero_finalize(cond, task_id, machine_name):
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
-    hero.authenticate()
+    try:
+        hero.authenticate()
+    except Exception as e:
+        print(f"ERROR: HERO authentication failed: {e}")
+        sys.exit(1)
 
     # Use the queue corresponding to fidelity level zero
     queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')

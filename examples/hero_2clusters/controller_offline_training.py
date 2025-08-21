@@ -22,8 +22,8 @@ if __name__ == '__main__':
     # remote_dirs = {'vermilion1':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/','vermilion2':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
 
     # machine_names = ['kestrel','vermilion']
-    machine_names = ['kestrel']
-    # machine_names = ['vermilion']
+    # machine_names = ['kestrel']
+    machine_names = ['vermilion']
     remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
     remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
     remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
