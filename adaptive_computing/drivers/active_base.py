@@ -194,22 +194,50 @@ class ActiveLoopDriver:
         """
         points = np.asarray(points)
         values = np.zeros((points.shape[0], 1))
-        validator = get_query_validator(criterion=error_criterion)
 
+        # naive implementation: perform evaluations in a loop if they exceed the threshold
+        # This involves only one pass through the data, but may not run the most informative points first,
+        # and fails to use the most up to date surrogate for points that are evaluated before the last retraining.
+        # validator = get_query_validator(criterion=error_criterion)
+        # for i in range(points.shape[0]):
+        #     surrogate_value = self.surrogate.predict_values(points[[i]])
+        #     surrogate_variance = self.surrogate.predict_variances(points[[i]])
+        #     valid = validator(surrogate_value, surrogate_variance, threshold)
+
+        #     if not valid:
+        #         print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
+        #         y = self.evaluate_sample(points[[i]], i_fidelity=0)
+        #         self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+        #         if self.retrain:
+        #             self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+        #         # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
+        #         surrogate_value = self.surrogate.predict_values(points[[i]])
+        #     values[i] = surrogate_value
+
+        # alternatate implementation: perform evaluations on the highest variance points first
+        assert error_criterion == 'absolute_variance' #'percent_variance' is not supported in this implementation
+        surrogate_variances = np.zeros((points.shape[0], 1))
         for i in range(points.shape[0]):
-            surrogate_value = self.surrogate.predict_values(points[[i]])
-            surrogate_variance = self.surrogate.predict_variances(points[[i]])
-            valid = validator(surrogate_value, surrogate_variance, threshold)
+            surrogate_variances[i] = self.surrogate.predict_variances(points[[i]])
 
-            if not valid:
-                print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
-                y = self.evaluate_sample(points[[i]], i_fidelity=0)
-                self.dataset.add_samples(points[[i]], y, i_fidelity=0)
-                if self.retrain:
-                    self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
-                # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
-                surrogate_value = self.surrogate.predict_values(points[[i]])
-            values[i] = surrogate_value
+        # perform the simulations with variance exceeding the threshold starting with the highest variance
+        while np.max(surrogate_variances) > threshold:
+            i = np.argmax(surrogate_variances)
+            print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
+            y = self.evaluate_sample(points[[i]], i_fidelity=0)
+            self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+            if self.retrain:
+                self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+            # don't allow the same point to be evaluated again
+            surrogate_variances[i] = 0
+            # reevalute the variance of all points not set to zero
+            for j in range(points.shape[0]):
+                if surrogate_variances[j] != 0:
+                    surrogate_variances[j] = self.surrogate.predict_variances(points[[j]])
+
+        # reevalute the surrogate for all points
+        for i in range(points.shape[0]):
+            values[i] = self.surrogate.predict_values(points[[i]])
 
         return values
 
