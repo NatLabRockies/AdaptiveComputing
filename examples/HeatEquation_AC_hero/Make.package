@@ -1,0 +1,3 @@
+CEXE_headers += thermal_properties.h
+CEXE_sources += main.cpp
+
