@@ -9,7 +9,6 @@
 #include <AMReX_ParmParse.H>
 #include "thermal_properties.h"
 
-
 int main (int argc, char* argv[])
 {
     amrex::Initialize(argc,argv);
@@ -27,6 +26,8 @@ int main (int argc, char* argv[])
     Py_DECREF(cwd);
     Py_DECREF(path);
     Py_DECREF(sys);
+
+    import_array();
 
     // Import py_query module
     PyObject *py_thermal_properties = PyImport_ImportModule("py_thermal_properties");

@@ -1,74 +1,61 @@
 #include <AMReX_REAL.H>
 #include <iostream>
 #include <Python.h>
+#include <numpy/arrayobject.h>
 
 PyObject *py_thermal_properties;
 PyObject *ac_driver;
 PyObject *y_queries;
 
-double get_double_from_list(PyObject* float_list, Py_ssize_t index) {
-    PyObject* item;
-    double value;
-    // 1. Retrieve the PyObject* item from the list
-    item = PyList_GetItem(float_list, index); // Returns a borrowed reference
-    if (item == NULL) {
-        // PyList_GetItem returns NULL if the index is out of bounds, an exception is set.
-        return -1.0; // Or handle the error as appropriate for your application
+double get_double_from_entry(PyObject* py_array, int row, int col) {
+    // Cast PyObject* to PyArrayObject*
+    PyArrayObject* in_array = (PyArrayObject*)py_array;
+
+    // Ensure array is of type NPY_DOUBLE
+    if (PyArray_TYPE(in_array) != NPY_DOUBLE) {
+        // Handle error: array is not doubles
+      std::cerr << "Entries are not doubles" << '\n';
+        return 0.0; 
     }
-    // 2. Check the type (optional but recommended for robustness)
-    if (PyFloat_Check(item)) {
-        // 3. Convert to double
-        value = PyFloat_AsDouble(item);
-    } else if (PyLong_Check(item)) {
-        // Optionally handle Python integers, converting them to double
-        value = (double)PyLong_AsLong(item);
-    } else {
-        // Set a Python TypeError if the object is not a number
-        PyErr_SetString(PyExc_TypeError, "List item is not a float or integer");
-        return -1.0; // Indicate failure
+
+    // Get a pointer to the raw data
+    double* data_ptr = (double*)PyArray_DATA(in_array);
+
+    // Calculate the index offset for a 2D array (assuming row-major C style)
+    npy_intp* dims = PyArray_DIMS(in_array);
+    int rows = dims[0];
+    int cols = dims[1];
+
+    // Check bounds
+    if (row >= rows || col >= cols || row < 0 || col < 0) {
+      std::cerr << "Indices OOB" << '\n';
+        // Handle error: index out of bounds
+        return 0.0;
     }
-    // 4. Check for errors during conversion
-    if (PyErr_Occurred()) {
-        return -1.0; // Indicate failure
-    }
+
+    // Access the value
+    double value = data_ptr[row * cols + col];
+
     return value;
 }
 
 AMREX_GPU_HOST_DEVICE
-amrex::Real get_thermal_conductivity(amrex::Real temperature) {
+amrex::Real get_thermal_conductivity(amrex::Real temperature)
+{
+  PyObject *x_queries = PyList_New(1);
+  PyList_SetItem(x_queries, 0, Py_BuildValue("[d]", temperature));
 
-    std::cout << "test1" << std::endl;
-
-    PyObject *x_queries = PyList_New(1);
-    if (!x_queries) { PyErr_Print(); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); return -1; }
-
-    std::cout << "test2" << std::endl;
-
-    PyList_SetItem(x_queries, 0, Py_BuildValue("[d]", temperature));    
-    // Print the x_queries
-    PyObject *repr = PyObject_Repr(x_queries);
-    if (repr) {
-        const char *str = PyUnicode_AsUTF8(repr);
-        std::cout << "x_queries = " << str << std::endl;
-        Py_DECREF(repr);
-    }
-    std::cout << "test3" << std::endl;
-    // Call ac_driver.query
-    PyObject *y_queries = PyObject_CallMethod(ac_driver, "query", "O,s,d", x_queries, "absolute_variance", 0.1);
-    if (!y_queries) { PyErr_Print(); Py_DECREF(x_queries); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); std::cout << "FATAL Error" << std::endl; return -1; }
-    std::cout << "test4" << std::endl;
+  // Call ac_driver.query, returns a numpy ndarray type object
+  PyObject *y_queries = PyObject_CallMethod(ac_driver, "query", "O,s,d", x_queries, "absolute_variance", 0.1);
+  if (!y_queries) { PyErr_Print(); Py_DECREF(x_queries); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); std::cout << "FATAL Error" << '\n'; return -1; }
     
-    //amrex::Real kappa=get_double_from_list(y_queries,0);
-    amrex::Real kappa = PyFloat_AsDouble(y_queries);
-    std::cout << "kappa=" << kappa << std::endl; 
-    // Simple linear model for temperature-dependent diffusivity
-    //amrex::Real kappa = 16 + 0.01 * (temperature-400);
+  amrex::Real kappa = get_double_from_entry(y_queries,0,0);
 
-    //std::cout << "T-Dependent Alpha calc called for T="<< temperature << std::endl;    
-    // Ensure kappa is physically meaningful (non-negative)
-    Py_DECREF(y_queries);
-    Py_DECREF(x_queries);
-    return std::max(1e-10, kappa);
+  //std::cout << "T-Dependent Alpha calc called for T="<< temperature << '\n';
+  // Ensure kappa is physically meaningful (non-negative)
+  Py_DECREF(y_queries);
+  Py_DECREF(x_queries);
+  return std::max(1e-10, kappa);
 }
 
 amrex::Real get_SpecificHeatCapacity(amrex::Real temperature) {
