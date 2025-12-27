@@ -88,6 +88,12 @@ class ActiveLoopDriver:
 
         self.nan_behavior = nan_behavior
 
+    def print_dataset(self):
+        print('--- dataset ----')
+        print(self.dataset.x_data)
+        print(self.dataset.y_data)
+        print('------------')
+
     def _initialize_fidelity(self, i_fidelity, N_samples_init=3):
         """
         Initializes a fidelity level with initial samples.
@@ -179,6 +185,32 @@ class ActiveLoopDriver:
             y (N samples, N Output dimension): Evaluated values.
         """
         return self.evaluators[i_fidelity].evaluate_points(points)
+
+    def query_for_invalid(self, points, error_criterion, threshold):
+        """
+        Queries the surrogate model for invalid variances
+
+        Args:
+            points (N samples, N input dimension): Points to query.
+            error_criterion (str): Error criterion for validation.
+            arg: Additional argument for the error criterion threshold.
+
+        Returns:
+            np.ndarray: Predicted values.
+        """
+        points = np.asarray(points)
+        values = np.zeros((points.shape[0], 1))
+
+        assert error_criterion == 'absolute_variance' #'percent_variance' is not supported in this implementation
+        surrogate_variances = np.zeros((points.shape[0], 1))
+        for i in range(points.shape[0]):
+            surrogate_variances[i] = self.surrogate.predict_variances(points[[i]])
+
+        max_variance = np.max(surrogate_variances)
+        if max_variance > threshold:
+            return np.argmax(surrogate_variances)
+
+        return -1
 
     def query(self, points, error_criterion, threshold):
         """
