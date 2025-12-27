@@ -7,6 +7,7 @@ PyObject *py_thermal_properties;
 PyObject *ac_driver;
 PyObject *y_queries;
 
+AMREX_GPU_HOST_DEVICE inline
 double get_double_from_entry(PyObject* py_array, int row, int col) {
     // Cast PyObject* to PyArrayObject*
     PyArrayObject* in_array = (PyArrayObject*)py_array;
@@ -37,6 +38,7 @@ double get_double_from_entry(PyObject* py_array, int row, int col) {
     return value;
 }
 
+AMREX_GPU_HOST_DEVICE inline
 void set_double_at_entry(PyObject* py_array, int row, int col, double value) {
     // Cast PyObject* to PyArrayObject*
     PyArrayObject* in_array = (PyArrayObject*)py_array;
@@ -65,7 +67,7 @@ void set_double_at_entry(PyObject* py_array, int row, int col, double value) {
     data_ptr[row * cols + col] = value;
 }
 
-AMREX_GPU_HOST_DEVICE
+AMREX_GPU_HOST_DEVICE inline
 amrex::Real get_thermal_conductivity(amrex::Real temperature)
 {
   PyObject *x_queries = PyList_New(1);
@@ -88,11 +90,13 @@ amrex::Real get_thermal_conductivity(amrex::Real temperature)
   return std::max(1e-10, kappa);
 }
 
+AMREX_GPU_HOST_DEVICE inline
 amrex::Real get_SpecificHeatCapacity(amrex::Real temperature) {
     amrex::Real Cp = 500 + 0.1 * (temperature-300);
     return std::max(1e-10, Cp);
 }
 
+AMREX_GPU_HOST_DEVICE inline
 amrex::Real get_density(amrex::Real temperature) {
     amrex::Real rho = 7910 - 0.4 * (temperature-300);
     return std::max(1e-10, rho);
