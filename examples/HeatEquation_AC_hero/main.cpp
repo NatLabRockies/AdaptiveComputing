@@ -38,7 +38,14 @@ bool retrain_surrogate()
     return false;
   }
 
-  PyObject *tr = PyObject_CallMethod(ac_driver, "print_dataset", NULL);
+  for (int p=0; p<amrex::ParallelDescriptor::NProcs(); ++p) {
+    if (p == amrex::ParallelDescriptor::MyProc())
+    {
+      std::cout << "PROC " << p << std::endl;
+      PyObject *tr = PyObject_CallMethod(ac_driver, "print_dataset", NULL);
+    }
+    amrex::ParallelDescriptor::Barrier();
+  }
 
   Py_DECREF(ret);
   Py_DECREF(y_data);
