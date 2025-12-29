@@ -7,6 +7,7 @@
 #include <AMReX.H>
 #include <AMReX_PlotFileUtil.H>
 #include <AMReX_ParmParse.H>
+#include <AMReX_MultiFabUtil.H>
 #include "thermal_properties.h"
 
 bool retrain_surrogate()
@@ -247,13 +248,11 @@ int main (int argc, char* argv[])
     amrex::MultiFab Cp(ba, dm, Ncomp, Nghost);
     amrex::MultiFab rho(ba, dm, Ncomp, Nghost);
 
-
     amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> kappa_face;
     for (int i=0; i<AMREX_SPACEDIM; ++i){
-	    amrex::BoxArray baf= ba.surroundingNodes(i);
-	    kappa_face[i].define(baf,dm,Ncomp,0);
+      amrex::BoxArray baf= amrex::BoxArray(ba).surroundingNodes(i);
+      kappa_face[i].define(baf,dm,Ncomp,0);
     }
-
 
     // time = starting time in the simulation
     amrex::Real time = 0.0;
@@ -312,89 +311,91 @@ int main (int argc, char* argv[])
         // fill periodic ghost cells
         phi_old.FillBoundary(geom.periodicity());
 
+	// "pre-train" the model to ensure that all evaluations over the MultiFab can be done without violating the error threshold
 	pretrain_kappa_model(phi_old, surrogate_tolerance);
 
         // new_phi = old_phi + dt * Laplacian(old_phi)
         // loop over boxes
 
+	// Get kappa at cell centers (incl grow)
+	kappa.setVal(-100,0,1);
 	for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
         {
-            const amrex::Box& bx = mfi.validbox();
+            const amrex::Array4<amrex::Real>& phi_arr = phi_old.array(mfi);
+            const amrex::Array4<amrex::Real>& kappa_arr = kappa.array(mfi);
+            auto bxg=amrex::grow(mfi.validbox(),1);
 
-            const amrex::Array4<amrex::Real>& phiOld = phi_old.array(mfi);
-            const amrex::Array4<amrex::Real>& phiNew = phi_new.array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_i = kappa.array(mfi);
-            const amrex::Array4<amrex::Real>& Cp_i = Cp.array(mfi);
-            const amrex::Array4<amrex::Real>& rho_i = rho.array(mfi);
+	    npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
+	    PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
+	    if (!x_queries) {
+	      amrex::Abort("x_queries create failed");
+	    }
+	    PyObject* y_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(kappa_arr.dataPtr()));
+	    if (!y_queries) {
+	      amrex::Abort("y_queries create failed");
+	    }
 
-            auto bxg=amrex::grow(bx,1);
-
-            amrex::ParallelFor(bxg, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                kappa_i(i,j,k) = get_thermal_conductivity(phiOld(i,j,k));
-                Cp_i(i,j,k)    = get_SpecificHeatCapacity(phiOld(i,j,k));
-                rho_i(i,j,k)   = get_density(phiOld(i,j,k));
-            });
+	    // Fill values directly into kappa
+	    PyObject *ret = PyObject_CallMethod(ac_driver, "query_assuming_valid", "O,O", x_queries, y_queries);
+	    if (ret == NULL) {
+	      amrex::Abort("query_assuming_valid failed");
+	    }
 	};
 	//amrex::Print()<<"min conductivity="<<kappa.min(0)<<std::endl;
 	//amrex::Print()<<"max conductivity="<<kappa.max(0)<<std::endl;
 
-        for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
+	// Get Cp and rho over valid region
+	for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
         {
             const amrex::Box& bx = mfi.validbox();
-
             const amrex::Array4<amrex::Real>& phiOld = phi_old.array(mfi);
-            const amrex::Array4<amrex::Real>& phiNew = phi_new.array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_i = kappa.array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_face_0 = kappa_face[0].array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_face_1 = kappa_face[1].array(mfi);
-#if AMREX_SPACEDIM > 2
-            const amrex::Array4<amrex::Real>& kappa_face_2 = kappa_face[2].array(mfi);
-#endif
-	    const amrex::Array4<amrex::Real>& Cp_i = Cp.array(mfi);
+            const amrex::Array4<amrex::Real>& Cp_i = Cp.array(mfi);
             const amrex::Array4<amrex::Real>& rho_i = rho.array(mfi);
 
-	    
-	    auto bxg=amrex::grow(bx,1);
-
-            auto bx0=amrex::surroundingNodes(bx,0);
-            amrex::ParallelFor(bx0, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                kappa_face_0(i,j,k) = 0.5*(kappa_i(i,j,k)+kappa_i(i-1,j,k)); 
-            });
-            auto bx1=amrex::surroundingNodes(bx,1);
-            amrex::ParallelFor(bx1, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                kappa_face_1(i,j,k) = 0.5*(kappa_i(i,j,k)+kappa_i(i,j-1,k));
-            });
-#if AMREX_SPACEDIM > 2
-            auto bx2=amrex::surroundingNodes(bx,2);
-            amrex::ParallelFor(bx2, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                kappa_face_2(i,j,k) = 0.5*(kappa_i(i,j,k)+kappa_i(i,j,k-1));
-            });	    
-#endif
-            // advance the data by dt
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Cp_i(i,j,k)    = get_SpecificHeatCapacity(phiOld(i,j,k));
+                rho_i(i,j,k)   = get_density(phiOld(i,j,k));
+            });
+	};
 
+	const bool use_harmonic_averaging = true;
+	amrex::average_cellcenter_to_face(GetArrOfPtrs(kappa_face),kappa,geom,1,use_harmonic_averaging);
+
+        for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
+        {
+            // advance the data by dt
+            const amrex::Box& bx = mfi.validbox();
+            const auto& phiOld = phi_old.array(mfi);
+            const auto& phiNew = phi_new.array(mfi);
+	    const auto& Cp_i = Cp.array(mfi);
+            const auto& rho_i = rho.array(mfi);
+	    amrex::GpuArray<const amrex::Array4<amrex::Real>,AMREX_SPACEDIM> kappa_fc
+	      = {AMREX_D_DECL(kappa_face[0].array(mfi),
+			      kappa_face[1].array(mfi),
+			      kappa_face[2].array(mfi))};
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
                 // **********************************
                 // EVOLVE VALUES FOR EACH CELL
                 // **********************************
 
                 phiNew(i,j,k) = phiOld(i,j,k) + dt / (rho_i(i,j,k)*Cp_i(i,j,k)) *
-		    ( ( kappa_face_0(i+1,j,k)*(phiOld(i+1,j,k) - phiOld(i  ,j,k))
-		    -   kappa_face_0(i  ,j,k)*(phiOld(i  ,j,k) - phiOld(i-1,j,k)) )/(dx[0]*dx[0])
-                    + ( kappa_face_1(i,j+1,k)*(phiOld(i,j+1,k) - phiOld(i,j  ,k)) 
-                    -   kappa_face_1(i,j  ,k)*(phiOld(i,j  ,k) - phiOld(i,j-1,k)) )/(dx[1]*dx[1])
+		    ( ( kappa_fc[0](i+1,j,k)*(phiOld(i+1,j,k) - phiOld(i  ,j,k))
+		    -   kappa_fc[0](i  ,j,k)*(phiOld(i  ,j,k) - phiOld(i-1,j,k)) )/(dx[0]*dx[0])
+#if AMREX_SPACEDIM > 1
+                    + ( kappa_fc[1](i,j+1,k)*(phiOld(i,j+1,k) - phiOld(i,j  ,k))
+                    -   kappa_fc[1](i,j  ,k)*(phiOld(i,j  ,k) - phiOld(i,j-1,k)) )/(dx[1]*dx[1])
 #if AMREX_SPACEDIM > 2
-                    + ( kappa_face_2(i,j,k+1)*(phiOld(i,j,k+1) - phiOld(i,j,k  )) 
-                    -   kappa_face_2(i,j,k  )*(phiOld(i,j,k  ) - phiOld(i,j,k-1)) )/(dx[2]*dx[2])
+                    + ( kappa_fc[2](i,j,k+1)*(phiOld(i,j,k+1) - phiOld(i,j,k  ))
+                    -   kappa_fc[2](i,j,k  )*(phiOld(i,j,k  ) - phiOld(i,j,k-1)) )/(dx[2]*dx[2])
+#endif
 #endif
 		    );
 
             });
         }
+	amrex::ParallelDescriptor::Barrier();
 
         // **********************************
         // INCREMENT
@@ -409,7 +410,6 @@ int main (int argc, char* argv[])
         // Tell the I/O Processor to write out which step we're doing
         amrex::Print() << "Advanced step " << step << "\n";
 
-
         // **********************************
         // WRITE PLOTFILE AT GIVEN INTERVAL
         // **********************************
@@ -420,6 +420,13 @@ int main (int argc, char* argv[])
             const std::string& pltfile = amrex::Concatenate("plt",step,5);
             WriteSingleLevelPlotfile(pltfile, phi_new, {"phi"}, geom, time, step);
         }
+    }
+
+    // Write plot at final time
+    if (plot_int > 0 && nsteps%plot_int != 0)
+    {
+      const std::string& pltfile = amrex::Concatenate("plt",nsteps,5);
+      WriteSingleLevelPlotfile(pltfile, phi_new, {"phi"}, geom, time, nsteps);
     }
 
     Py_DECREF(ac_driver);
