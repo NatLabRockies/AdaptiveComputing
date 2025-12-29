@@ -5,8 +5,11 @@ import time
 import numpy as np
 import sys
 
-from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
-set_hero_env_vars()
+try:
+    from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+    set_hero_env_vars()
+except ImportError:
+    pass
 
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
