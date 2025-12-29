@@ -245,8 +245,8 @@ int main (int argc, char* argv[])
 
     // define a T dependent thermal diffusivity
     amrex::MultiFab kappa(ba, dm, Ncomp, Nghost);
-    amrex::MultiFab Cp(ba, dm, Ncomp, Nghost);
-    amrex::MultiFab rho(ba, dm, Ncomp, Nghost);
+    amrex::MultiFab Cp(ba, dm, Ncomp, 0);
+    amrex::MultiFab rho(ba, dm, Ncomp, 0);
 
     amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> kappa_face;
     for (int i=0; i<AMREX_SPACEDIM; ++i){
@@ -312,12 +312,12 @@ int main (int argc, char* argv[])
         // new_phi = old_phi + dt * Laplacian(old_phi)
         // loop over boxes
 
-	// Get kappa at cell centers (incl grow)
+	// Get kappa at cell centers (incl grow) using pre-trained model
 	kappa.setVal(-100,0,1);
 	for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
         {
-            const amrex::Array4<amrex::Real>& phi_arr = phi_old.array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_arr = kappa.array(mfi);
+            const auto& phi_arr = phi_old.array(mfi);
+            const auto& kappa_arr = kappa.array(mfi);
             auto bxg=amrex::grow(mfi.validbox(),1);
 
 	    npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
