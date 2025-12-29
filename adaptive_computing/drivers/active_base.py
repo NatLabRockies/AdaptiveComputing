@@ -273,6 +273,23 @@ class ActiveLoopDriver:
 
         return values
 
+    def query_assuming_valid(self, points, values):
+        """
+        Queries the surrogate model for predictions, assuming valid variances, results into container provided
+
+        Args:
+            points (N samples, N input dimension): Points to query.
+
+        Returns:
+            np.ndarray: Predicted values.
+        """
+        points = np.asarray(points)
+        values = np.asarray(values)
+
+        # evalute the surrogate for all points
+        for i in range(points.shape[0]):
+            values[i] = self.surrogate.predict_values(points[[i]])
+
     @property
     def nan_behavior(self):
         """
