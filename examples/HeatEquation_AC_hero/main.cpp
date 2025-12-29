@@ -248,8 +248,8 @@ int main (int argc, char* argv[])
 
     // define a T dependent thermal diffusivity
     amrex::MultiFab kappa(ba, dm, Ncomp, Nghost);
-    amrex::MultiFab Cp(ba, dm, Ncomp, Nghost);
-    amrex::MultiFab rho(ba, dm, Ncomp, Nghost);
+    amrex::MultiFab Cp(ba, dm, Ncomp, 0);
+    amrex::MultiFab rho(ba, dm, Ncomp, 0);
 
     amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> kappa_face;
     for (int i=0; i<AMREX_SPACEDIM; ++i){
@@ -278,18 +278,13 @@ int main (int argc, char* argv[])
             // **********************************
             // SET VALUES FOR EACH CELL
             // **********************************
-#if AMREX_SPACEDIM==2
-            amrex::Real x = (i+0.5) * dx[0];
-            amrex::Real y = (j+0.5) * dx[1];
-            amrex::Real rsquared = ((x-0.5)*(x-0.5)+(y-0.5)*(y-0.5))/0.01;
-            phiOld(i,j,k) = 300. + 500. * std::exp(-rsquared);
-#else
-            amrex::Real x = (i+0.5) * dx[0];
-            amrex::Real y = (j+0.5) * dx[1];
-            amrex::Real z = (k+0.5) * dx[2];
-            amrex::Real rsquared = ((x-0.5)*(x-0.5)+(y-0.5)*(y-0.5)+(z-0.5)*(z-0.5))/0.01;
-            phiOld(i,j,k) = 300. + 500. * std::exp(-rsquared);
-#endif
+	  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> x = {AMREX_D_DECL((i+0.5) * dx[0],
+									(j+0.5) * dx[1],
+									(k+0.5) * dx[2])};
+	  amrex::Real rsd = AMREX_D_TERM(+(x[0]-0.5)*(x[0]-0.5),
+					 +(x[1]-0.5)*(x[1]-0.5),
+					 +(x[2]-0.5)*(x[2]-0.5));
+	  phiOld(i,j,k) = 300. + 500. * std::exp(-rsd/.01);
         });
     }
 
@@ -320,7 +315,7 @@ int main (int argc, char* argv[])
         // new_phi = old_phi + dt * Laplacian(old_phi)
         // loop over boxes
 
-	// Get kappa at cell centers (incl grow)
+	// Get kappa at cell centers (incl grow) using pre-trained model
 	kappa.setVal(-100,0,1);
 	for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
         {
