@@ -335,6 +335,9 @@ int main (int argc, char* argv[])
 	    if (ret == NULL) {
 	      amrex::Abort("query_assuming_valid failed");
 	    }
+	    Py_DECREF(x_queries);
+	    Py_DECREF(y_queries);
+	    Py_DECREF(ret);
 	};
 	//amrex::Print()<<"min conductivity="<<kappa.min(0)<<std::endl;
 	//amrex::Print()<<"max conductivity="<<kappa.max(0)<<std::endl;
