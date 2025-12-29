@@ -275,18 +275,13 @@ int main (int argc, char* argv[])
             // **********************************
             // SET VALUES FOR EACH CELL
             // **********************************
-#if AMREX_SPACEDIM==2
-            amrex::Real x = (i+0.5) * dx[0];
-            amrex::Real y = (j+0.5) * dx[1];
-            amrex::Real rsquared = ((x-0.5)*(x-0.5)+(y-0.5)*(y-0.5))/0.01;
-            phiOld(i,j,k) = 300. + 500. * std::exp(-rsquared);
-#else
-            amrex::Real x = (i+0.5) * dx[0];
-            amrex::Real y = (j+0.5) * dx[1];
-            amrex::Real z = (k+0.5) * dx[2];
-            amrex::Real rsquared = ((x-0.5)*(x-0.5)+(y-0.5)*(y-0.5)+(z-0.5)*(z-0.5))/0.01;
-            phiOld(i,j,k) = 300. + 500. * std::exp(-rsquared);
-#endif
+	  amrex::GpuArray<amrex::Real,AMREX_SPACEDIM> x = {AMREX_D_DECL((i+0.5) * dx[0],
+									(j+0.5) * dx[1],
+									(k+0.5) * dx[2])};
+	  amrex::Real rsd = AMREX_D_TERM(+(x[0]-0.5)*(x[0]-0.5),
+					 +(x[1]-0.5)*(x[1]-0.5),
+					 +(x[2]-0.5)*(x[2]-0.5));
+	  phiOld(i,j,k) = 300. + 500. * std::exp(-rsd/.01);
         });
     }
 
