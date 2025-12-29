@@ -54,6 +54,9 @@ bool retrain_surrogate()
   Py_DECREF(dataset);
   Py_DECREF(surrogate);
 
+  // Update GPU model
+  update_gpu_model_from_python(py_thermal_properties, ac_driver);
+
   return true;
 }
 
@@ -321,25 +324,15 @@ int main (int argc, char* argv[])
 	kappa.setVal(-100,0,1);
 	for ( amrex::MFIter mfi(phi_old); mfi.isValid(); ++mfi )
         {
-            const amrex::Array4<amrex::Real>& phi_arr = phi_old.array(mfi);
-            const amrex::Array4<amrex::Real>& kappa_arr = kappa.array(mfi);
-            auto bxg=amrex::grow(mfi.validbox(),1);
+            const amrex::Box& bx = mfi.validbox();
+            auto bxg = amrex::grow(bx, 1);
+            const auto& phi_arr = phi_old.array(mfi);
+            const auto& kappa_arr = kappa.array(mfi);
 
-	    npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
-	    PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
-	    if (!x_queries) {
-	      amrex::Abort("x_queries create failed");
-	    }
-	    PyObject* y_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(kappa_arr.dataPtr()));
-	    if (!y_queries) {
-	      amrex::Abort("y_queries create failed");
-	    }
-
-	    // Fill values directly into kappa
-	    PyObject *ret = PyObject_CallMethod(ac_driver, "query_assuming_valid", "O,O", x_queries, y_queries);
-	    if (ret == NULL) {
-	      amrex::Abort("query_assuming_valid failed");
-	    }
+            amrex::ParallelFor(bxg, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                kappa_arr(i,j,k) = get_thermal_conductivity(phi_arr(i,j,k));
+            });
 	};
 	//amrex::Print()<<"min conductivity="<<kappa.min(0)<<std::endl;
 	//amrex::Print()<<"max conductivity="<<kappa.max(0)<<std::endl;

@@ -30,6 +30,41 @@ def print_data(ac_driver):
     print(f"y_data = {ac_driver.dataset.y_data[0]}")
     return
 
+def get_kriging_params(ac_driver):
+    """
+    Extracts Kriging model parameters for GPU implementation.
+    Returns a dictionary with all necessary arrays and scalars.
+    """
+    import numpy as np
+    
+    # Access the underlying SMT KRG model
+    # ac_driver -> surrogate (SMTGP) -> surrogate_model[0] (KRG)
+    krg = ac_driver.surrogate.surrogate_model[0]
+    
+    # Extract parameters
+    # Note: SMT KRG structure might vary, this assumes the structure found in inspection
+    
+    params = {}
+    
+    # Normalized training points
+    params['X_norma'] = krg.X_norma.flatten()
+    
+    # Weights (gamma) and Mean Offset (beta)
+    opt_par = krg.optimal_par
+    params['gamma'] = opt_par['gamma'].flatten()
+    params['beta'] = opt_par['beta'].flatten()[0] # Assuming scalar beta (poly0)
+    
+    # Hyperparameters (theta)
+    params['theta'] = krg.optimal_theta.flatten()
+    
+    # Normalization parameters
+    params['X_offset'] = krg.X_offset.flatten()
+    params['X_scale'] = krg.X_scale.flatten()
+    params['y_mean'] = krg.y_mean.flatten()
+    params['y_std'] = krg.y_std.flatten()
+    
+    return params
+
 if __name__ == '__main__':
     ac_driver = initialize_driver()
     print_data(ac_driver)
