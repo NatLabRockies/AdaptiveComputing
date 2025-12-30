@@ -161,10 +161,11 @@ amrex::Real get_thermal_conductivity(amrex::Real temperature)
       PyObject *x_queries = PyList_New(1);
       PyList_SetItem(x_queries, 0, PyFloat_FromDouble(temperature));
 
+      // Call ac_driver.query, returns a numpy ndarray type object
       PyObject *y_queries = PyObject_CallMethod(ac_driver, "query", "O,s,d", x_queries, "absolute_variance", 1.e-9);
       if (y_queries == NULL) {
-        amrex::Abort"query failed");
-        return 16.0; // Fallback
+	amrex::Abort("query failed");
+	return 16.0; // Fallback
       }
       amrex::Real kappa = get_double_from_entry(y_queries,0,0);
       Py_DECREF(y_queries);
