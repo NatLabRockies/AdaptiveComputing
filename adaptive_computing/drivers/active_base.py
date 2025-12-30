@@ -182,13 +182,10 @@ class ActiveLoopDriver:
         Args:
             points (list or np.ndarray): Points to add to the dataset.
         """
-        num_pts_added = 0
         for x in points:
             x = np.atleast_2d(x)
-            if (x[0] not in self.dataset.x_data[0]):
-                y = self.evaluate_sample(x, i_fidelity)
-                self.dataset.add_samples(x, y, i_fidelity)
-                num_pts_added = num_pts_added + 1
+            y = self.evaluate_sample(x, i_fidelity)
+            self.dataset.add_samples(x, y, i_fidelity)
 
     def evaluate_sample(self, points, i_fidelity):
         """
