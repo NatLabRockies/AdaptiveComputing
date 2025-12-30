@@ -161,6 +161,20 @@ class ActiveLoopDriver:
         for i in range(N_steps):
             self.step()
 
+    def remove_existing_points(self, points, i_fidelity=0):
+        """
+        Removes proposed points that would duplicate those already in dataset
+
+        Args:
+            points (list or np.ndarray): Points to add to the dataset.
+        """
+        unique_x_pts = []
+        for x in points:
+            x = np.atleast_2d(x)
+            if (x[0] not in self.dataset.x_data[0]):
+                unique_x_pts.append(x)
+        return unique_x_pts
+
     def add_points(self, points, i_fidelity=0):
         """
         Adds additional points to the dataset for evaluation.
@@ -168,10 +182,13 @@ class ActiveLoopDriver:
         Args:
             points (list or np.ndarray): Points to add to the dataset.
         """
+        num_pts_added = 0
         for x in points:
             x = np.atleast_2d(x)
-            y = self.evaluate_sample(x, i_fidelity)
-            self.dataset.add_samples(x, y, i_fidelity)
+            if (x[0] not in self.dataset.x_data[0]):
+                y = self.evaluate_sample(x, i_fidelity)
+                self.dataset.add_samples(x, y, i_fidelity)
+                num_pts_added = num_pts_added + 1
 
     def evaluate_sample(self, points, i_fidelity):
         """
@@ -208,9 +225,9 @@ class ActiveLoopDriver:
 
         max_variance = np.max(surrogate_variances)
         if max_variance > threshold:
-            return np.argmax(surrogate_variances)
+            return np.argmax(surrogate_variances), max_variance
 
-        return -1
+        return -1, 0 # indicates that points are valid
 
     def query(self, points, error_criterion, threshold):
         """
