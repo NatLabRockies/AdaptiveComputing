@@ -16,10 +16,15 @@ try:
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
     HERO_QUEUE = get_env_variable('HERO_QUEUE')
 except EnvironmentError as e:
-    print(e)
-    exit(1)
+    print(f"Warning: {e}. HeroDataset will not function correctly.")
+    HERO_ENV = 'dev'
+    HERO_PROJECT = None
+    HERO_QUEUE = None
 
-APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
+if HERO_PROJECT:
+    APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
+else:
+    APPLICATION_ID = None
 
 class HeroDataset(DatasetBase):
     def __init__(self, params, machine_names, n_fidelity=1, blocking=False):
