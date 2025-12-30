@@ -65,11 +65,15 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 
   for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
   {
-    const auto& phi_arr = phi.array(mfi);
     auto bxg=amrex::grow(mfi.validbox(),1);
 
+    // Create a host copy of the data for Python access
+    amrex::FArrayBox host_fab(bxg, 1, amrex::The_Cpu_Arena());
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, phi[mfi].dataPtr(), phi[mfi].dataPtr() + host_fab.size(), host_fab.dataPtr());
+    amrex::Gpu::streamSynchronize();
+
     npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
-    PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
+    PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, host_fab.dataPtr());
     if (!x_queries) {
       amrex::Print() << "x_queries create failed" << std::endl;
       PyErr_Print();
@@ -131,7 +135,7 @@ int main (int argc, char* argv[])
     import_array();
 
     // Import py_query module
-    PyObject *py_thermal_properties = PyImport_ImportModule("py_thermal_properties");
+    py_thermal_properties = PyImport_ImportModule("py_thermal_properties");
     if (!py_thermal_properties) { PyErr_Print(); return -1; }
 
     // Call initialize_driver()
@@ -142,6 +146,9 @@ int main (int argc, char* argv[])
     PyObject *temp = PyObject_CallMethod(py_thermal_properties, "print_data", "O", ac_driver);
     if (!temp) { PyErr_Print(); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); return -1; }
     Py_DECREF(temp);
+
+    // Initial update of the GPU model to ensure consistency
+    update_gpu_model_from_python(py_thermal_properties, ac_driver);
 
     // **********************************
     // DECLARE SIMULATION PARAMETERS
