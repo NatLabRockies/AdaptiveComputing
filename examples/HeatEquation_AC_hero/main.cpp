@@ -74,13 +74,8 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 
     for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
     {
-      // Create a host copy of the data for Python access
-      amrex::FArrayBox host_fab(bxg, 1, amrex::The_Cpu_Arena());
-      amrex::Gpu::copy(amrex::Gpu::deviceToHost, phi[mfi].dataPtr(), phi[mfi].dataPtr() + host_fab.size(), host_fab.dataPtr());
-      amrex::Gpu::streamSynchronize();
-    
-      const auto& phi_arr = phi.array(mfi);
       auto bxg=amrex::grow(mfi.validbox(),1);
+      const auto& phi_arr = phi.array(mfi);
 
       // Create a host copy of the data for Python access
       amrex::FArrayBox host_fab(bxg, 1, amrex::The_Cpu_Arena());
