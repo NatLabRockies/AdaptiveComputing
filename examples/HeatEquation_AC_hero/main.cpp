@@ -60,6 +60,9 @@ bool retrain_surrogate()
 
 void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 {
+  // Iteratively find "most informative" point over MultiFab (phi that gives the largest variance, provided that variance is larger
+  // that the input tolerance (tol)).  If that point is unique from the surrogate model training set, add the point and retrain.
+  // Continue until either no points are found to violate the tolerance, or any points that do are not unique to the training set.
   bool do_iteration = true;
   while (do_iteration)
   {
@@ -101,6 +104,7 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 
     amrex::ParallelAllReduce::Max(var,amrex::ParallelDescriptor::Communicator());
 
+    // If a point is identified, ensure that it is unique from the training set, then add and retrain the surrogate
     if (var.value > 0)
     {
       npy_intp dims1pt[2] = {1,1};
