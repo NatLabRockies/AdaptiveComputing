@@ -1,61 +1,53 @@
 # Heat Equation AC Hero Example
 
-This example demonstrates a hybrid C++/Python implementation of a heat equation solver using AMReX.
+## Setup and Build Process
 
-## Compilation Instructions
+### 1. Clone and Checkout
+```bash
+git clone https://github.com/nileshsawant/AdaptiveComputing.git
+cd AdaptiveComputing
+git checkout AC_hero_marc
+```
 
-### Prerequisites
+### 2. Allocate Resources
+```bash
+salloc -A hdcomb -t 01:00:00 --nodes=1 --ntasks-per-node=32 --mem=80G --gres=gpu:1 
+```
 
-Load the necessary modules for the Cray environment:
-
+### 3. Load Modules
 ```bash
 module load PrgEnv-gnu/8.5.0
 module load cuda/12.3
 module load craype-x86-milan
+module load anaconda3/2024.06.1
 ```
 
-### Setting Python Environment
-
-The build process requires access to Python headers and libraries. If you are not using an active Conda environment, you must explicitly set the `CONDA_PREFIX` environment variable to point to the location of the Python installation (e.g., the `AC_hero` environment).
-
+### 4. Setup Python Environment
 ```bash
-export CONDA_PREFIX=/projects/hpcapps/nsawant/AdaptiveComputing/AC_hero
+conda env create --prefix ./AC_hero --file environment.yaml
+conda activate ./AC_hero
+pip install -e .
+python -m pytest
 ```
 
-### Compiling for CPU
-
-To compile the CPU-only version:
-
+### 5. Compile Example
 ```bash
-make clean
-make AMREX_HOME=/projects/hpcapps/nsawant/marblesLBM/amrex USE_CUDA=FALSE
+cd examples/HeatEquation_AC_hero
+make USE_CUDA=FALSE
+make USE_CUDA=TRUE
 ```
 
-This will generate an executable named `main3d.gnu.x86-milan.ex`.
+### 6. Run Example
+**Critical Step:** You must export the library path so the executable can find the Python shared libraries.
 
-### Compiling for GPU
-
-To compile the GPU-enabled version:
-
-```bash
-make clean
-make AMREX_HOME=/projects/hpcapps/nsawant/marblesLBM/amrex USE_CUDA=TRUE
-```
-
-This will generate an executable named `main3d.gnu.CUDA.ex`.
-
-## Running the Application
-
-To run the application, you must ensure that the Python shared libraries are in your library path.
+*Explanation:* While `conda activate` updates your `PATH` to find the python executable, it does not update `LD_LIBRARY_PATH`. The C++ executable needs to link against `libpython3.11.so` at runtime. Without explicitly adding the Conda environment's `lib` directory to `LD_LIBRARY_PATH`, the Linux dynamic linker will fail to find the required shared libraries.
 
 ```bash
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-```
 
-Then run the executable with the input file:
-
-```bash
+# Run CPU version
 ./main3d.gnu.x86-milan.ex inputs
-# or
+
+# Run GPU version
 ./main3d.gnu.CUDA.ex inputs
 ```
