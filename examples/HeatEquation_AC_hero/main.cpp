@@ -128,13 +128,13 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 	  }
 	  Py_DECREF(add_pts);
 	} else {
-	  do_iteration = false;
+	  do_iteration = false; // i.e., the point found to violate the tol is already in the training set (likely that tol is smaller than achieveable in model due to roundoff/truncation)
 	}
       }
       Py_DECREF(x_query);
       Py_DECREF(uniquify_pts);
     } else {
-      do_iteration = false;
+      do_iteration = false; // i.e., no points were found to violate the tolerance
     }
   }
 }
