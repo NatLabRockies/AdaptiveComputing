@@ -161,7 +161,7 @@ int main (int argc, char* argv[])
     import_array();
 
     // Import py_query module
-    PyObject *py_thermal_properties = PyImport_ImportModule("py_thermal_properties");
+    py_thermal_properties = PyImport_ImportModule("py_thermal_properties");
     if (!py_thermal_properties) { PyErr_Print(); return -1; }
 
     // Call initialize_driver()
