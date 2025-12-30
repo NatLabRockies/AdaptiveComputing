@@ -71,6 +71,7 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
       const auto& phi_arr = phi.array(mfi);
       auto bxg=amrex::grow(mfi.validbox(),1);
 
+      // Wrap fab data in a PyTuple (no-copy)
       npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
       PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
       if (!x_queries) {
@@ -82,13 +83,10 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
       if (rTuple == NULL) {
 	amrex::Abort("query_for_invalid failed");
       } else {
-	if (!PyTuple_Check(rTuple)) {
-	  amrex::Abort("query_for_invalid did not return a tuple");
-	}
-	if (PyTuple_Size(rTuple) != 2) {
+	if (!(PyTuple_Check(rTuple) && PyTuple_Size(rTuple) == 2)) {
 	  amrex::Abort("query_for_invalid did not return a tuple of length 2");
 	}
-	long idx_invalid = PyLong_AsLong(PyTuple_GetItem(rTuple, 0));
+	long idx_invalid     = PyLong_AsLong(   PyTuple_GetItem(rTuple, 0));
 	amrex::Real variance = PyFloat_AsDouble(PyTuple_GetItem(rTuple, 1));
 
 	if (idx_invalid >= 0)
@@ -97,6 +95,8 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 	  var.index = get_double_from_entry(x_queries,idx_invalid,0);
 	}
       }
+      Py_DECREF(x_queries);
+      Py_DECREF(rTuple);
     }
 
     amrex::ParallelAllReduce::Max(var,amrex::ParallelDescriptor::Communicator());
