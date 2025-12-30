@@ -65,6 +65,14 @@ Located in `main.cpp`, this function handles the *reverse* data flow (GPU $\to$ 
     2.  Copies the simulation data from the GPU to this buffer: `amrex::Gpu::copy(amrex::Gpu::deviceToHost, ...)`
     3.  Wraps this CPU buffer in a NumPy array so Python can read it without further copying.
 
+```cpp
+// main.cpp: pretrain_kappa_model
+// Create a host copy of the data for Python access
+amrex::FArrayBox host_fab(bxg, 1, amrex::The_Cpu_Arena());
+amrex::Gpu::copy(amrex::Gpu::deviceToHost, phi[mfi].dataPtr(), phi[mfi].dataPtr() + host_fab.size(), host_fab.dataPtr());
+amrex::Gpu::streamSynchronize();
+```
+
 ### E. The Execution Switch (`get_thermal_conductivity`)
 Located in `thermal_properties.h`, this is the main entry point called by the physics solver for every cell.
 *   **Role:** It acts as a dispatcher.
@@ -72,6 +80,18 @@ Located in `thermal_properties.h`, this is the main entry point called by the ph
     1.  Checks if the GPU model (`d_kriging_model`) is initialized.
     2.  **Fast Path:** If yes, calls `d_kriging_model->predict(temperature)` (The GPU Kernel).
     3.  **Slow Path (CPU only):** If not (or if compiled without CUDA), it falls back to creating Python objects and calling the Python `query` method. This fallback is extremely slow and intended only for debugging or initialization.
+
+### F. The Main Loop (No Data Movement)
+In the main time evolution loop (`main.cpp`), the physics update happens entirely on the device. The `get_thermal_conductivity` function is called inside an `AMREX_GPU_DEVICE` lambda, ensuring it runs on the GPU threads.
+
+```cpp
+// main.cpp: Main Loop
+amrex::ParallelFor(bxg, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+{
+    // This runs on the GPU. No data leaves the device.
+    kappa_arr(i,j,k) = get_thermal_conductivity(phi_arr(i,j,k));
+});
+```
 
 ## 3. Reusability & Future Work
 
