@@ -82,6 +82,11 @@ void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
       const auto& phi_arr = phi.array(mfi);
       auto bxg=amrex::grow(mfi.validbox(),1);
 
+      // Create a host copy of the data for Python access
+      amrex::FArrayBox host_fab(bxg, 1, amrex::The_Cpu_Arena());
+      amrex::Gpu::copy(amrex::Gpu::deviceToHost, phi[mfi].dataPtr(), phi[mfi].dataPtr() + host_fab.size(), host_fab.dataPtr());
+      amrex::Gpu::streamSynchronize();
+
       // Wrap fab data in a PyTuple (no-copy)
       npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
       PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, host_fab.dataPtr());
