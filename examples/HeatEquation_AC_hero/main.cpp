@@ -39,6 +39,7 @@ bool retrain_surrogate()
     return false;
   }
 
+#if 0
   for (int p=0; p<amrex::ParallelDescriptor::NProcs(); ++p) {
     if (p == amrex::ParallelDescriptor::MyProc())
     {
@@ -47,7 +48,7 @@ bool retrain_surrogate()
     }
     amrex::ParallelDescriptor::Barrier();
   }
-
+#endif
   Py_DECREF(ret);
   Py_DECREF(y_data);
   Py_DECREF(x_data);
@@ -59,50 +60,78 @@ bool retrain_surrogate()
 
 void pretrain_kappa_model(const amrex::MultiFab& phi, amrex::Real tol)
 {
-
-  for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
+  bool do_iteration = true;
+  while (do_iteration)
   {
-    const auto& phi_arr = phi.array(mfi);
-    auto bxg=amrex::grow(mfi.validbox(),1);
+    amrex::ValLocPair<amrex::Real,amrex::Real> var; // value=max_variance, index=phi at max_variance
+    var.value = -1; // Assume valid variance is never < 0.  If we end up < 0, no variances will trigger retraining on this proc
 
-    npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
-    PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
-    if (!x_queries) {
-      amrex::Print() << "x_queries create failed" << std::endl;
-      PyErr_Print();
-    }
+    for ( amrex::MFIter mfi(phi); mfi.isValid(); ++mfi )
+    {
+      const auto& phi_arr = phi.array(mfi);
+      auto bxg=amrex::grow(mfi.validbox(),1);
 
-    // Call ac_driver.query_for_invalid, returns a PyLong pointing to location of highest variance, if above threshold
-    long idx_invalid = 0;
-    while (idx_invalid >= 0) {
-      PyObject *ret = PyObject_CallMethod(ac_driver, "query_for_invalid", "O,s,d", x_queries, "absolute_variance", tol);
-      if (ret == NULL) {
+      npy_intp dims[2] = {bxg.numPts(),1}; // Each point will be a 1-long vector of temperature
+      PyObject* x_queries = PyArray_SimpleNewFromData(2, dims, NPY_DOUBLE, const_cast<amrex::Real*>(phi_arr.dataPtr()));
+      if (!x_queries) {
+	amrex::Abort("x_queries create failed");
+      }
+
+      // Call ac_driver.query_for_invalid, returns a PyLong pointing to location of highest variance, if above threshold
+      PyObject *rTuple = PyObject_CallMethod(ac_driver, "query_for_invalid", "O,s,d", x_queries, "absolute_variance", tol);
+      if (rTuple == NULL) {
 	amrex::Abort("query_for_invalid failed");
       } else {
-	idx_invalid = PyLong_AsLong(ret);
-      }
+	if (!PyTuple_Check(rTuple)) {
+	  amrex::Abort("query_for_invalid did not return a tuple");
+	}
+	if (PyTuple_Size(rTuple) != 2) {
+	  amrex::Abort("query_for_invalid did not return a tuple of length 2");
+	}
+	long idx_invalid = PyLong_AsLong(PyTuple_GetItem(rTuple, 0));
+	amrex::Real variance = PyFloat_AsDouble(PyTuple_GetItem(rTuple, 1));
 
-      if (idx_invalid >= 0) {
-	amrex::Print() << "Max variance at idx = " << idx_invalid << ". Retraining..." << std::endl;
-	amrex::Real x_val = get_double_from_entry(x_queries,idx_invalid,0);
-	npy_intp dims1pt[2] = {1,1};
-	PyObject* x_query = PyArray_SimpleNew(2, dims1pt, NPY_DOUBLE);
-	if (x_query == NULL) {
-	  amrex::Abort("x_query create failed");
+	if (idx_invalid >= 0)
+	{
+	  var.value = std::max(var.value, variance);
+	  var.index = get_double_from_entry(x_queries,idx_invalid,0);
 	}
-	set_double_at_entry(x_query,0,0,x_val);
-	PyObject *add_pts = PyObject_CallMethod(ac_driver, "add_points", "O,i", x_query, 0);
-	if (add_pts == NULL) {
-	  amrex::Abort("add_points failed");
-	}
-	amrex::Print() << "RETRAINING SURROGATE..." << std::endl;
-	retrain_surrogate();
-	Py_DECREF(x_query);
-	Py_DECREF(add_pts);
       }
-      Py_DECREF(ret);
     }
-    Py_DECREF(x_queries);
+
+    amrex::ParallelAllReduce::Max(var,amrex::ParallelDescriptor::Communicator());
+
+    if (var.value > 0)
+    {
+      npy_intp dims1pt[2] = {1,1};
+      PyObject* x_query = PyArray_SimpleNew(2, dims1pt, NPY_DOUBLE);
+      if (x_query == NULL) {
+	amrex::Abort("x_query(pt)  create failed");
+      }
+      set_double_at_entry(x_query,0,0,var.index);
+
+      PyObject *uniquify_pts = PyObject_CallMethod(ac_driver, "remove_existing_points", "O,i", x_query, 0);
+      if (uniquify_pts == NULL) {
+	amrex::Abort("remove_existing_points failed");
+      } else {
+	if (PyObject_Length(uniquify_pts) > 0) {
+	  PyObject *add_pts = PyObject_CallMethod(ac_driver, "add_points", "O,i", x_query, 0);
+	  if (add_pts == NULL) {
+	    amrex::Abort("add_points failed");
+	  } else {
+	    amrex::Print() << "RETRAINING SURROGATE..." << std::endl;
+	    retrain_surrogate();
+	  }
+	  Py_DECREF(add_pts);
+	} else {
+	  do_iteration = false;
+	}
+      }
+      Py_DECREF(x_query);
+      Py_DECREF(uniquify_pts);
+    } else {
+      do_iteration = false;
+    }
   }
 }
 
@@ -136,9 +165,9 @@ int main (int argc, char* argv[])
     if (!ac_driver) { PyErr_Print(); Py_DECREF(py_thermal_properties); return -1; }
 
     // Call print_data(ac_driver)
-    PyObject *temp = PyObject_CallMethod(py_thermal_properties, "print_data", "O", ac_driver);
-    if (!temp) { PyErr_Print(); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); return -1; }
-    Py_DECREF(temp);
+    //PyObject *temp = PyObject_CallMethod(py_thermal_properties, "print_data", "O", ac_driver);
+    //if (!temp) { PyErr_Print(); Py_DECREF(ac_driver); Py_DECREF(py_thermal_properties); return -1; }
+    //Py_DECREF(temp);
 
     // **********************************
     // DECLARE SIMULATION PARAMETERS

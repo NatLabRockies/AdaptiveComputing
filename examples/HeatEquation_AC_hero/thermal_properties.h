@@ -73,8 +73,6 @@ amrex::Real get_thermal_conductivity(amrex::Real temperature)
   PyObject *x_queries = PyList_New(1);
   PyList_SetItem(x_queries, 0, PyFloat_FromDouble(temperature));
 
-  PyObject *x_val = PyList_GetItem(x_queries, 0);
-
   // Call ac_driver.query, returns a numpy ndarray type object
   PyObject *y_queries = PyObject_CallMethod(ac_driver, "query", "O,s,d", x_queries, "absolute_variance", 1.e-9);
   if (y_queries == NULL) {
