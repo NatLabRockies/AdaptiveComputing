@@ -12,8 +12,8 @@ from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.datasets import DatasetBase
 from adaptive_computing.surrogates import SMTGP
 from adaptive_computing.samplers import BayesianSampler
-from adaptive_computing.samplers.acquisition_functions import expected_improvement
-from adaptive_computing.samplers.acquisition_functions import maximum_variance
+from adaptive_computing.samplers.acquisition_functions.expected_improvement import expected_improvement
+from adaptive_computing.samplers.acquisition_functions.maximum_variance import maximum_variance
 
 def test_acq_func_minimum_variance():
     params = [ContinuousVariable(min=0, max=4)]
