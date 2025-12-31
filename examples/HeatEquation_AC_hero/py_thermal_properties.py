@@ -7,20 +7,27 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from adaptive_computing.datasets import ContinuousVariable, DatasetBase
 from adaptive_computing.drivers import ActiveLoopDriver
 
-# Try to import GPU surrogate, fall back to standard SMT if not available
-try:
-    import cupy
-    from gpu_surrogate_wrapper import GPUSMTGP
-    # Check if a GPU is actually available
-    if cupy.cuda.runtime.getDeviceCount() > 0:
-        USE_GPU_SURROGATE = True
-        print("GPU detected. Using CuPy-accelerated surrogate.")
-    else:
-        USE_GPU_SURROGATE = False
-        print("CuPy installed but no GPU detected. Using standard SMT surrogate.")
-except (ImportError, Exception) as e:
+# Check environment variable from C++ (defaults to "1" / Auto if not set)
+enable_gpu_env = os.environ.get("AC_ENABLE_GPU_SURROGATE", "1")
+
+if enable_gpu_env == "0":
     USE_GPU_SURROGATE = False
-    print(f"GPU surrogate not available ({e}). Using standard SMT surrogate.")
+    print("GPU surrogate disabled by application environment.")
+else:
+    # Try to import GPU surrogate, fall back to standard SMT if not available
+    try:
+        import cupy
+        from gpu_surrogate_wrapper import GPUSMTGP
+        # Check if a GPU is actually available
+        if cupy.cuda.runtime.getDeviceCount() > 0:
+            USE_GPU_SURROGATE = True
+            print("GPU detected. Using CuPy-accelerated surrogate.")
+        else:
+            USE_GPU_SURROGATE = False
+            print("CuPy installed but no GPU detected. Using standard SMT surrogate.")
+    except (ImportError, Exception) as e:
+        USE_GPU_SURROGATE = False
+        print(f"GPU surrogate not available ({e}). Using standard SMT surrogate.")
 
 def func_ThermalConductivity(x):
     return  16 + 0.01 * (x-300)

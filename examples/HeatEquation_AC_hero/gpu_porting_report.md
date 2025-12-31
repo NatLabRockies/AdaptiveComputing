@@ -93,7 +93,36 @@ amrex::ParallelFor(bxg, [=] AMREX_GPU_DEVICE (int i, int j, int k)
 });
 ```
 
-## 3. Reusability & Future Work
+## 3. Python-Side Acceleration (CuPy)
+
+In addition to the C++ port for the physics loop, we also accelerated the Python-side variance prediction (`predict_variances`) used during the active learning phase.
+
+### Motivation
+The active learning loop requires calculating the prediction variance for every grid point to identify areas of high uncertainty. While the physics loop runs on the GPU, this variance check happens in Python. For large grids, calculating the variance on the CPU using NumPy/SciPy becomes a bottleneck.
+
+### Implementation (`gpu_kriging.py`)
+We implemented a GPU-accelerated version of the Kriging variance prediction using **CuPy**, a NumPy-compatible library for GPU computing.
+
+1.  **`GPUKriging` Class:** A subclass of SMT's `KRG` model.
+2.  **`predict_variances` Override:** Replaces the CPU-based linear algebra with CuPy equivalents:
+    *   `scipy.linalg.solve_triangular` $\rightarrow$ `cupyx.scipy.linalg.solve_triangular`
+    *   `numpy.dot` $\rightarrow$ `cupy.dot`
+    *   `numpy.exp` $\rightarrow$ `cupy.exp`
+3.  **Data Flow:**
+    *   Input points are transferred to GPU memory (`cp.asarray`).
+    *   Model parameters (weights, covariance matrix factors) are transferred once.
+    *   Computations happen entirely on the GPU.
+    *   Results are transferred back to CPU (`cp.asnumpy`) only when needed by the driver.
+
+### Integration (`gpu_surrogate_wrapper.py`)
+To seamlessly integrate this into the existing workflow without modifying the core library:
+1.  **Wrapper Class:** Created `GPUSMTGP` which inherits from `SMTGP`.
+2.  **Automatic Detection:** The script `py_thermal_properties.py` automatically detects if a GPU is available (via `cupy.cuda.runtime.getDeviceCount()`).
+    *   **If GPU available:** Instantiates `GPUSMTGP` (CuPy).
+    *   **If CPU only:** Instantiates standard `SMTGP` (NumPy).
+3.  **Environment Control:** The C++ application sets an environment variable `AC_ENABLE_GPU_SURROGATE` based on its compilation flags (`AMREX_USE_GPU`). This ensures the Python script respects the application's build configuration.
+
+## 4. Reusability & Future Work
 
 ### Modificatiobs for other AC-provided options
 

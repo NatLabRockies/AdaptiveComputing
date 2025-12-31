@@ -152,6 +152,16 @@ int main (int argc, char* argv[])
     amrex::Initialize(argc,argv);
     {
 
+#ifdef AMREX_USE_GPU
+    // Tell Python to use GPU surrogate
+    setenv("AC_ENABLE_GPU_SURROGATE", "1", 1);
+    amrex::Print() << "AMReX compiled with GPU support. Enabling GPU surrogate." << std::endl;
+#else
+    // Tell Python to NOT use GPU surrogate
+    setenv("AC_ENABLE_GPU_SURROGATE", "0", 1);
+    amrex::Print() << "AMReX compiled without GPU support. Disabling GPU surrogate." << std::endl;
+#endif
+
     Py_Initialize();
     // Import sys module
     PyObject *sys = PyImport_ImportModule("sys");

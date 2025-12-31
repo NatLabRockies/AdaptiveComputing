@@ -12,3 +12,4 @@ dependencies:
     - git+https://github.nrel.gov/Hero/hero.git@v0.5.0#egg=hero
     - smt
     - ruff
+    - cupy-cuda12x
