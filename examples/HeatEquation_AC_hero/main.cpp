@@ -162,6 +162,18 @@ int main (int argc, char* argv[])
     amrex::Print() << "AMReX compiled without GPU support. Disabling GPU surrogate." << std::endl;
 #endif
 
+    // Check for GPU Kriging Training flag (Beta Feature)
+    amrex::ParmParse pp_args;
+    bool use_gpu_kriging = false;
+    pp_args.query("use_gpu_kriging", use_gpu_kriging);
+    
+    if (use_gpu_kriging) {
+         setenv("AC_USE_GPU_KRIGING", "1", 1);
+         amrex::Print() << "Enabling GPU Kriging Training (Beta Feature)." << std::endl;
+    } else {
+         setenv("AC_USE_GPU_KRIGING", "0", 1);
+    }
+
     Py_Initialize();
     // Import sys module
     PyObject *sys = PyImport_ImportModule("sys");
@@ -467,6 +479,12 @@ int main (int argc, char* argv[])
       const std::string& pltfile = amrex::Concatenate("plt",nsteps,5);
       WriteSingleLevelPlotfile(pltfile, phi_new, {"phi"}, geom, time, nsteps);
     }
+
+    // Compute and print norm of phi_new for validation
+    amrex::Real norm0 = phi_new.norm0();
+    amrex::Real norm2 = phi_new.norm2();
+    amrex::Print() << "FINAL_NORM_0: " << norm0 << std::endl;
+    amrex::Print() << "FINAL_NORM_2: " << norm2 << std::endl;
 
     Py_DECREF(ac_driver);
     Py_DECREF(py_thermal_properties);

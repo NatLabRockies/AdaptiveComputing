@@ -122,7 +122,55 @@ To seamlessly integrate this into the existing workflow without modifying the co
     *   **If CPU only:** Instantiates standard `SMTGP` (NumPy).
 3.  **Environment Control:** The C++ application sets an environment variable `AC_ENABLE_GPU_SURROGATE` based on its compilation flags (`AMREX_USE_GPU`). This ensures the Python script respects the application's build configuration.
 
-## 4. Reusability & Future Work
+## 4. GPU Training Implementation (Beta Feature)
+
+Following the feasibility study, we successfully implemented GPU-accelerated training for the Kriging model. This feature allows the hyperparameter optimization process to run efficiently on the GPU, leveraging a hybrid CPU-Optimizer / GPU-Likelihood architecture.
+
+### A. The Hybrid Architecture (`gpu_kriging_train.py`)
+We implemented a hybrid approach where the optimizer runs on the CPU, but the heavy mathematical lifting happens on the GPU.
+
+1.  **Class `GPUKrigingTrain`**: Inherits from `GPUKriging`.
+2.  **Method `_optimize_hyperparam`**: Overrides the SMT base method to manage the optimization loop.
+    *   Moves training data ($X, y$) to the GPU once.
+    *   Defines a closure `minus_reduced_likelihood_function` that is passed to `scipy.optimize.minimize`.
+3.  **Method `_reduced_likelihood_function_gpu`**: Computes the likelihood on the GPU.
+    *   Constructs the correlation matrix $R$ using CuPy broadcasting.
+    *   Performs Cholesky decomposition ($R = CC^T$) using `cupyx.scipy.linalg.cholesky`.
+    *   Solves linear systems using `cupyx.scipy.linalg.solve_triangular`.
+4.  **Method `_reduced_likelihood_gradient_gpu`**: Computes the analytic gradient on the GPU.
+    *   Calculates $\frac{\partial R}{\partial \theta}$ and the resulting gradient of the likelihood.
+    *   Essential for efficient **TNC** optimization.
+
+### B. Integration Logic (`gpu_surrogate_wrapper.py`)
+The wrapper was updated to conditionally load the training class based on an environment variable.
+
+```python
+# gpu_surrogate_wrapper.py
+USE_GPU_TRAINING = os.environ.get("AC_USE_GPU_KRIGING", "0") == "1"
+
+if USE_GPU_TRAINING:
+    from gpu_kriging_train import GPUKrigingTrain
+    # ...
+    self.surrogate_model.append(GPUKrigingTrain(**smt_kwargs))
+else:
+    self.surrogate_model.append(GPUKriging(**smt_kwargs))
+```
+
+### C. C++ Control (`main.cpp`)
+The main application was updated to accept a runtime flag and propagate it to the Python environment.
+
+```cpp
+// main.cpp
+amrex::ParmParse pp_args;
+bool use_gpu_kriging = false;
+pp_args.query("use_gpu_kriging", use_gpu_kriging);
+
+if (use_gpu_kriging) {
+     setenv("AC_USE_GPU_KRIGING", "1", 1);
+}
+```
+
+## 5. Reusability & Future Work
 
 ### Modificatiobs for other AC-provided options
 
@@ -140,3 +188,4 @@ To seamlessly integrate this into the existing workflow without modifying the co
 ## Conclusion
 
 The current implementation provides a high-performance, GPU-native inference path for Kriging models. It bridges the flexibility of Python training with the speed of C++ GPU execution. Future extensions to other surrogate types will require implementing their specific mathematical prediction formulas in C++.
+

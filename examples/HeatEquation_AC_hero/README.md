@@ -51,3 +51,23 @@ export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 # Run GPU version
 ./main3d.gnu.CUDA.ex inputs
 ```
+
+### 7. Advanced Usage (Beta Features)
+
+#### GPU-Accelerated Training
+By default, the GPU executable (`main3d.gnu.CUDA.ex`) uses the GPU for *inference* (prediction) but performs model *training* on the CPU. This is sufficient for small datasets.
+
+For larger datasets, you can enable **GPU-Accelerated Training** to offload the expensive hyperparameter optimization to the GPU.
+
+**To enable:**
+Add `use_gpu_kriging=1` to your command line arguments.
+
+```bash
+./main3d.gnu.CUDA.ex inputs use_gpu_kriging=1
+```
+
+**What this does:**
+1.  **Enables GPU Training**: The Python surrogate will use `GPUKrigingTrain` instead of the standard `SMTGP`.
+2.  **Accelerated Math**: The Likelihood function and its gradients (used during training) are computed on the GPU using CuPy.
+3.  **Identical Results**: The final physics results are identical to the CPU-trained version, though you may see a slight difference in the number of retraining steps due to floating-point precision differences.
+
