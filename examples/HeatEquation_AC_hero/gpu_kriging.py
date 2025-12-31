@@ -44,17 +44,7 @@ class GPUKriging(KRG):
         
         # Determine power based on correlation type
         corr_type = self.options["corr"]
-        if corr_type == "squar_exp":
-            power = 2.0
-        elif corr_type == "abs_exp":
-            power = 1.0
-        else:
-            # Fallback or error for unsupported kernels
-            # SMT supports others, but these are most common
-            if corr_type == "matern32" or corr_type == "matern52":
-                 raise NotImplementedError(f"GPU implementation for {corr_type} not yet added.")
-            power = 2.0 # Default assumption if unknown, but risky
-            
+        
         # Batch processing to avoid OOM
         # We need to compute (n_batch, n_train) correlation matrix
         # Memory usage: n_batch * n_train * 8 bytes
@@ -72,20 +62,84 @@ class GPUKriging(KRG):
             # We use broadcasting: (batch, 1, dim) - (1, train, dim)
             diff = cp.abs(d_x_batch[:, None, :] - d_X_norma[None, :, :])
             
-            # d = diff^power
-            if power == 2.0:
+            if corr_type == "squar_exp":
+                # r = exp( - sum( theta * (x-X)^2 ) )
                 d_mat = diff**2
-            elif power == 1.0:
-                d_mat = diff
-            else:
-                d_mat = diff**power
+                weighted_d = cp.sum(d_theta * d_mat, axis=2)
+                d_r = cp.exp(-weighted_d)
                 
-            # weighted_d = sum(theta * d, axis=2)
-            # theta is (dim,)
-            weighted_d = cp.sum(d_theta * d_mat, axis=2)
-            
-            # r = exp(-weighted_d)
-            d_r = cp.exp(-weighted_d) # Shape: (batch, n_train)
+            elif corr_type == "abs_exp":
+                # r = exp( - sum( theta * |x-X| ) )
+                d_mat = diff
+                weighted_d = cp.sum(d_theta * d_mat, axis=2)
+                d_r = cp.exp(-weighted_d)
+                
+            elif corr_type == "matern32":
+                # k(r) = (1 + sqrt(3)*r) * exp(-sqrt(3)*r)
+                # where r = theta * |x-X|
+                # Note: SMT implementation uses component-wise product then sum?
+                # Let's check SMT Matern32 implementation again.
+                # ll = theta_r * d
+                # r = (1 + sqrt(3)*ll).prod(axis=1) * exp(-sqrt(3)*ll.sum(axis=1))
+                # So it is a product of 1D Matern kernels!
+                
+                ll = d_theta * diff # (batch, train, dim)
+                sqrt3 = cp.sqrt(3.0)
+                
+                # term1 = prod(1 + sqrt(3)*ll, axis=2)
+                term1 = cp.prod(1.0 + sqrt3 * ll, axis=2)
+                
+                # term2 = exp(-sqrt(3) * sum(ll, axis=2))
+                term2 = cp.exp(-sqrt3 * cp.sum(ll, axis=2))
+                
+                d_r = term1 * term2
+                
+            elif corr_type == "matern52":
+                # k(r) = (1 + sqrt(5)*r + 5/3*r^2) * exp(-sqrt(5)*r)
+                # Product of 1D kernels
+                
+                ll = d_theta * diff
+                sqrt5 = cp.sqrt(5.0)
+                
+                # term1 = prod(1 + sqrt(5)*ll + 5/3*ll^2, axis=2)
+                poly_term = 1.0 + sqrt5 * ll + (5.0 / 3.0) * (ll**2)
+                term1 = cp.prod(poly_term, axis=2)
+                
+                # term2 = exp(-sqrt(5) * sum(ll, axis=2))
+                term2 = cp.exp(-sqrt5 * cp.sum(ll, axis=2))
+                
+                d_r = term1 * term2
+                
+            elif corr_type == "act_exp":
+                # r = exp( - 1/2 * sum( (theta * d)^2 ) )
+                # Note: SMT ActExp uses a projection matrix A derived from theta?
+                # "A = np.reshape(self.theta, (n_small_components, n_components)).T"
+                # "d_A = d.dot(A)"
+                # "r = exp(-0.5 * sum(d_A^2))"
+                # This is more complex because theta is not just a vector of length dim.
+                # It seems ActExp is for active subspaces.
+                # We need to reshape theta.
+                
+                # Check if theta length is multiple of dim
+                if d_theta.size % n_dim != 0:
+                     raise ValueError("ActExp: theta length must be multiple of input dimension")
+                
+                n_small = d_theta.size // n_dim
+                d_A_proj = d_theta.reshape(n_small, n_dim).T # (dim, n_small)
+                
+                # We need to compute d.dot(A) for every pair (x, X)
+                # diff is (batch, train, dim)
+                # We want result (batch, train, n_small)
+                # result[b, t, s] = sum_k( diff[b, t, k] * A[k, s] )
+                
+                d_diff_proj = cp.tensordot(diff, d_A_proj, axes=(2, 0)) # (batch, train, n_small)
+                
+                # r = exp(-0.5 * sum(d_diff_proj^2, axis=2))
+                weighted_sum = cp.sum(d_diff_proj**2, axis=2)
+                d_r = cp.exp(-0.5 * weighted_sum)
+
+            else:
+                 raise NotImplementedError(f"GPU implementation for correlation '{corr_type}' not yet added.")
             
             # Solve Linear Systems
             # rt = C^-1 * r^T  (Note: r is (batch, train), so r.T is (train, batch))
@@ -93,12 +147,24 @@ class GPUKriging(KRG):
             d_rt = cpx_linalg.solve_triangular(d_C, d_r.T, lower=True)
             
             # u = G^-T * (Ft^T * rt - f(x)^T)
-            # Assume constant mean (poly='constant') -> f(x) = 1
-            # TODO: Support other regression types (linear, quadratic)
-            if self.options["poly"] != "constant":
-                 raise NotImplementedError("Only constant regression is currently supported on GPU.")
-                 
-            d_f_x = cp.ones((current_batch_size, 1))
+            # Regression matrix f(x)
+            poly_type = self.options["poly"]
+            
+            if poly_type == "constant":
+                d_f_x = cp.ones((current_batch_size, 1))
+            elif poly_type == "linear":
+                # f(x) = [1, x_1, ..., x_n]
+                d_f_x = cp.hstack([cp.ones((current_batch_size, 1)), d_x_batch])
+            elif poly_type == "quadratic":
+                # f(x) = [1, x_1, ..., x_n, x_1*x_1, x_1*x_2, ...]
+                d_f_x = cp.hstack([cp.ones((current_batch_size, 1)), d_x_batch])
+                for k in range(n_dim):
+                    # x[:, k, newaxis] * x[:, k:]
+                    # (batch, 1) * (batch, dim-k) -> (batch, dim-k)
+                    term = d_x_batch[:, k:k+1] * d_x_batch[:, k:]
+                    d_f_x = cp.hstack([d_f_x, term])
+            else:
+                 raise NotImplementedError(f"GPU implementation for regression '{poly_type}' not yet added.")
             
             term1 = cp.dot(d_Ft.T, d_rt) # (p, batch)
             term2 = d_f_x.T # (p, batch)
