@@ -4,8 +4,23 @@ import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from adaptive_computing.datasets import ContinuousVariable
+from adaptive_computing.datasets import ContinuousVariable, DatasetBase
 from adaptive_computing.drivers import ActiveLoopDriver
+
+# Try to import GPU surrogate, fall back to standard SMT if not available
+try:
+    import cupy
+    from gpu_surrogate_wrapper import GPUSMTGP
+    # Check if a GPU is actually available
+    if cupy.cuda.runtime.getDeviceCount() > 0:
+        USE_GPU_SURROGATE = True
+        print("GPU detected. Using CuPy-accelerated surrogate.")
+    else:
+        USE_GPU_SURROGATE = False
+        print("CuPy installed but no GPU detected. Using standard SMT surrogate.")
+except (ImportError, Exception) as e:
+    USE_GPU_SURROGATE = False
+    print(f"GPU surrogate not available ({e}). Using standard SMT surrogate.")
 
 def func_ThermalConductivity(x):
     return  16 + 0.01 * (x-300)
@@ -19,9 +34,22 @@ def func_ThermalConductivity(x):
 
 def initialize_driver():
     params = [ContinuousVariable(min=300, max=800)]
-    ac_driver = ActiveLoopDriver(simulations=[func_ThermalConductivity],
-                                 params=params,
-                                 surrogate='SMT')
+    
+    if USE_GPU_SURROGATE:
+        # Initialize Dataset and GPU Surrogate manually
+        dataset = DatasetBase(params, n_fidelity=1)
+        surrogate = GPUSMTGP(dataset=dataset)
+        
+        ac_driver = ActiveLoopDriver(simulations=[func_ThermalConductivity],
+                                     params=params,
+                                     surrogate=surrogate,
+                                     dataset=dataset)
+    else:
+        # Use standard SMT
+        ac_driver = ActiveLoopDriver(simulations=[func_ThermalConductivity],
+                                     params=params,
+                                     surrogate='SMT')
+                                     
     ac_driver.initialize()
     return ac_driver
 
