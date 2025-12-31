@@ -77,11 +77,6 @@ class GPUKriging(KRG):
             elif corr_type == "matern32":
                 # k(r) = (1 + sqrt(3)*r) * exp(-sqrt(3)*r)
                 # where r = theta * |x-X|
-                # Note: SMT implementation uses component-wise product then sum?
-                # Let's check SMT Matern32 implementation again.
-                # ll = theta_r * d
-                # r = (1 + sqrt(3)*ll).prod(axis=1) * exp(-sqrt(3)*ll.sum(axis=1))
-                # So it is a product of 1D Matern kernels!
                 
                 ll = d_theta * diff # (batch, train, dim)
                 sqrt3 = cp.sqrt(3.0)
@@ -112,13 +107,6 @@ class GPUKriging(KRG):
                 
             elif corr_type == "act_exp":
                 # r = exp( - 1/2 * sum( (theta * d)^2 ) )
-                # Note: SMT ActExp uses a projection matrix A derived from theta?
-                # "A = np.reshape(self.theta, (n_small_components, n_components)).T"
-                # "d_A = d.dot(A)"
-                # "r = exp(-0.5 * sum(d_A^2))"
-                # This is more complex because theta is not just a vector of length dim.
-                # It seems ActExp is for active subspaces.
-                # We need to reshape theta.
                 
                 # Check if theta length is multiple of dim
                 if d_theta.size % n_dim != 0:

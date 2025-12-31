@@ -61,17 +61,6 @@ class GPUKrigingTrain(GPUKriging):
         # For simplicity, implementing the main loop logic
         # We need to generate start points (theta0)
         
-        # ... (Simplified initialization logic, assuming 1 iteration for now or copying full logic)
-        # Let's try to reuse as much as possible.
-        
-        # We need to handle the loop over n_start
-        # To avoid copying 100 lines of code, let's just implement the core optimization call
-        # assuming we are inside the loop.
-        # But we are overriding the WHOLE method. So we must implement the loop.
-        
-        # Let's copy the loop structure from KrgBased._optimize_hyperparam
-        # But simplified for TNC only as requested.
-        
         bounds_hyp = []
         theta_bounds = self.options["theta_bounds"]
         log10t_bounds = np.log10(theta_bounds)
@@ -133,24 +122,12 @@ class GPUKrigingTrain(GPUKriging):
         d_theta = cp.asarray(theta)
         
         # D is (nt * (nt-1) / 2, dim) - condensed distance matrix
-        # But wait, self.D in KrgBased is condensed?
-        # Let's check KrgBased.
-        # Yes, cross_distances returns condensed matrix if x=None.
-        # But wait, self.D usage in _reduced_likelihood_function:
-        # R[self.ij[:, 0], self.ij[:, 1]] = r[:, 0]
-        # So D is condensed.
-        
-        # However, computing the kernel on condensed D is easy.
-        # r = corr(D)
         
         corr_type = self.options["corr"]
         
         if corr_type == "squar_exp":
             # r = exp( - sum( theta * D^2 ) )
             # D is already distances (abs diff).
-            # Wait, cross_distances returns componentwise distances?
-            # "The componentwise cross-spatial-correlation-distance"
-            # Yes. D is (n_obs*(n_obs-1)/2, dim).
             
             d_D2 = self.d_D**2
             weighted_D = cp.sum(d_theta * d_D2, axis=1)
@@ -197,10 +174,7 @@ class GPUKrigingTrain(GPUKriging):
         
         # Cholesky
         try:
-            d_C = cp.linalg.cholesky(d_R) # cupy.linalg.cholesky returns lower triangular by default? No, it returns L * L.T if lower=True is not supported?
-            # cp.linalg.cholesky(a) returns L such that L @ L.T = a. So it is lower triangular.
-            # Wait, numpy.linalg.cholesky returns lower.
-            # cupy.linalg.cholesky returns lower.
+            d_C = cp.linalg.cholesky(d_R) 
         except cp.linalg.LinAlgError:
             return -1e20, {} # Fail
             
@@ -208,14 +182,7 @@ class GPUKrigingTrain(GPUKriging):
         d_Ft = cpx_linalg.solve_triangular(d_C, self.d_F, lower=True)
         
         # QR decomposition of Ft
-        d_Q, d_G = cp.linalg.qr(d_Ft, mode="reduced") # mode='economic' in numpy is 'reduced' in cupy?
-        # cupy.linalg.qr supports mode='reduced', 'complete', 'r', 'raw'.
-        # numpy.linalg.qr supports 'reduced', 'complete', 'r', 'raw'.
-        # scipy.linalg.qr supports 'economic'.
-        # SMT uses scipy.linalg.qr(mode='economic').
-        # 'economic' means Q is (M, K), R is (K, N).
-        # 'reduced' means Q is (M, K), R is (K, N).
-        # So 'reduced' is equivalent to 'economic'.
+        d_Q, d_G = cp.linalg.qr(d_Ft, mode="reduced") 
         
         # Check condition number (SVD of G)
         d_sv = cp.linalg.svd(d_G, compute_uv=False)
@@ -252,24 +219,6 @@ class GPUKrigingTrain(GPUKriging):
             "Ft": d_Ft,
             "gamma": None # Needed for gradient?
         }
-        
-        # For gradient, we need 'gamma' = R^-1 * (y - F*beta)
-        # R * gamma = y - F*beta
-        # C * C.T * gamma = y - F*beta
-        # Let's compute it here to save time in gradient
-        # But wait, KrgBased computes it in gradient or re-computes?
-        # KrgBased returns 'par' which contains 'gamma'.
-        # In _reduced_likelihood_function of KrgBased:
-        # It does NOT compute gamma.
-        # But _reduced_likelihood_gradient calls _reduced_likelihood_function first.
-        # Then it computes gamma?
-        # No, wait. _reduced_likelihood_gradient in KrgBased:
-        # red, par = self._reduced_likelihood_function(theta)
-        # C = par["C"]
-        # gamma = par["gamma"]
-        # Wait, where is gamma computed?
-        # Ah, I missed it in my reading of KrgBased.
-        # Let's check KrgBased again.
         
         # Re-computing gamma here:
         # R * gamma = y - F * beta
@@ -314,12 +263,6 @@ class GPUKrigingTrain(GPUKriging):
             # This depends on kernel.
             
             corr_type = self.options["corr"]
-            
-            # We need d_r (correlation vector) again?
-            # Or just compute derivative of r vector.
-            
-            # Recompute d_r (vector form)
-            # We can optimize this by returning d_r from likelihood function
             
             # Let's implement derivative logic
             if corr_type == "squar_exp":
