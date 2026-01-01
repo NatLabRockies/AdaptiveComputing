@@ -5,7 +5,6 @@
 
 PyObject *py_thermal_properties;
 PyObject *ac_driver;
-PyObject *y_queries;
 
 inline
 double get_double_from_entry(PyObject* py_array, int row, int col) {
