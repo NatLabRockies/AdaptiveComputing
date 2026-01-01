@@ -27,16 +27,10 @@ void init_phi (int i, int j, int k,
     phi(i,j,k) = Real(300.) + 100.*std::exp(-r2);
 }
 
+#ifdef AMREX_USE_GPU
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-amrex::Real conductivity(amrex::Real temperature
-#ifndef AMREX_USE_GPU
-			 , PyObject* ac_driver
-#endif
-  )
+amrex::Real conductivity(amrex::Real temperature)
 {
-#ifndef AMREX_USE_GPU
-  return conductivity_cpu(temperature, ac_driver);
-#else
   // GPU / Fast Path
   if (d_kriging_model) {
     return std::max(1e-10, d_kriging_model->predict(temperature));
@@ -44,8 +38,8 @@ amrex::Real conductivity(amrex::Real temperature
   
   // Fallback if model not initialized
   return 16.0 + 0.01 * (temperature - 300.0);
-#endif
 }
+#endif
 
 AMREX_GPU_HOST_DEVICE inline
 amrex::Real get_SpecificHeatCapacity(amrex::Real temperature) {

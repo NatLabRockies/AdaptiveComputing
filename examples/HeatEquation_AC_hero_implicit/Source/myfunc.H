@@ -18,9 +18,11 @@ void advance (amrex::MultiFab& phi_old,
 void init_phi (amrex::MultiFab& phi_new,
                amrex::Geometry const& geom);
 
-amrex::Real conductivity_cpu(amrex::Real temperature
-#ifndef AMREX_USE_GPU
-			 , PyObject* ac_driver
+#ifdef AMREX_USE_GPU
+amrex::Real conductivity(amrex::Real temperature);
+#else
+amrex::Real conductivity(amrex::Real temperature,
+			 PyObject*   ac_driver);
 #endif
-  );
+
 #endif

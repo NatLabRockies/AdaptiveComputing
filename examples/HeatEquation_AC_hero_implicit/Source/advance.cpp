@@ -114,11 +114,11 @@ void advance (MultiFab& phi_old,
       auto const& phiOld = phi_old.array(mfi);
       amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
 	{
-	  kappa(i,j,k) = conductivity(phiOld(i,j,k)
-#ifndef AMREX_USE_GPU
-				      , ac_driver
+#ifdef AMREX_USE_GPU
+	  kappa(i,j,k) = conductivity(phiOld(i,j,k));
+#else
+	  kappa(i,j,k) = conductivity(phiOld(i,j,k), ac_driver);
 #endif
-	    );
         });
     }
 

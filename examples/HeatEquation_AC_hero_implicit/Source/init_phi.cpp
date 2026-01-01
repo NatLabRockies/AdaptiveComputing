@@ -26,13 +26,11 @@ void init_phi(amrex::MultiFab& phi_new, amrex::Geometry const& geom)
     }
 }
 
-amrex::Real conductivity_cpu(amrex::Real temperature
 #ifndef AMREX_USE_GPU
-			     , PyObject *ac_driver
-#endif
-  )
+amrex::Real conductivity(amrex::Real temperature,
+			 PyObject*   ac_driver)
 {
-#if 0
+#if 1
   // CPU Fallback to Python if model not ready or explicitly on CPU
   if (d_kriging_model == nullptr) {
 
@@ -58,3 +56,4 @@ amrex::Real conductivity_cpu(amrex::Real temperature
   // Fallback if model not initialized
   return 16.0 + 0.01 * (temperature - 300.0);
 }
+#endif
