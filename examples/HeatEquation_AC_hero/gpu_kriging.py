@@ -11,6 +11,21 @@ class GPUKriging(KRG):
     def predict_variances(self, x):
         """
         GPU-accelerated implementation of predict_variances.
+        Wrapper to catch and print exceptions that C++ AMReX might swallow.
+        """
+        try:
+            return self._predict_variances_internal(x)
+        except Exception:
+            import traceback
+            import sys
+            sys.stderr.write("Exception caught in GPUKriging.predict_variances:\n")
+            traceback.print_exc()
+            sys.stderr.flush()
+            raise
+
+    def _predict_variances_internal(self, x):
+        """
+        Internal implementation.
         """
         # Ensure x is 2D
         if x.ndim == 1:
