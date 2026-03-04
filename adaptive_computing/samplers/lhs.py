@@ -26,6 +26,7 @@ class LHSSampler(SamplerBase):
             self._rand_seed = sum(array.shape[0] for array in dataset._x_data)
         else:
             self._rand_seed = rand_seed
+        self.dataset = dataset  # Store dataset reference for mixed-type support  
         super().__init__(dataset)
 
     def _check_sample(self, N_samples):
@@ -57,18 +58,55 @@ class LHSSampler(SamplerBase):
         self._check_sample(N_samples)
 
         if self.mixed_type:
-            sampling = MixedIntegerSamplingMethod(self.x_types,
-                                                  self.x_limits, 
-                                                  LHS, criterion="maximin", 
-                                                  random_state=self._rand_seed)
+            # Use SMT 2.x API with design space
+            from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+            from smt.sampling_methods import LHS as LHS_mixed
+            sampling = MixedIntegerSamplingMethod(
+                LHS_mixed, 
+                self.dataset.design_space,
+                criterion="maximin", 
+                random_state=self._rand_seed
+            )
         else:
+            # Use regular LHS for continuous variables only
             sampling = LHS(xlimits=self.x_limits, 
                            criterion='maximin', 
                            random_state=self._rand_seed)
         
         x = sampling(N_samples)
+        
+        # Post-process mixed-type samples to ensure proper data types
+        if self.mixed_type:
+            x = self._process_mixed_type_samples(x)
+        
         # increment the random seed, so that future samples are not duplicates
         if self._rand_seed is not None:
             self._rand_seed += N_samples
         
         return x
+
+    def _process_mixed_type_samples(self, x):
+        """
+        Post-process samples for mixed-type variables to ensure proper data types.
+        
+        Args:
+            x (np.ndarray): Raw samples from LHS sampler
+            
+        Returns:
+            np.ndarray: Processed samples with correct data types
+        """
+        import numpy as np
+        x_processed = x.copy()
+        
+        for i, param in enumerate(self.dataset.params):
+            if param.type == 'ordered':
+                # Round to nearest integer and clamp to bounds
+                x_processed[:, i] = np.round(x_processed[:, i]).astype(int)
+                x_processed[:, i] = np.clip(x_processed[:, i], param.min_val, param.max_val)
+            elif param.type == 'categorical':
+                # Round to nearest integer (category index) and clamp to valid range
+                x_processed[:, i] = np.round(x_processed[:, i]).astype(int)
+                x_processed[:, i] = np.clip(x_processed[:, i], 0, len(param.categories) - 1)
+            # continuous variables need no processing
+        
+        return x_processed

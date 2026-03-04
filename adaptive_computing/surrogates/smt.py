@@ -1,6 +1,6 @@
 from smt.surrogate_models import KRG
 from smt.applications.mfk import MFK
-from smt.applications.mixed_integer import MixedIntegerSurrogateModel
+from smt.applications.mixed_integer import MixedIntegerSurrogateModel, MixedIntegerKrigingModel
 from adaptive_computing.surrogates.base import SurrogateModelBase
 import numpy as np
 
@@ -19,31 +19,38 @@ class SMTGP(SurrogateModelBase):
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
     """
     
-    def __init__(self, dataset, smt_kwargs=None):
+    def __init__(self, dataset, smt_kwargs=None, design_space=None):
         """
         Initializes the SMTGP with the dataset and optional SMT-specific keyword arguments.
         
         Args:
             dataset (DatasetBase): The dataset to use for training and prediction.
             smt_kwargs (dict, optional): Additional keyword arguments for configuring SMT models. Defaults to None.
+            design_space (DesignSpace, optional): SMT design space for mixed-type problems. Defaults to None.
         """
         super().__init__(dataset)
 
         if smt_kwargs is None:
             smt_kwargs = {}
+            
+        # Get design space from dataset if available
+        if design_space is None and hasattr(dataset, 'design_space'):
+            design_space = dataset.design_space
         
         self.surrogate_model = []
         for i_fidelity in range(self.n_fidelity):
-            if self.multifidelity and i_fidelity > 0:
+            if self.mixed_type:
+                # Use regular KRG - mixed types are handled in the optimization algorithm
+                self.surrogate_model.append(KRG(**smt_kwargs, print_global=False))
+                print("Note: Mixed-type optimization using KRG surrogate with discrete enumeration in acquisition optimization")
+            elif self.multifidelity and i_fidelity > 0:
                 self.surrogate_model.append(MFK(
                     **smt_kwargs,
                     print_global=False))
             else:
                 self.surrogate_model.append(KRG(
                     **smt_kwargs,
-                    print_global=False)) 
-            if self.mixed_type:
-                self.surrogate_model[i_fidelity] = MixedIntegerSurrogateModel(surrogate=self.surrogate_model[i_fidelity], xtypes=dataset.xtypes, xlimits=dataset.xlimits)
+                    print_global=False))
         
         self.untrained = True # used to track if the surrogate model has never been trained
 
