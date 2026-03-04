@@ -1,6 +1,7 @@
 from adaptive_computing.samplers import SamplerBase
 from smt.sampling_methods import LHS
 from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+from adaptive_computing.datasets import HeroDataset
 
 from scipy.optimize import minimize, brute, differential_evolution
 import numpy as np
@@ -65,7 +66,14 @@ class BayesianSampler(SamplerBase):
         Returns:
             x samples (N samples, N input dimension): The generated samples.
         """
+        # if dataset is instance HeroDataset:
+        #     tmp_dataset = DatasetBase(dataset.params, n_fidelity=dataset.n_fidelity)
+        #     for i_fidelity in dataset.n_fidelity:
+        #         tmp_dataset.add_samples(dataset.x_data,dataset.y_data,i_fidelity=i_fidelity)
+        #     # XXX Note that any masked data will be added as unmasked. But for non-Hero this is not the behavior. Not sure which is best
+        # else:
         tmp_dataset = deepcopy(dataset)
+        
         tmp_surrogate = deepcopy(surrogate)
 
         x_samples = []
@@ -75,7 +83,10 @@ class BayesianSampler(SamplerBase):
             
             x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)  
             y_est = tmp_surrogate.predict_values(x_est)
-            tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
+            if isinstance(dataset, HeroDataset):
+                tmp_dataset.add_samples_nohero(x_est, y_est, i_fidelity=i_fidelity)
+            else:
+                tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
             x_samples.append(x_est)
 
         return np.concatenate(x_samples, axis=0)

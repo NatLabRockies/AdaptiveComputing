@@ -75,9 +75,37 @@ class DatasetBase():
         """Returns the output data."""
         return self._y_data
     
+    def _validate_input(self, x_data, i_fidelity):
+        """
+        Validates the provided x_data for NaNs and out-of-bounds values.
+        
+        Args:
+            x_data (N Samples, N input dimensions) array: The input data.
+            i_fidelity (int): The fidelity level of the data.
+        
+        Raises:
+            ValueError: If NaNs or out-of-bounds values are found.
+        """
+        x_data = np.asarray(x_data)
+        
+        # Check for nans
+        if np.any(np.isnan(x_data)):
+            print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is a nan value.")
+            raise ValueError("x_data contains nan values.")
+        
+        # Check for out of bounds values
+        if x_data.shape[1] != len(self.params):
+            raise ValueError(f"x_data has {x_data.shape[1]} columns, but expected {len(self.params)} based on self.params.")
+        for i in range(len(self.params)):
+            param_min = self.params[i].min
+            param_max = self.params[i].max
+            if np.any(x_data[:,i] < param_min) or np.any(x_data[:,i] > param_max):
+                print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is an out of bounds value based on the user specified params min and max.")
+                raise ValueError(f"x_data[:, {i}] contains values outside the range [{param_min}, {param_max}].")
+    
     def _validate_data(self, x_data, y_data, i_fidelity):
         """
-        Validates the provided data for NaNs and out-of-bounds values.
+        Validates the provided y_data for NaNs and out-of-bounds values.
         
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
@@ -122,6 +150,7 @@ class DatasetBase():
             y_data (N Samples, N output dimensions): The output data.
             i_fidelity (int): The fidelity level of the data.
         """
+        self._validate_input(x_data, i_fidelity)
         x_data, y_data = self._validate_data(x_data, y_data, i_fidelity)
 
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
@@ -140,30 +169,3 @@ class DatasetBase():
             ranges = ranges + (slice(self.x_limits[i][0], self.x_limits[i][-1] + 1, 1),)
         return ranges
 
-
-"""# self.funcs =[]
-        # for i in range(self.n_fidelity):
-        #     self.funcs.append(ComposedFunction(self.simulations[i],self.params))
-
-        # Define xlimits, the domain for the design parameters
-        if self.mixed_type:
-            from smt.applications.mixed_integer import (FLOAT, ORD, ENUM)
-            self.xtypes = []
-            self.xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
-            self.xlimits_num = [] # this is the domain with the categoricals and integers converted to continuous types. Categoricals are a list of floats.
-            for i in range(self.n_in):
-                if self.params[i].type == 'continuous':
-                    self.xtypes.append(FLOAT)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'ordered':
-                    self.xtypes.append(ORD)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'categorical':
-                    self.xtypes.append((ENUM, len(self.params[i].categories)))
-                    self.xlimits.append(self.params[i].categories)
-                    self.xlimits_num.append(list(range(len(self.params[i].categories))))
-                else:
-                    raise Exception('Unrecognized type for parameter '+str(i)) 
-        else:"""

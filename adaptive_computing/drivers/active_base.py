@@ -44,7 +44,7 @@ class ActiveLoopDriver:
     """
 
     def __init__(self, simulations, params, surrogate=None, dataset=None,
-                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement'):
+                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', retrain=True):
         """
         Initializes the ActiveLoopDriver.
 
@@ -56,14 +56,18 @@ class ActiveLoopDriver:
             nan_behavior (str, optional): Behavior for handling NaN values ('fail', 'mask_replace', 'mask_ignore'). Defaults to 'fail'.
             fidelity_costs (dict or None, optional): Dictionary specifying costs associated with each fidelity level. Defaults to None.
         """
+        self.retrain = retrain
         self.params = params
 
         self.n_fidelity = len(simulations)
         if dataset is None:
-            self.dataset = DatasetBase(params, n_fidelity=self.n_fidelity)
+            dataset = DatasetBase(params, n_fidelity=self.n_fidelity)
+        self.dataset = dataset
 
-        self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for
-                           simulation in simulations]
+        if simulations is not None:
+            self.evaluators = [BaseEvaluator(simulation, n_in=len(self.params)) for simulation in simulations]
+        else:
+            assert(self.use_hero) # since the user has opted to use Hero, simulations should be set to None and the definition of the simulations should be implemented in the manager script. If Hero is not used, then simulations should not be specified by the user as a list of python functions
 
         self.fidelity_costs = fidelity_costs
 
@@ -105,8 +109,9 @@ class ActiveLoopDriver:
         """
         for i_fidelity in range(self.n_fidelity):
             self._initialize_fidelity(i_fidelity, N_samples_init=N_samples_init)
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        if self.retrain:
+            self.surrogate.train(self.dataset.x_data,
+                                 self.dataset.y_data)
         self._bopt_initialized = True
 
     def get_next_sample(self, i_fidelity=0):
@@ -130,8 +135,9 @@ class ActiveLoopDriver:
         x, fi_eval = self.get_next_sample()
         y = self.evaluate_sample(x, fi_eval)
         self.dataset.add_samples(x, y, i_fidelity=fi_eval)
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        if self.retrain:
+            self.surrogate.train(self.dataset.x_data,
+                                self.dataset.y_data)
 
     def run(self, N_steps=None):
         """
@@ -143,10 +149,13 @@ class ActiveLoopDriver:
         if not self._bopt_initialized:
             self.initialize()
 
+        if N_steps is None:
+            N_steps = np.inf
+
         for i in range(N_steps):
             self.step()
 
-    def add_points(self, points):
+    def add_points(self, points, i_fidelity=0):
         """
         Adds additional points to the dataset for evaluation.
 
@@ -154,8 +163,9 @@ class ActiveLoopDriver:
             points (list or np.ndarray): Points to add to the dataset.
         """
         for x in points:
-            y = self.evaluate_sample(x, i_fidelity=0)
-            self.dataset.add_samples(x, y, i_fidelity=0)
+            x = np.atleast_2d(x)
+            y = self.evaluate_sample(x, i_fidelity)
+            self.dataset.add_samples(x, y, i_fidelity)
 
     def evaluate_sample(self, points, i_fidelity):
         """
@@ -184,21 +194,50 @@ class ActiveLoopDriver:
         """
         points = np.asarray(points)
         values = np.zeros((points.shape[0], 1))
-        validator = get_query_validator(criterion=error_criterion)
 
+        # naive implementation: perform evaluations in a loop if they exceed the threshold
+        # This involves only one pass through the data, but may not run the most informative points first,
+        # and fails to use the most up to date surrogate for points that are evaluated before the last retraining.
+        # validator = get_query_validator(criterion=error_criterion)
+        # for i in range(points.shape[0]):
+        #     surrogate_value = self.surrogate.predict_values(points[[i]])
+        #     surrogate_variance = self.surrogate.predict_variances(points[[i]])
+        #     valid = validator(surrogate_value, surrogate_variance, threshold)
+
+        #     if not valid:
+        #         print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
+        #         y = self.evaluate_sample(points[[i]], i_fidelity=0)
+        #         self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+        #         if self.retrain:
+        #             self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+        #         # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
+        #         surrogate_value = self.surrogate.predict_values(points[[i]])
+        #     values[i] = surrogate_value
+
+        # alternatate implementation: perform evaluations on the highest variance points first
+        assert error_criterion == 'absolute_variance' #'percent_variance' is not supported in this implementation
+        surrogate_variances = np.zeros((points.shape[0], 1))
         for i in range(points.shape[0]):
-            surrogate_value = self.surrogate.predict_values(points[[i]])
-            surrogate_variance = self.surrogate.predict_variances(points[[i]])
-            valid = validator(surrogate_value, surrogate_variance, threshold)
+            surrogate_variances[i] = self.surrogate.predict_variances(points[[i]])
 
-            if not valid:
-                print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
-                y = self.evaluate_sample(points[[i]], i_fidelity=0)
-                self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+        # perform the simulations with variance exceeding the threshold starting with the highest variance
+        while np.max(surrogate_variances) > threshold:
+            i = np.argmax(surrogate_variances)
+            print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
+            y = self.evaluate_sample(points[[i]], i_fidelity=0)
+            self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+            if self.retrain:
                 self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
-                # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
-                surrogate_value = self.surrogate.predict_values(points[[i]])
-            values[i] = surrogate_value
+            # don't allow the same point to be evaluated again
+            surrogate_variances[i] = 0
+            # reevalute the variance of all points not set to zero
+            for j in range(points.shape[0]):
+                if surrogate_variances[j] != 0:
+                    surrogate_variances[j] = self.surrogate.predict_variances(points[[j]])
+
+        # reevalute the surrogate for all points
+        for i in range(points.shape[0]):
+            values[i] = self.surrogate.predict_values(points[[i]])
 
         return values
 
