@@ -139,7 +139,7 @@ class BayesianSampler(SamplerBase):
         """
         opt_all = np.array([])
         for i_s in range(self.n_eval_pts):
-            opt_all = np.append(opt_all, minimize(lambda xf: float(obj_k(np.append(xf, []))),
+            opt_all = np.append(opt_all, minimize(lambda xf: obj_k(xf).item() if hasattr(obj_k(xf), 'item') else float(obj_k(xf)),
                                                   xstart[i_s], 
                                                   method=self.opt_method,
                                                   bounds=self.x_limits))
