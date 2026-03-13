@@ -60,11 +60,11 @@ class LHSSampler(SamplerBase):
             sampling = MixedIntegerSamplingMethod(self.x_types,
                                                   self.x_limits, 
                                                   LHS, criterion="maximin", 
-                                                  random_state=self._rand_seed)
+                                                  seed=self._rand_seed)
         else:
             sampling = LHS(xlimits=self.x_limits, 
                            criterion='maximin', 
-                           random_state=self._rand_seed)
+                           seed=self._rand_seed)
         
         x = sampling(N_samples)
         # increment the random seed, so that future samples are not duplicates

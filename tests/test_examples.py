@@ -85,7 +85,18 @@ def run_example(monkeypatch,dir_name,py_name):
     monkeypatch.setattr(plt, 'show', lambda: None) # close all plots
     initial_wd = os.getcwd()
     print(initial_wd)
-    os.chdir('./examples/' + dir_name)
+    
+    # Find the repository root (where setup.py or environment.yaml exists)
+    import pathlib
+    current_path = pathlib.Path(initial_wd)
+    repo_root = current_path
+    while repo_root.parent != repo_root:
+        if (repo_root / 'setup.py').exists() or (repo_root / 'environment.yaml').exists():
+            break
+        repo_root = repo_root.parent
+    
+    examples_dir = repo_root / 'examples' / dir_name
+    os.chdir(str(examples_dir))
     print(os.getcwd())
     print('Testing ' + dir_name + '/' + py_name + '.py:')
     #sys.path.insert(0, '.') # add the path to the current directory. For some reason this doesn't work when multiple tests are run in parallel

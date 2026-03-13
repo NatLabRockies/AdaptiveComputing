@@ -119,7 +119,7 @@ class BayesianSampler(SamplerBase):
                 random_state = sum(array.shape[0] for array in dataset._x_data) * self.n_eval_pts
             self.init_sample = LHS(xlimits=dataset.x_limits,
                                    criterion='maximin',
-                                   random_state=random_state)
+                                   seed=random_state)
 
         xstart = self.init_sample(self.n_eval_pts)
         obj_k = lambda x: self.acq_func(x, surrogate, dataset, i_fidelity)
