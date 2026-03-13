@@ -6,12 +6,8 @@ import numpy as np
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
-# Import HPC configuration
-try:
-    import hpc_config
-except ImportError:
-    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
-    exit(1)
+# Use simple local machine name for basic Hero introduction
+machine_names = ['local']
 
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
@@ -58,9 +54,9 @@ def hero_controller():
     # Add degrees tasks
     temp = np.linspace(0.7, 2.0, 5)
     for t in temp:
-        # Initialize slurm_job_id and running status for all configured machines
-        slurm_job_id = {machine: -1 for machine in hpc_config.machine_names}
-        running = {machine: False for machine in hpc_config.machine_names}
+        # Initialize slurm_job_id and running status for local processing
+        slurm_job_id = {machine: -1 for machine in machine_names}
+        running = {machine: False for machine in machine_names}
         new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': [t], 'y_data': None, 'slurm_job_id': slurm_job_id, 'running': running})
     print('All tasks submitted to Hero queue. Waiting for all tasks to be done...')
 
@@ -73,20 +69,20 @@ def hero_controller():
         # Analyze ready tasks by machine
         print(f'There are {len(ready_task_records)} tasks in the "ready" state.')
         if ready_task_records:
-            for machine in hpc_config.machine_names:
+            for machine in machine_names:
                 queued_count = sum(1 for task in ready_task_records if task['metadata']['slurm_job_id'][machine] != -1)
                 print(f'  {queued_count} queued on {machine}')
         
         # Analyze running tasks by machine
         print(f'There are {len(running_task_records)} tasks in the "running" state.')
         if running_task_records:
-            for machine in hpc_config.machine_names:
+            for machine in machine_names:
                 running_count = sum(1 for task in running_task_records if task['metadata']['running'][machine])
                 print(f'  {running_count} running on {machine}')
             
             # Check for tasks running on multiple machines (potential issue)
             for task in running_task_records:
-                running_machines = [m for m in hpc_config.machine_names if task['metadata']['running'][m]]
+                running_machines = [m for m in machine_names if task['metadata']['running'][m]]
                 if len(running_machines) > 1:
                     print(f"WARNING: Task {task['id']} running on multiple machines: {running_machines}")
         
@@ -95,7 +91,7 @@ def hero_controller():
         # Check for done tasks still queued on machines (potential issue)
         if done_task_records:
             for task in done_task_records:
-                queued_machines = [m for m in hpc_config.machine_names if task['metadata']['slurm_job_id'][m] != -1]
+                queued_machines = [m for m in machine_names if task['metadata']['slurm_job_id'][m] != -1]
                 if queued_machines:
                     print(f"WARNING: Task {task['id']} is done but still queued on: {queued_machines}")
                     print(f"  metadata: {task['metadata']}")

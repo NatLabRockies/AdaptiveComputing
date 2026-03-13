@@ -87,6 +87,37 @@ Use this option if you only need core AC functionality without Hero framework fe
    ```bash
    python -m pytest
    
+## Examples
+
+The `examples/` directory contains practical demonstrations of AC functionality:
+
+### Getting Started - Hero Introduction
+
+**Start here**: [examples/hero/](examples/hero/) provides a simple introduction to Hero framework concepts:
+- **controller.py**: Demonstrates HeroDataset API with different sample addition methods
+- **controller_noAC.py**: Shows direct Hero API usage with detailed queue monitoring
+- **worker.py**: Simple local worker that processes tasks with basic calculations
+- No HPC access required - runs entirely on your local machine
+- Perfect for learning Hero concepts and testing your setup
+
+### Advanced - HPC Production Workflows
+
+**Scale up**: [examples/hero_HPC_managers/](examples/hero_HPC_managers/) demonstrates production HPC workflows:
+- **Adaptive Computing strategies**: Offline training, offline inference, and online inference
+- Automated HPC managers with SSH and SLURM integration
+- Real molecular dynamics simulations for conductivity calculation
+- Multi-cluster job distribution and error handling
+- Requires HPC access and SSH configuration
+
+### Other Examples
+
+- [examples/bayesian_1d_sf/](examples/bayesian_1d_sf/): Single-fidelity Bayesian optimization
+- [examples/bayesian_2d_sf/](examples/bayesian_2d_sf/): Multi-dimensional optimization
+- [examples/cpp_embedding/](examples/cpp_embedding/): C++ integration
+- [examples/query_sf/](examples/query_sf/): Simple query examples
+
+**Recommended learning path**: Start with `examples/hero/` to understand the basics, then explore `examples/hero_HPC_managers/` for production deployment.
+
 ## Developer instructions
 
 ### Testing

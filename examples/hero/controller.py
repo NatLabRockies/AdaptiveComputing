@@ -1,18 +1,11 @@
-# This script use the HeroDataset to manage tasks in a Hero queue
-# Managers can be launched on multiple HPC machines to execute the tasks
+# This script demonstrates basic HeroDataset functionality for task queue management
+# Simple introduction to Hero concepts using local worker processing
 import numpy as np
 
 import sys
 import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-# Import HPC configuration
-try:
-    import hpc_config
-except ImportError:
-    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
-    exit(1)
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.datasets import HeroDataset
@@ -23,7 +16,9 @@ def func_1d(x):
 if __name__ == '__main__':
     
     params = [ContinuousVariable(min=0.7, max=2.0)]
-    dataset = HeroDataset(params, hpc_config.machine_names, n_fidelity=1, blocking=False)
+    # For simple local processing, we use a single local "machine" name
+    machine_names = ['local']
+    dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=False)
     # queue hero samples at the given x_data values. No initial guess provided.
     dataset.add_samples(np.array([[1.1]]),None,0)
     dataset.add_samples(np.array([[1.5],[1.8]]),None,0)
