@@ -33,6 +33,18 @@ Before running this example, ensure you have completed **Option 1: Full Setup wi
    os.environ["HERO_DATABASE_PASSWORD"] = "your_database_password"
    ```
 
+3. **HPC Configuration (for HPC workflows only)**: If you plan to use HPC SLURM managers, copy and edit the HPC configuration template:
+
+   ```bash
+   cd examples/hero_2clusters
+   cp hpc_config_template.py hpc_config.py
+   # Edit hpc_config.py with your actual machine names, usernames, hosts, and paths
+   ```
+
+   The configuration file contains SSH connection details, remote paths, and SLURM script names for your HPC systems. 
+   
+   **Important**: Make sure the specified SLURM scripts exist in the `simulation_files/` directory at the remote path on each target machine. For example, if your config specifies `script_kestrel.sh` for a machine, that file must exist at `{remote_dirs[machine]}/simulation_files/script_kestrel.sh`.
+
 # Running in Python
 
 ## Prerequisites
@@ -42,19 +54,19 @@ Ensure you have completed the Hero environment setup above and have your credent
 These are the various Hero controllers available:
  1. **controller_noAC.py** - manually adds several tasks to the Hero queue without using AC
  2. **controller_manual.py** - demonstrates HeroDataset functionality by queuing tasks and retrieving results  
- 3. **controller_offline_training.py** - adds tasks to the Hero queue using manual, random, and bayesian optimization methods. Uses SSH to run managers on remote HPC machines (Kestrel/Vermillion) to submit SLURM jobs that perform the work in the Hero queue. Writes the final results to a pkl file.
+ 3. **controller_offline_training.py** - adds tasks to the Hero queue using manual, random, and bayesian optimization methods. Uses SSH to run managers on remote HPC machines to submit SLURM jobs that perform the work in the Hero queue. Writes the final results to a pkl file.
  4. **controller_offline_inference.py** - reads a trained surrogate from a pkl file and uses it in an offline manner (no retraining) for inference.
  5. **controller_online_inference.py** - reads a trained surrogate from a file and uses it in an online manner, collecting new training data if the variance exceeds a threshold. Like controller_offline_training.py, this uses SSH to run managers on remote HPC machines.
 
 ## To run the examples:
 
-1. **First-time setup**: Complete the full repository setup from the main README (Option 1: Full Setup with Hero Support).
+4. **First-time setup**: Complete the full repository setup from the main README (Option 1: Full Setup with Hero Support).
 
-2. **Choose your processing method**:
+5. **Choose your processing method**:
    - **For local testing**: Use `worker.py` (simpler, faster to set up)
    - **For HPC workflows**: Use HPC SLURM managers (more complex, production-scale)
 
-3. **Basic workflow example**:
+6. **Basic workflow example**:
    
    **Terminal 1** - Start a worker/manager:
    ```bash
@@ -75,7 +87,7 @@ These are the various Hero controllers available:
    python controller_manual.py  # or any other controller
    ```
 
-4. **For HPC workflows only**: You'll need separate terminals to run managers on each HPC cluster.
+7. **For HPC workflows only**: You'll need separate terminals to run managers on each HPC cluster.
 
 ## Queue Processing Options
 
@@ -101,7 +113,7 @@ python worker.py [worker_name]
 
 **manager.py** - Production queue managers that submit actual SLURM jobs on HPC clusters:
 
-- Designed for Kestrel and Vermillion HPC machines at NLR
+- Designed for multiple HPC clusters with SLURM job scheduling
 - Submits real SLURM jobs to compute nodes
 - Requires SSH access and proper HPC setup
 - More complex but supports large-scale computation
@@ -112,7 +124,7 @@ python worker.py [worker_name]
 
 SLURM queue managers check the Hero queue and submit corresponding SLURM jobs on HPC clusters. Controllers that add tasks to Hero queues (all except `controller_offline_inference.py`) require either local workers or HPC managers running.
 
-**HPC setup**: Run one queue manager on a login node of each HPC cluster (e.g., Kestrel and Vermillion). This distributes jobs across clusters and prevents conflicts.
+**HPC setup**: Run one queue manager on a login node of each HPC cluster (e.g., machine_a and machine_b). This distributes jobs across clusters and prevents conflicts.
 
 **Note**: This requires SSH access to HPC machines and typically needs multiple terminals - one for the controller and one manager on each cluster.
 
@@ -124,7 +136,7 @@ mamba activate AC_hero
 python manager.py <machine_name>
 ```
 
-Replace `<machine_name>` with the actual cluster name (e.g., 'kestrel', 'vermillion').
+Replace `<machine_name>` with the actual cluster name from your hpc_config.py (e.g., 'machine_a', 'machine_b').
 
 # Running in C++
 
