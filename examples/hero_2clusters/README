@@ -8,6 +8,7 @@ Before running this example, ensure you have completed **Option 1: Full Setup wi
 
 2. **Hero Credentials**: The Hero environment file (`adaptive_computing/hero_utils/set_hero_env_vars.py`) will be auto-created when you first run Hero functionality. Edit this file to replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values):
 
+   - `HERO_ENV` - Type of Hero deployment. "dev" is used behind the NLR firewall. "production" must be used outside of NLR. There may be other types too.
    - `HERO_CLIENT_ID` - Your Hero client ID
    - `HERO_CLIENT_SECRET` - Your Hero client secret  
    - `HERO_QUEUE` - Your unique queue name (consider including your username)
@@ -30,9 +31,9 @@ Ensure you have completed the Hero environment setup above and have your credent
 These are the various Hero controllers available:
  1. controller_noAC.py manually adds several tasks to the Hero queue without using AC
  2. controller_manual.py manually adds several tasks to the Hero queue without using AC HeroDataset
- 3. controller_offline_training.py add tasks to the Hero queue using manual, random, and bayesian optimization methods.
- 4. controller_offline_inference.py read a trained surrogate from a file and use it in an offline manner (no retraining) for inference.
- 5. controller_online_inference.py read a trained surrogate from a file and use it in an online manner, collecting new training data if the variance exceeds a threshold.
+ 3. controller_offline_training.py add tasks to the Hero queue using manual, random, and bayesian optimization methods. Uses ssh to run managers on Kestrel and Vermilion machines to submit slurm jobs that perform the work in the Hero queue. Writes the final results to a pkl file.
+ 4. controller_offline_inference.py read a trained surrogate from a pkl file and use it in an offline manner (no retraining) for inference.
+ 5. controller_online_inference.py read a trained surrogate from a file and use it in an online manner, collecting new training data if the variance exceeds a threshold. Like controller_offline_training.py, this uses ssh to run managers on Kestrel and Vermilion machines.
 
 ## To run any of these controllers:
 
@@ -41,7 +42,7 @@ These are the various Hero controllers available:
 2. **Run a controller**: Open a terminal on machine A or machine B and run:
    ```bash
    cd examples/hero_2clusters
-   module load conda
+   module load mamba
    mamba activate AC_hero
    python <controller_name>.py  # replace <controller_name> with actual file name
    ```
@@ -57,7 +58,7 @@ A queue manager checks the Hero queue and submits corresponding SLURM jobs on th
 **To run a manager** on both machine A and machine B:
 ```bash
 cd examples/hero_2clusters
-module load conda
+module load mamba
 mamba activate AC_hero
 python manager.py
 ```
@@ -70,20 +71,20 @@ Instead of running the Python controllers, you can run the C++ counterpart using
 
 1. **Load environment**:
    ```bash
-   module load conda
+   module load mamba
    mamba activate AC_hero
    ```
 
 2. **Export library path** (adjust path as needed for your conda environment):
    ```bash
-   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda/envs/AC_hero/lib
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mamba/envs/AC_hero/lib
    ```
 
 3. **Compile C++ code** (adjust paths as needed):
    ```bash
    g++ controller_offline_inference.cpp -o controller_offline_inference \
-       -L ~/.conda/envs/AC_hero/lib -lpython3.11 \
-       -I ~/.conda/envs/AC_hero/include/python3.11
+       -L ~/.mamba/envs/AC_hero/lib -lpython3.11 \
+       -I ~/.mamba/envs/AC_hero/include/python3.11
    ```
 
 **Note**: The C++ program loads and executes the Python file at runtime, not during compilation, so you can modify the Python file after compilation.
