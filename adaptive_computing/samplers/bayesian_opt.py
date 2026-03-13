@@ -1,7 +1,12 @@
 from adaptive_computing.samplers import SamplerBase
 from smt.sampling_methods import LHS
 from smt.applications.mixed_integer import MixedIntegerSamplingMethod
-from adaptive_computing.datasets import HeroDataset
+
+# Optional Hero import
+try:
+    from adaptive_computing.datasets import HeroDataset
+except ImportError:
+    HeroDataset = None
 
 from scipy.optimize import minimize, brute, differential_evolution
 import numpy as np
@@ -83,7 +88,7 @@ class BayesianSampler(SamplerBase):
             
             x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)  
             y_est = tmp_surrogate.predict_values(x_est)
-            if isinstance(dataset, HeroDataset):
+            if HeroDataset and isinstance(dataset, HeroDataset):
                 tmp_dataset.add_samples_nohero(x_est, y_est, i_fidelity=i_fidelity)
             else:
                 tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
