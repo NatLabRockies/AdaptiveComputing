@@ -98,7 +98,7 @@ def hero_worker(worker_name='local_worker'):
                         name=task['name'], 
                         metadata=task['metadata']
                     )
-                except:
+                except Exception:
                     pass  # Ignore secondary errors
         
         # Wait before checking again
