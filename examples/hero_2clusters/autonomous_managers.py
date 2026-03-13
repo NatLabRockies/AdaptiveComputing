@@ -23,13 +23,45 @@ def signal_handler(sig, frame):
     os._exit(0) # unlike sys.exit(0), os._exit(0) avoids sending SystemExit signal to Hero, which it doesn't know how to handle
 
 def run_remote_managers():
+    print("Starting remote managers...")
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
-            f"{_remote_dirs[machine_name]}run_manager.sh {machine_name}"
+            f"cd {_remote_dirs[machine_name]} && nohup ./run_manager.sh {machine_name} > manager_{machine_name}.log 2>&1 &"
         ]
-        subprocess.run(ssh_command)
+        print(f"Launching manager on {machine_name}: {' '.join(ssh_command)}")
+        try:
+            result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                print(f"✅ Manager command sent to {machine_name} successfully")
+            else:
+                print(f"❌ Failed to start manager on {machine_name}")
+                print(f"   STDOUT: {result.stdout}")
+                print(f"   STDERR: {result.stderr}")
+        except subprocess.TimeoutExpired:
+            print(f"⚠️  SSH timeout for {machine_name} (command may still be running)")
+        except Exception as e:
+            print(f"❌ Error connecting to {machine_name}: {e}")
+    
+    print("Remote manager launch commands completed. Check logs to verify they're running.")
+
+def verify_remote_managers():
+    """Check if remote managers are actually running"""
+    print("\nVerifying remote managers...")
+    for machine_name in _machine_names:
+        ssh_command = [
+            "ssh",
+            f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
+            f"cd {_remote_dirs[machine_name]} && tmux list-sessions | grep manager_session && echo 'Manager session found' || echo 'No manager session'"
+        ]
+        try:
+            result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+            print(f"{machine_name}: {result.stdout.strip()}")
+            if result.stderr:
+                print(f"  stderr: {result.stderr.strip()}")
+        except Exception as e:
+            print(f"{machine_name}: Connection failed - {e}")
 
 def cleanup_remote_managers():
     print("\nCanceling all slurm jobs and then terminating the remote queue managers...")

@@ -28,10 +28,16 @@ if __name__ == '__main__':
     remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
     remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
 
-    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state
+    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
     # register a signal handler and set up the variables it needs to operate
     setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs)
     run_remote_managers()
+    
+    # Give managers time to start, then verify they're running
+    import time
+    print("Waiting 10 seconds for managers to start...")
+    time.sleep(10)
+    verify_remote_managers()
 
     params = [ContinuousVariable(min=0.8, max=2.0)]
     ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT', acq_func='maximum_variance', blocking=False)
