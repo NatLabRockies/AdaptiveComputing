@@ -32,7 +32,7 @@ def run_remote_managers():
         subprocess.run(ssh_command)
 
 def cleanup_remote_managers():
-    print(f"\nCanceling all slurm jobs and then terminating the remote queue managers...")
+    print("\nCanceling all slurm jobs and then terminating the remote queue managers...")
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
