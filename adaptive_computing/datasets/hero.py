@@ -166,7 +166,7 @@ class HeroDataset(DatasetBase):
                     
                     x_data, y_eval = self._validate_data(task_data["metadata"]["x_data"], y_eval, i_fidelity)
                     
-                    self._y_data[i_fidelity][i,:] = np.atleast_2d(float(y_eval))
+                    self._y_data[i_fidelity][i,:] = y_eval.flatten()
                     for i_o in range(self.n_out):
                         self._unmasked_data[i_fidelity][i,i_o] = True
                     self._hero_todo[i_fidelity][i] = False
