@@ -1,78 +1,89 @@
-# Installation
-## Set up AC conda environment by running the following commands on Kestrel and on Vermillion
-~~~{.bash}
-conda env create -f environment.yaml
-conda activate AC_hero
-pip install -e .
-~~~
+# Hero Environment Setup
 
-# Hero environmental variables
-Create and edit the following script:
-~~~{.bash}
-cp Adaptive_Computing/adaptive_computing/hero_utils/set_hero_ev_vars_template.py Adaptive_Computing/adaptive_computing/hero_utils/set_hero_ev_vars.py
-# edit set_hero_ev_vars.py to replace the placeholder arguments in angle brackets <> with strings for the Hero database credentials. Ask your Hero admin for these.
-~~~
+Before running this example, ensure you have completed **Option 1: Full Setup with Hero Support** from the main repository README.
 
-This script should contain the following:
-~~~{.bash}
-#!/bin/bash
-export HERO_ENV="dev"
-export HERO_PROJECT="adaptive-computing-app"
-export HERO_CLIENT_ID=<your-client-id>
-export HERO_CLIENT_SECRET=<your-client-secret>
-export HERO_QUEUE="queue-degrees"
-export HERO_QUEUE_VISIBILITY_TIMEOUT="60"
-export HERO_DATABASE_PASSWORD=<your-password>
-~~~
+## Configure Hero Credentials
+
+1. **Environment Setup**: Make sure you've created the `AC_hero` conda environment as described in the main README.
+
+2. **Hero Credentials**: The Hero environment file (`adaptive_computing/hero_utils/set_hero_env_vars.py`) will be auto-created when you first run Hero functionality. Edit this file to replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values):
+
+   - `HERO_CLIENT_ID` - Your Hero client ID
+   - `HERO_CLIENT_SECRET` - Your Hero client secret  
+   - `HERO_QUEUE` - Your unique queue name (consider including your username)
+   - `HERO_DATABASE_PASSWORD` - Your Hero database password
+
+   Example credential structure:
+   ```python
+   os.environ["HERO_CLIENT_ID"] = "your_actual_client_id"
+   os.environ["HERO_CLIENT_SECRET"] = "your_actual_client_secret"
+   os.environ["HERO_QUEUE"] = "your_unique_queue_name"
+   os.environ["HERO_DATABASE_PASSWORD"] = "your_database_password"
+   ```
 
 # Running in Python
-## These are the various hero controllers available:
+
+## Prerequisites
+Ensure you have completed the Hero environment setup above and have your credentials configured.
+
+## Available Controllers
+These are the various Hero controllers available:
  1. controller_noAC.py manually adds several tasks to the Hero queue without using AC
  2. controller_manual.py manually adds several tasks to the Hero queue without using AC HeroDataset
  3. controller_offline_training.py add tasks to the Hero queue using manual, random, and bayesian optimization methods.
  4. controller_offline_inference.py read a trained surrogate from a file and use it in an offline manner (no retraining) for inference.
  5. controller_online_inference.py read a trained surrogate from a file and use it in an online manner, collecting new training data if the variance exceeds a threshold.
 
-## To run any of these controllers, open a terminal on Kestrel or Vermillion and run the following commands:
-~~~{.bash}
-cd examples/hero_2clusters
-module load conda
-conda activate AC_hero
-python <controller_name>.py # replace <controller_name> with the actual file name
-~~~
+## To run any of these controllers:
 
-## A queue manager checks the hero queue and submits corresponding slurm jobs on a cluster where the manager is running. 
-## All of the controllers listed above (except for the offline_inference controller) add tasks to the hero queue.
-## So you will need to have at least one manager running for these controllers otherwise, the controller's tasks will never be completed.
-## For instance, we suggest running a queue manager on a login node of Kestrel and one on a login node of Vermillion. This will queue jobs on both clusters and unqueue them if they begin to execute on the other machine. 
-## Note that this will likely involve opening three terminals, one to run the controller on either machine and one additional on each machine to run the managers.
-## Run the following commands in a terminal on both Kestrel and Vermillion:
-~~~{.bash}
+1. **First-time setup**: If you haven't already, complete the full repository setup from the main README (Option 1: Full Setup with Hero Support).
+
+2. **Run a controller**: Open a terminal on machine A or machine B and run:
+   ```bash
+   cd examples/hero_2clusters
+   module load conda
+   mamba activate AC_hero
+   python <controller_name>.py  # replace <controller_name> with actual file name
+   ```
+
+## Queue Manager Setup
+
+A queue manager checks the Hero queue and submits corresponding SLURM jobs on the cluster where the manager is running. Most controllers listed above (except `controller_offline_inference.py`) add tasks to the Hero queue, so you'll need at least one manager running.
+
+**Recommended setup**: Run one queue manager on a login node of machine A and one on a login node of machine B. This queues jobs on both clusters and removes them from the queue when they begin executing.
+
+**Note**: This typically requires three terminals - one for the controller and one manager on each cluster.
+
+**To run a manager** on both machine A and machine B:
+```bash
 cd examples/hero_2clusters
 module load conda
-conda activate AC_hero
+mamba activate AC_hero
 python manager.py
-~~~
+```
 
 # Running in C++
-## Instead of running the .py controllers, it is possible to run the .cpp counterpart instead using the following steps:
 
-~~~{.bash}
-module load conda
-conda activate AC_hero
-~~~
+Instead of running the Python controllers, you can run the C++ counterpart using these steps:
 
-Export library path
-~~~{.bash}
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda-envs/AC_hero/lib
-~~~
-Assuming that this is the path where `libpython3.11.so` is located
+## Setup and Compilation
 
-Compile c++ code
-~~~{.bash}
-g++ controller_offline_inference.cpp -o controller_offline_inference -L ~/.conda-envs/AC_hero/lib -lpython3.11 -I ~/.conda-envs/AC_hero/include/python3.11
-~~~
-Assuming `libpython3.XX.so` can be found at the library path
-And Assuming `Python.h` can be found at the include path
+1. **Load environment**:
+   ```bash
+   module load conda
+   mamba activate AC_hero
+   ```
 
-Note: C++ program loads and executes the Python file at runtime, not during compilation. So you can change the python file after compilation.
+2. **Export library path** (adjust path as needed for your conda environment):
+   ```bash
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.conda/envs/AC_hero/lib
+   ```
+
+3. **Compile C++ code** (adjust paths as needed):
+   ```bash
+   g++ controller_offline_inference.cpp -o controller_offline_inference \
+       -L ~/.conda/envs/AC_hero/lib -lpython3.11 \
+       -I ~/.conda/envs/AC_hero/include/python3.11
+   ```
+
+**Note**: The C++ program loads and executes the Python file at runtime, not during compilation, so you can modify the Python file after compilation.
