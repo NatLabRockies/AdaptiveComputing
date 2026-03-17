@@ -4,25 +4,26 @@ from hero import HeroClient, get_env_variable
 import time
 import numpy as np
 import sys
-
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
-set_hero_env_vars()
-
-try:
-    HERO_ENV = get_env_variable('HERO_ENV', 'dev')
-    HERO_PROJECT = get_env_variable('HERO_PROJECT')
-    HERO_QUEUE = get_env_variable('HERO_QUEUE')
-except EnvironmentError as e:
-    print(e)
-    exit(1)
-
-APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 class HeroDataset(DatasetBase):
     def __init__(self, params, machine_names, n_fidelity=1, blocking=False):
         self.blocking = blocking
         super().__init__(params, n_fidelity=n_fidelity)
 
+        # Define HERO environment variables and queue name
+        set_hero_env_vars()
+
+        try:
+            HERO_ENV = get_env_variable('HERO_ENV', 'dev')
+            HERO_PROJECT = get_env_variable('HERO_PROJECT')
+            HERO_QUEUE = get_env_variable('HERO_QUEUE')
+        except EnvironmentError as e:
+            print(e)
+            exit(1)
+
+        APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
+        
         # Setup the HERO client and authenticate
         self.hero_authenticate(machine_names)
 
@@ -37,6 +38,17 @@ class HeroDataset(DatasetBase):
         self._hero_task_id = [np.empty([0,1], dtype='<U72')]*self.n_fidelity # _hero_task_id is a list of length n_fidelity. Each entry will be an n_samp[i_fl] x 1 np array
 
     def hero_authenticate(self, machine_names):
+        # Define HERO environment variables and queue name
+        set_hero_env_vars()
+        try:
+            HERO_ENV = get_env_variable('HERO_ENV', 'dev')
+            HERO_PROJECT = get_env_variable('HERO_PROJECT')
+            HERO_QUEUE = get_env_variable('HERO_QUEUE')
+        except EnvironmentError as e:
+            print(e)
+            exit(1)
+        APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
+        
         hero = HeroClient()
         self.task_engine = hero.TaskEngine(APPLICATION_ID)
         try:
