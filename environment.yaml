@@ -1,4 +1,4 @@
-name: AC_hero
+name: AC_soogo
 channels:
   - defaults
 dependencies:
@@ -7,8 +7,11 @@ dependencies:
   - matplotlib
   - ipython
   - pytest
+  - pandas
   - pip
   - pip:
     - git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
     - smt
+    - scikit-learn==1.8.0
+    - soogo==2.0.1
     - ruff
