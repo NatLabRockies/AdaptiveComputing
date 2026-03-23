@@ -144,11 +144,51 @@ class BayesianSampler(SamplerBase):
         """
         opt_all = np.array([])
         for i_s in range(self.n_eval_pts):
-            opt_all = np.append(opt_all, minimize(lambda xf: obj_k(xf).item() if hasattr(obj_k(xf), 'item') else float(obj_k(xf)),
-                                                  xstart[i_s], 
-                                                  method=self.opt_method,
-                                                  bounds=self.x_limits))
+            try:
+                # Improved objective function wrapper with better error handling
+                def safe_obj_func(xf):
+                    try:
+                        result = obj_k(xf)
+                        # Handle different return types more robustly
+                        if hasattr(result, 'item'):
+                            return result.item()
+                        elif isinstance(result, (list, np.ndarray)):
+                            if len(result) == 1:
+                                return float(result[0]) if hasattr(result[0], '__float__') else float(result[0].item())
+                            else:
+                                return float(result.mean())  # Fallback for multi-element arrays
+                        else:
+                            return float(result)
+                    except Exception as e:
+                        # Return large penalty value on error
+                        return 1e12
+                
+                result = minimize(safe_obj_func, xstart[i_s], method=self.opt_method, bounds=self.x_limits)
+                opt_all = np.append(opt_all, result)
+            except Exception as e:
+                # Skip this optimization attempt if it fails completely
+                print(f"Warning: Optimization attempt {i_s} failed: {e}")
+                continue
+        
+        # Check if any optimizations succeeded
+        if len(opt_all) == 0:
+            print("Warning: All optimization attempts failed. Using random starting point.")
+            # Return a random point within bounds as fallback
+            bounds_array = np.array(self.x_limits)
+            random_point = np.random.uniform(bounds_array[:, 0], bounds_array[:, 1])
+            return random_point
+            
         opt_success = opt_all[[opt_i['success'] for opt_i in opt_all]]  # gets only the entries of opt_all that have 'success'=True
+        
+        # Handle case where no optimizations succeeded
+        if len(opt_success) == 0:
+            print("Warning: No optimization attempts succeeded. Using best failed attempt.")
+            # Use the attempt with the lowest function value, even if it failed
+            obj_all = np.array([opt_i['fun'] for opt_i in opt_all])
+            ind_min = np.argmin(obj_all)
+            xf_opt = opt_all[ind_min]['x']
+            return xf_opt
+        
         obj_success = np.array([opt_i['fun'] for opt_i in opt_success])  # create an array of the function values for all of the successful optimization points
         ind_min = np.argmin(obj_success)  # which initial guess was best (led to the deepest min value)
         opt = opt_success[ind_min]  # the full output for the best initial guess

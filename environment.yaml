@@ -1,4 +1,4 @@
-name: AC_soogo
+name: AC_rental_car
 channels:
   - defaults
 dependencies:
@@ -15,3 +15,5 @@ dependencies:
     - scikit-learn==1.8.0
     - soogo==2.0.1
     - ruff
+    - pydantic
+    - langchain-core
