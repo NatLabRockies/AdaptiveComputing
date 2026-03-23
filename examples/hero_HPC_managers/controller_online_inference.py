@@ -1,5 +1,5 @@
 # This script initializes an AC driver that puts tasks in a Hero queue
-# Managers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
+# Managers can be launched on multiple HPC machines to execute the tasks
 import numpy as np
 import pickle
 import sys
@@ -17,23 +17,26 @@ def print_data(ac_driver):
 # How to manually terminate the session: tmux kill-session -t manager_session
 
 if __name__ == '__main__':
-    # for testing, use two managers on vermilion on different login nodes
-    # machine_names = ['vermilion1','vermilion2']
-    # remote_usernames = {'vermilion1':'kgriffin','vermilion2':'kgriffin'}
-    # remote_hosts = {'vermilion1':'vs-login-1.hpc.nrel.gov','vermilion2':'vs-login-2.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
-    # remote_dirs = {'vermilion1':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/','vermilion2':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
+    # Import HPC configuration from separate file
+    # Note: Copy hpc_config_template.py to hpc_config.py and edit with your values
+    try:
+        from hpc_config import machine_names, remote_usernames, remote_hosts, remote_dirs
+        print("Using HPC configuration from hpc_config.py")
+    except ImportError:
+        print("ERROR: hpc_config.py not found!")
+        print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
+        sys.exit(1)
 
-    machine_names = ['kestrel','vermilion']
-    # machine_names = ['kestrel']
-    # machine_names = ['vermilion']
-    remote_usernames = {'kestrel':'kgriffin','vermilion':'kgriffin'}
-    remote_hosts = {'kestrel':'kl1.hpc.nrel.gov','vermilion':'vs-login-1.hpc.nrel.gov'} # Note: make sure to specify a specific login node, otherwise it is unlikely you can reattach to a previously started tmux session when cleaning up
-    remote_dirs = {'kestrel':'/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/hero_2clusters/','vermilion':'/projects/degrees/kgriffin/AdaptiveComputing/examples/hero_2clusters/'}
-
-    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state
+    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
     # register a signal handler and set up the variables it needs to operate
     setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs)
     run_remote_managers()
+    
+    # Give managers time to start, then verify they're running
+    import time
+    print("Waiting 10 seconds for managers to start...")
+    time.sleep(10)
+    verify_remote_managers()
     
     # Unpickle the offline trained surrogate (created by controller_offline_training.py)                                                                               
     with open('offline_training.pkl', 'rb') as file:

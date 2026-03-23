@@ -7,6 +7,13 @@ import os
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
+# Import HPC configuration
+try:
+    import hpc_config
+except ImportError:
+    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
+    exit(1)
+
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
@@ -55,12 +62,12 @@ def hero_manager():
         for current_task in ready_tasks:
             if current_task['metadata']['slurm_job_id'][machine_name] == -1:
                 t = current_task['metadata']['x_data'][0]
-                if machine_name.startswith('kestrel'):
-                    command = f"sbatch script_kestrel.sh {t} {current_task['id']} {machine_name}"
-                elif machine_name.startswith('vermilion'):
-                    command = f"sbatch script_vermilion.sh {t} {current_task['id']} {machine_name}"
+                # Use configured script name for this machine
+                if machine_name in hpc_config.slurm_scripts:
+                    script_name = hpc_config.slurm_scripts[machine_name]
+                    command = f"sbatch {script_name} {t} {current_task['id']} {machine_name}"
                 else:
-                    raise Exception(f"The machine name found is {machine_name}. A branch of the if statement must be written for how to run the job on this machine.")
+                    raise Exception(f"The machine name '{machine_name}' is not configured in hpc_config.slurm_scripts. Available machines: {list(hpc_config.slurm_scripts.keys())}")
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
                 if result.returncode != 0:

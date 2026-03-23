@@ -1,4 +1,4 @@
-name: AC_hero
+name: AC
 channels:
   - defaults
 dependencies:
@@ -9,6 +9,5 @@ dependencies:
   - pytest
   - pip
   - pip:
-    - git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
     - smt
     - ruff

@@ -6,6 +6,9 @@ import numpy as np
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
+# Use simple local machine name for basic Hero introduction
+machine_names = ['local']
+
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
@@ -51,7 +54,10 @@ def hero_controller():
     # Add degrees tasks
     temp = np.linspace(0.7, 2.0, 5)
     for t in temp:
-        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': [t], 'y_data': None, 'slurm_job_id': {'kestrel': -1,'vermilion': -1}, 'running': {'kestrel': False,'vermilion': False}})
+        # Initialize slurm_job_id and running status for local processing
+        slurm_job_id = {machine: -1 for machine in machine_names}
+        running = {machine: False for machine in machine_names}
+        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': [t], 'y_data': None, 'slurm_job_id': slurm_job_id, 'running': running})
     print('All tasks submitted to Hero queue. Waiting for all tasks to be done...')
 
     while True:
@@ -59,30 +65,36 @@ def hero_controller():
         ready_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
         running_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         done_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
-        #print(f'There are {len(ready_task_records)} tasks in the "ready" state.')
-        queued_kestrel = np.array([task['metadata']['slurm_job_id']['kestrel'] for task in ready_task_records]) != -1
-        queued_vermilion = np.array([task['metadata']['slurm_job_id']['vermilion'] for task in ready_task_records]) != -1
-        not_queued = np.sum(np.logical_and(np.logical_not(queued_kestrel), np.logical_not(queued_vermilion)))
-        k_only = np.sum(np.logical_and(queued_kestrel, np.logical_not(queued_vermilion)))
-        v_only = np.sum(np.logical_and(np.logical_not(queued_kestrel), queued_vermilion))
-        both = np.sum(np.logical_and(queued_kestrel, queued_vermilion))
-        print(f'There are {len(ready_task_records)} tasks in the "ready" state. {not_queued} not queued, {k_only} queued on kestrel only, {v_only} queued on vermilion only, {both} queued on both.')
-        running_kestrel = np.array([task['metadata']['running']['kestrel'] for task in running_task_records])
-        running_vermilion = np.array([task['metadata']['running']['vermilion'] for task in running_task_records])
-        k_only = np.sum(np.logical_and(running_kestrel, np.logical_not(running_vermilion)))
-        v_only = np.sum(np.logical_and(np.logical_not(running_kestrel), running_vermilion))
-        both = np.sum(np.logical_and(running_kestrel, running_vermilion))
-        print(f'There are {len(running_task_records)} tasks in the "running" state. {k_only} running on kestrel, {v_only} running on vermilion, {both} running on both')
-        if both > 0:
-            print(f"WARNING!!!!: {both} tasks are running on both machines.")
+        
+        # Analyze ready tasks by machine
+        print(f'There are {len(ready_task_records)} tasks in the "ready" state.')
+        if ready_task_records:
+            for machine in machine_names:
+                queued_count = sum(1 for task in ready_task_records if task['metadata']['slurm_job_id'][machine] != -1)
+                print(f'  {queued_count} queued on {machine}')
+        
+        # Analyze running tasks by machine
+        print(f'There are {len(running_task_records)} tasks in the "running" state.')
+        if running_task_records:
+            for machine in machine_names:
+                running_count = sum(1 for task in running_task_records if task['metadata']['running'][machine])
+                print(f'  {running_count} running on {machine}')
+            
+            # Check for tasks running on multiple machines (potential issue)
+            for task in running_task_records:
+                running_machines = [m for m in machine_names if task['metadata']['running'][m]]
+                if len(running_machines) > 1:
+                    print(f"WARNING: Task {task['id']} running on multiple machines: {running_machines}")
+        
         print(f'There are {len(done_task_records)} tasks in the "done" state.')
-        queued_kestrel = np.array([task['metadata']['slurm_job_id']['kestrel'] for task in done_task_records]) != -1
-        queued_vermilion = np.array([task['metadata']['slurm_job_id']['vermilion'] for task in done_task_records]) != -1
-        done_queued_tasks = np.sum(np.logical_or(queued_kestrel, queued_vermilion))
-        if done_queued_tasks > 0:
+        
+        # Check for done tasks still queued on machines (potential issue)
+        if done_task_records:
             for task in done_task_records:
-                print(f"metadata: {task['metadata']}")
-            print(f"WARNING!!!!: {done_queued_tasks} tasks are done but still queued on another machine.")
+                queued_machines = [m for m in machine_names if task['metadata']['slurm_job_id'][m] != -1]
+                if queued_machines:
+                    print(f"WARNING: Task {task['id']} is done but still queued on: {queued_machines}")
+                    print(f"  metadata: {task['metadata']}")
         print()
         
         task_record = task_engine.read_task(task_id=new_task['id'])

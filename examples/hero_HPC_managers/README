@@ -1,0 +1,184 @@
+# Hero HPC Managers - Production Workflows
+
+**Advanced Example** - Master the basics first! Complete [examples/hero/](../hero/) before attempting this example.
+
+This directory demonstrates production-scale Hero framework integration with HPC clusters for real computational workloads. These examples show:
+
+- **Advanced Adaptive Computing strategies**: Training, inference, and online learning workflows
+- **Production HPC integration**: Automated SSH deployment and SLURM job management
+- **Real computational science**: Molecular dynamics simulations for thermal conductivity
+- **Multi-cluster orchestration**: Task distribution and error handling across HPC systems
+- **Surrogate modeling workflows**: Complete pipeline from training to deployment
+
+**Requirements**: SSH access to HPC clusters, SLURM familiarity, and working Hero credentials.
+
+# Prerequisites
+
+## 1. Complete Basic Hero Setup
+
+**First complete**: [examples/hero/](../hero/) to understand Hero concepts with simple local workflows.
+
+## 2. Repository Setup
+
+Ensure you have completed **Option 1: Full Setup with Hero Support** from the [main repository README](../../README.md).
+
+## 3. Hero Credentials
+
+The Hero environment file (`adaptive_computing/hero_utils/set_hero_env_vars.py`) will be auto-created when you first run Hero functionality. Edit this file to replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values):
+
+- `HERO_ENV` - Type of Hero deployment. "dev" is used behind the NLR firewall. "production" must be used outside of NLR. There may be other types too.
+- `HERO_CLIENT_ID` - Your Hero client ID
+- `HERO_CLIENT_SECRET` - Your Hero client secret  
+- `HERO_QUEUE` - Your unique queue name (consider including your username)
+- `HERO_DATABASE_PASSWORD` - Your Hero database password
+
+Example credential structure:
+```python
+os.environ["HERO_CLIENT_ID"] = "your_actual_client_id"
+os.environ["HERO_CLIENT_SECRET"] = "your_actual_client_secret"
+os.environ["HERO_QUEUE"] = "your_unique_queue_name"
+os.environ["HERO_DATABASE_PASSWORD"] = "your_database_password"
+```
+
+## 4. HPC Configuration
+
+Copy and edit the HPC configuration template:
+
+```bash
+cd examples/hero_HPC_managers
+cp hpc_config_template.py hpc_config.py
+# Edit hpc_config.py with your actual machine names, usernames, hosts, and paths
+```
+
+The configuration file contains SSH connection details, remote paths, and SLURM script names for your HPC systems.
+
+**Important**: Make sure the specified SLURM scripts exist in the `simulation_files/` directory at the remote path on each target machine. For example, if your config specifies `script_kestrel.sh` for a machine, that file must exist at `{remote_dirs[machine]}/simulation_files/script_kestrel.sh`.
+
+# Production Workflows
+Ensure you have completed the Hero environment setup above and have your credentials configured.
+
+## Available Controllers
+
+These controllers implement advanced Adaptive Computing strategies for production HPC workflows:
+
+1. **controller_offline_training.py** - Demonstrates comprehensive AC workflow using manual sampling, random sampling, and Bayesian optimization. Uses SSH to deploy managers on remote HPC machines that submit SLURM jobs for molecular dynamics simulations. Trains surrogate models and saves results to pickle files.
+
+2. **controller_offline_inference.py** - Loads a pre-trained surrogate model from a pickle file and uses it for offline inference (no retraining). Demonstrates how to use trained models for rapid predictions without additional computational expense.
+
+3. **controller_online_inference.py** - Implements online adaptive learning by loading a trained surrogate and collecting new training data when prediction variance exceeds a threshold. Combines trained models with active learning for continuous improvement.
+
+All controllers use real molecular dynamics simulations to compute thermal conductivity, providing production-scale computational examples.
+
+## HPC Workflow Setup
+
+**Prerequisites**: Complete all setup steps above including HPC configuration.
+
+**Architecture**: Controllers submit tasks to Hero queues, while HPC managers running on cluster login nodes process these tasks by submitting SLURM jobs.
+
+1. **Start HPC managers** - Launch one manager per HPC cluster:
+   
+   **Terminal 1** - Manager on first cluster:
+   ```bash
+   cd examples/hero_HPC_managers
+   mamba activate AC_hero
+   python manager.py <machine_name_1>
+   ```
+   
+   **Terminal 2** - Manager on second cluster:
+   ```bash
+   cd examples/hero_HPC_managers
+   mamba activate AC_hero
+   python manager.py <machine_name_2>
+   ```
+
+2. **Run a controller** - Choose your AC strategy:
+   
+   **Terminal 3** - Controller:
+   ```bash
+   cd examples/hero_HPC_managers
+   mamba activate AC_hero
+   python controller_offline_training.py    # Train surrogates with AC strategies
+   # OR
+   python controller_offline_inference.py   # Use pre-trained surrogates 
+   # OR  
+   python controller_online_inference.py    # Adaptive online learning
+   ```
+
+Replace `<machine_name_1>`, `<machine_name_2>` with actual cluster names from your `hpc_config.py`.
+
+## HPC Manager Details
+
+**manager.py** - Production queue managers that submit actual SLURM jobs on HPC clusters:
+
+- Designed for multiple HPC clusters with SLURM job scheduling
+- Submits real SLURM jobs to compute nodes using molecular dynamics simulations
+- Automatic SSH deployment and job monitoring
+- Multi-cluster task distribution and error handling
+- Requires SSH access and proper HPC configuration
+
+## Architecture
+
+**Controllers** → **Hero Queues** → **HPC Managers** → **SLURM Jobs** → **Results**
+
+1. Controllers add tasks to Hero queues using different AC strategies
+2. HPC managers monitor queues and submit SLURM jobs on their assigned clusters
+3. SLURM jobs run molecular dynamics simulations to compute conductivity
+4. Results flow back through Hero to controllers for analysis
+
+## Manager Deployment
+
+**Requirement**: SSH access to HPC cluster login nodes.
+
+**Setup**: Run one manager per HPC cluster on a login node. Each manager:
+- Monitors the Hero queue for new tasks
+- Submits SLURM jobs using configured script names
+- Tracks job status and handles errors
+- Distributes workload across available clusters
+
+**To deploy managers** on HPC clusters:
+```bash
+cd examples/hero_HPC_managers
+module load conda  # or module load mamba
+mamba activate AC_hero
+python manager.py <machine_name>
+```
+
+Replace `<machine_name>` with the actual cluster name from your `hpc_config.py`.
+
+# Running in C++
+
+Instead of running the Python controllers, you can run the C++ counterpart using these steps:
+
+## Setup and Compilation
+
+1. **Load environment**:
+   ```bash
+   module load mamba
+   mamba activate AC_hero
+   ```
+
+2. **Export library path** (adjust path as needed for your conda environment):
+   ```bash
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mamba/envs/AC_hero/lib
+   ```
+
+3. **Compile C++ code** (adjust paths as needed):
+   ```bash
+   g++ controller_offline_inference.cpp -o controller_offline_inference \
+       -L ~/.mamba/envs/AC_hero/lib -lpython3.11 \
+       -I ~/.mamba/envs/AC_hero/include/python3.11
+   ```
+
+**Note**: The C++ program loads and executes the Python file at runtime, not during compilation, so you can modify the Python file after compilation.
+
+## Learning Path
+
+**New to Hero?** Start with the simple introduction: [examples/hero/](../hero/)
+
+The basic Hero introduction provides:
+- Simple local workflows without HPC complexity
+- Clear controller/worker separation 
+- Easy-to-verify calculations
+- Perfect for understanding Hero concepts before scaling to production
+
+Once comfortable with Hero basics, return here for production HPC deployment.

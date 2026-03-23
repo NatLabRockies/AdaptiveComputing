@@ -36,6 +36,9 @@ class ActiveLoopDriverCostRatio(ActiveLoopDriver):
             y = self.sampler.acq_func(x, self.surrogate, self.dataset, i_fidelity)
 
             x_samples[i_fidelity] = x
+            # Ensure y is a scalar - acquisition functions may return arrays
+            if hasattr(y, '__iter__') and not isinstance(y, str):
+                y = float(y.flatten()[0])
             objs[i_fidelity] = y
 
         # Determine fidelity level based on minimum objective function value divided by fidelity costs

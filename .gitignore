@@ -149,3 +149,6 @@ examples/hero_2clusters/simulation_files/err_*.err
 
 # files containing Hero passwords
 adaptive_computing/hero_utils/set_hero_env_vars.py
+
+# HPC configuration files with personal machine/credential info
+**/hpc_config.py

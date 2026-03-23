@@ -1,7 +1,12 @@
 from adaptive_computing.samplers import SamplerBase
 from smt.sampling_methods import LHS
 from smt.applications.mixed_integer import MixedIntegerSamplingMethod
-from adaptive_computing.datasets import HeroDataset
+
+# Optional Hero import
+try:
+    from adaptive_computing.datasets import HeroDataset
+except ImportError:
+    HeroDataset = None
 
 from scipy.optimize import minimize, brute, differential_evolution
 import numpy as np
@@ -90,7 +95,7 @@ class BayesianSampler(SamplerBase):
                 x_est = self._process_mixed_type_samples(x_est)
                 
             y_est = tmp_surrogate.predict_values(x_est)
-            if isinstance(dataset, HeroDataset):
+            if HeroDataset and isinstance(dataset, HeroDataset):
                 tmp_dataset.add_samples_nohero(x_est, y_est, i_fidelity=i_fidelity)
             else:
                 tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
@@ -147,7 +152,7 @@ class BayesianSampler(SamplerBase):
                 random_state = self._rand_seed + iteration_number  # Add iteration to base seed
             self.init_sample = LHS_cont(xlimits=dataset.x_limits,
                                    criterion='maximin',
-                                   random_state=random_state)
+                                   seed=random_state)
 
         xstart = self.init_sample(self.n_eval_pts)
         obj_k = lambda x: self.acq_func(x, surrogate, dataset, i_fidelity)
@@ -167,7 +172,7 @@ class BayesianSampler(SamplerBase):
         """
         opt_all = np.array([])
         for i_s in range(self.n_eval_pts):
-            opt_all = np.append(opt_all, minimize(lambda xf: float(obj_k(np.append(xf, []))),
+            opt_all = np.append(opt_all, minimize(lambda xf: obj_k(xf).item() if hasattr(obj_k(xf), 'item') else float(obj_k(xf)),
                                                   xstart[i_s], 
                                                   method=self.opt_method,
                                                   bounds=self.x_limits))

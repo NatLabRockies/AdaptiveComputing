@@ -58,20 +58,15 @@ class LHSSampler(SamplerBase):
         self._check_sample(N_samples)
 
         if self.mixed_type:
-            # Use SMT 2.x API with design space
-            from smt.applications.mixed_integer import MixedIntegerSamplingMethod
-            from smt.sampling_methods import LHS as LHS_mixed
-            sampling = MixedIntegerSamplingMethod(
-                LHS_mixed, 
-                self.dataset.design_space,
-                criterion="maximin", 
-                random_state=self._rand_seed
-            )
+            sampling = MixedIntegerSamplingMethod(self.x_types,
+                                                  self.x_limits, 
+                                                  LHS, criterion="maximin", 
+                                                  seed=self._rand_seed)
         else:
             # Use regular LHS for continuous variables only
             sampling = LHS(xlimits=self.x_limits, 
                            criterion='maximin', 
-                           random_state=self._rand_seed)
+                           seed=self._rand_seed)
         
         x = sampling(N_samples)
         

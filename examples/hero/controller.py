@@ -1,5 +1,5 @@
-# This script use the HeroDataset to manage tasks in a Hero queue
-# Managers can be launched on Kestrel and Vermillion (two HPC machines) to execute the tasks
+# This script demonstrates basic HeroDataset functionality for task queue management
+# Simple introduction to Hero concepts using local worker processing
 import numpy as np
 
 import sys
@@ -16,15 +16,16 @@ def func_1d(x):
 if __name__ == '__main__':
     
     params = [ContinuousVariable(min=0.7, max=2.0)]
-    machine_names = ['kestrel','vermilion']
+    # For simple local processing, we use a single local "machine" name
+    machine_names = ['local']
     dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=False)
     # queue hero samples at the given x_data values. No initial guess provided.
     dataset.add_samples(np.array([[1.1]]),None,0)
-    dataset.add_samples(np.array([[2.1],[3.1]]),None,0)
+    dataset.add_samples(np.array([[1.5],[1.8]]),None,0)
     # add samples with specified x_data and y_data. No hero queueing used.
-    dataset.add_samples_nohero(np.array([[6.1],[7.1],[8.1]]),np.array([[6.2],[7.2],[8.2]]),0)
+    dataset.add_samples_nohero(np.array([[1.2],[1.3],[1.4]]),np.array([[6.2],[7.2],[8.2]]),0)
     # queue hero samples at the given x_data values. Initial guesses for y_data provided.
-    dataset.add_samples(np.array([[4.1],[5.1]]),np.array([[4.2],[5.2]]),0)
+    dataset.add_samples(np.array([[1.6],[1.9]]),np.array([[4.2],[5.2]]),0)
     dataset.add_samples(np.array([[1.1]]),np.array([[1.2]]),0)
     print(f'_x_data = {dataset._x_data}')
     print(f'_y_data = {dataset._y_data}')
