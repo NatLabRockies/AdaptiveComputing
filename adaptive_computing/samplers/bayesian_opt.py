@@ -268,7 +268,8 @@ class BayesianSampler(SamplerBase):
                             if result.success and result.fun < best_cont_obj:
                                 best_cont_obj = result.fun
                                 best_cont_x = result.x
-                        except:
+                        except Exception:
+                            # Skip optimization failures (convergence issues, numerical errors, etc.)
                             continue
                     
                     if best_cont_x is not None:
@@ -339,7 +340,8 @@ class BayesianSampler(SamplerBase):
                 if result.success and result.fun < best_obj:
                     best_obj = result.fun
                     best_x = result.x
-            except:
+            except Exception:
+                # Skip optimization failures (convergence issues, numerical errors, etc.)
                 continue
         
         return best_x if best_x is not None else xstart[0]
@@ -357,7 +359,8 @@ class BayesianSampler(SamplerBase):
                 if obj_val[0] < best_obj:
                     best_obj = obj_val[0]
                     best_x = x_candidate
-            except:
+            except Exception:
+                # Skip objective function evaluation failures
                 continue
                 
         return best_x if best_x is not None else xstart[0]
