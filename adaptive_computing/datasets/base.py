@@ -38,11 +38,20 @@ class DatasetBase():
         self.params = params
 
         self.n_in = len(params)
-        self.x_limits = np.array([p.limits for p in params])
+        # For mixed types, x_limits may have different structures, so keep as list
+        if np.any([p.type != 'continuous' for p in params]):
+            self.x_limits = [p.limits for p in params]
+        else:
+            # For continuous only, can use numpy array
+            self.x_limits = np.array([p.limits for p in params])
         self.x_types = [p.type for p in params]
 
         self.n_continuous = sum([t == 'continuous' for t in self.x_types])
         self.mixed_type = np.any([t != 'continuous' for t in self.x_types])
+
+        # Initialize SMT-specific mixed-type properties
+        if self.mixed_type:
+            self._setup_smt_mixed_type_properties()
 
         self.n_out = n_out
         # x_data and y_data are lists of length n_fidelity
@@ -65,6 +74,36 @@ class DatasetBase():
         self.nan_behavior = nan_behavior
         self.oob_behavior = oob_behavior
 
+    def _setup_smt_mixed_type_properties(self):
+        """
+        Sets up SMT 2.x design space for mixed-type optimization.
+        """
+        try:
+            from smt.design_space import DesignSpace, FloatVariable, IntegerVariable, CategoricalVariable as SMTCategoricalVariable
+            
+            # Create design variables for SMT 2.x
+            design_vars = []
+            for i in range(self.n_in):
+                param = self.params[i]
+                if param.type == 'continuous':
+                    design_vars.append(FloatVariable(param.min, param.max))
+                elif param.type == 'ordered':
+                    design_vars.append(IntegerVariable(param.min_val, param.max_val))
+                elif param.type == 'categorical':
+                    design_vars.append(SMTCategoricalVariable(param.categories))
+                else:
+                    raise ValueError(f'Unrecognized parameter type: {param.type}')
+            
+            # Create the design space
+            self.design_space = DesignSpace(design_vars)
+            self.smt_mixed_support = True
+            self.smt_version = '2.x'
+            
+            print(f"SMT 2.x design space created with {len(design_vars)} variables")
+            
+        except ImportError as e:
+            raise ImportError(f"SMT 2.x is required for mixed-type optimization. Please install/upgrade SMT: pip install --upgrade smt. Error: {e}")
+
     @property
     def x_data(self):
         """Returns the input data."""
@@ -75,9 +114,60 @@ class DatasetBase():
         """Returns the output data."""
         return self._y_data
     
+    def _validate_input(self, x_data, i_fidelity):
+        """
+        Validates the provided x_data for NaNs and out-of-bounds values.
+        
+        Args:
+            x_data (N Samples, N input dimensions) array: The input data.
+            i_fidelity (int): The fidelity level of the data.
+        
+        Raises:
+            ValueError: If NaNs or out-of-bounds values are found.
+        """
+        x_data = np.asarray(x_data)
+        
+        # Check for nans (only for continuous and ordered variables)
+        if np.any(np.isnan(x_data)):
+            print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is a nan value.")
+            raise ValueError("x_data contains nan values.")
+        
+        # Check for out of bounds values
+        if x_data.shape[1] != len(self.params):
+            raise ValueError(f"x_data has {x_data.shape[1]} columns, but expected {len(self.params)} based on self.params.")
+        
+        for i in range(len(self.params)):
+            param = self.params[i]
+            if param.type == 'continuous':
+                param_min = param.min
+                param_max = param.max
+                if np.any(x_data[:,i] < param_min) or np.any(x_data[:,i] > param_max):
+                    print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is an out of bounds value based on the user specified params min and max.")
+                    raise ValueError(f"x_data[:, {i}] contains values outside the range [{param_min}, {param_max}].")
+            elif param.type == 'ordered':
+                param_min = param.min_val
+                param_max = param.max_val
+                if np.any(x_data[:,i] < param_min) or np.any(x_data[:,i] > param_max):
+                    print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is an out of bounds value based on the user specified params min_val and max_val.")
+                    raise ValueError(f"x_data[:, {i}] contains values outside the range [{param_min}, {param_max}].")
+                # Check that values are integers
+                if not np.all(np.equal(np.mod(x_data[:,i], 1), 0)):
+                    print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is not an integer for ordered variable {i}.")
+                    raise ValueError(f"x_data[:, {i}] contains non-integer values for ordered variable.")
+            elif param.type == 'categorical':
+                # Check that indices are within the valid range
+                n_categories = len(param.categories)
+                if np.any(x_data[:,i] < 0) or np.any(x_data[:,i] >= n_categories):
+                    print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is an out of bounds categorical index.")
+                    raise ValueError(f"x_data[:, {i}] contains categorical indices outside the range [0, {n_categories-1}].")
+                # Check that indices are integers
+                if not np.all(np.equal(np.mod(x_data[:,i], 1), 0)):
+                    print(f"One or more of the entries in x_data={x_data} for i_fidelity={i_fidelity} is not an integer for categorical variable {i}.")
+                    raise ValueError(f"x_data[:, {i}] contains non-integer indices for categorical variable.")
+    
     def _validate_data(self, x_data, y_data, i_fidelity):
         """
-        Validates the provided data for NaNs and out-of-bounds values.
+        Validates the provided y_data for NaNs and out-of-bounds values.
         
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
@@ -122,6 +212,7 @@ class DatasetBase():
             y_data (N Samples, N output dimensions): The output data.
             i_fidelity (int): The fidelity level of the data.
         """
+        self._validate_input(x_data, i_fidelity)
         x_data, y_data = self._validate_data(x_data, y_data, i_fidelity)
 
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
@@ -134,36 +225,17 @@ class DatasetBase():
 
     @property
     def _sampler_ranges(self):
-        """Returns the ranges for sampling."""
+        """Returns the ranges for sampling based on variable types."""
         ranges = ()
         for i in range(self.n_in):
-            ranges = ranges + (slice(self.x_limits[i][0], self.x_limits[i][-1] + 1, 1),)
+            param = self.params[i]
+            if param.type == 'continuous':
+                ranges = ranges + (slice(param.min, param.max + 1, 1),)
+            elif param.type == 'ordered':
+                ranges = ranges + (slice(param.min_val, param.max_val + 1, 1),)
+            elif param.type == 'categorical':
+                ranges = ranges + (slice(0, len(param.categories), 1),)
+            else:
+                raise ValueError(f"Unknown parameter type: {param.type}")
         return ranges
 
-
-"""# self.funcs =[]
-        # for i in range(self.n_fidelity):
-        #     self.funcs.append(ComposedFunction(self.simulations[i],self.params))
-
-        # Define xlimits, the domain for the design parameters
-        if self.mixed_type:
-            from smt.applications.mixed_integer import (FLOAT, ORD, ENUM)
-            self.xtypes = []
-            self.xlimits = [] # this is the domain for the user defined simulations[] (which may include mixed types)
-            self.xlimits_num = [] # this is the domain with the categoricals and integers converted to continuous types. Categoricals are a list of floats.
-            for i in range(self.n_in):
-                if self.params[i].type == 'continuous':
-                    self.xtypes.append(FLOAT)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'ordered':
-                    self.xtypes.append(ORD)
-                    self.xlimits.append([self.params[i].min_val, self.params[i].max_val])
-                    self.xlimits_num.append([self.params[i].min_val, self.params[i].max_val])
-                elif self.params[i].type == 'categorical':
-                    self.xtypes.append((ENUM, len(self.params[i].categories)))
-                    self.xlimits.append(self.params[i].categories)
-                    self.xlimits_num.append(list(range(len(self.params[i].categories))))
-                else:
-                    raise Exception('Unrecognized type for parameter '+str(i)) 
-        else:"""
