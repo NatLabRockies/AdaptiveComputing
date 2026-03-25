@@ -2,7 +2,7 @@
 Datasets handle data.
 """
 
-from adaptive_computing.datasets.variables import ContinuousVariable
+from adaptive_computing.datasets.variables import ContinuousVariable, OrderedVariable, CategoricalVariable
 from adaptive_computing.datasets.base import DatasetBase
 
 # Optional Hero import - only available if hero package is installed
