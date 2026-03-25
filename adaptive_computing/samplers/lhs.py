@@ -58,10 +58,17 @@ class LHSSampler(SamplerBase):
         self._check_sample(N_samples)
 
         if self.mixed_type:
-            sampling = MixedIntegerSamplingMethod(self.x_types,
-                                                  self.x_limits, 
-                                                  LHS, criterion="maximin", 
-                                                  seed=self._rand_seed)
+            # Use SMT 2.x mixed-type sampling
+            from smt.applications.mixed_integer import MixedIntegerSamplingMethod
+            from smt.sampling_methods import LHS as LHS_mixed
+            
+            # Use SMT 2.x design space API  
+            sampling = MixedIntegerSamplingMethod(
+                LHS_mixed,
+                self.dataset.design_space,
+                criterion='maximin',
+                seed=self._rand_seed
+            )
         else:
             # Use regular LHS for continuous variables only
             sampling = LHS(xlimits=self.x_limits, 
@@ -70,9 +77,8 @@ class LHSSampler(SamplerBase):
         
         x = sampling(N_samples)
         
-        # Post-process mixed-type samples to ensure proper data types
-        if self.mixed_type:
-            x = self._process_mixed_type_samples(x)
+        # SMT 2.x with DesignSpace already handles proper data types
+        # No post-processing needed for mixed types
         
         # increment the random seed, so that future samples are not duplicates
         if self._rand_seed is not None:

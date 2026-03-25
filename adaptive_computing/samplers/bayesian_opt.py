@@ -139,7 +139,7 @@ class BayesianSampler(SamplerBase):
                 LHS_mixed,
                 dataset.design_space,
                 criterion='maximin',
-                random_state=random_state
+                seed=random_state
             )
         else:
             # Use regular LHS for continuous variables only
@@ -156,7 +156,13 @@ class BayesianSampler(SamplerBase):
 
         xstart = self.init_sample(self.n_eval_pts)
         obj_k = lambda x: self.acq_func(x, surrogate, dataset, i_fidelity)
-        x = self._min_cont_vars(xstart, obj_k)
+        
+        # Use appropriate optimization method based on variable types
+        if dataset.mixed_type:
+            x = self._min_mixed_smt2x(xstart, obj_k)
+        else:
+            x = self._min_cont_vars(xstart, obj_k)
+        
         return np.array([x])
     
     def _min_cont_vars(self, xstart, obj_k):
@@ -271,6 +277,17 @@ class BayesianSampler(SamplerBase):
                         x_candidate[continuous_indices] = best_cont_x
                         for j, idx in enumerate(discrete_indices):
                             x_candidate[idx] = discrete_combo[j]
+                        
+                        # Add small jitter to continuous variables to prevent SMT duplicate warnings
+                        # while maintaining optimization precision
+                        jitter_scale = 1e-8
+                        for cont_idx in continuous_indices:
+                            param = self.dataset.params[cont_idx]
+                            range_size = param.max - param.min
+                            jitter = np.random.uniform(-jitter_scale, jitter_scale) * range_size
+                            x_candidate[cont_idx] += jitter
+                            # Ensure we stay within bounds
+                            x_candidate[cont_idx] = np.clip(x_candidate[cont_idx], param.min, param.max)
                         
                         obj_val = best_cont_obj
                     else:
