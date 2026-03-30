@@ -1,4 +1,4 @@
-name: AC_rental_car
+name: AC
 channels:
   - defaults
 dependencies:
@@ -12,8 +12,8 @@ dependencies:
   - pip:
     - git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
     - smt
+    - ruff
     - scikit-learn==1.8.0
     - soogo==2.0.1
-    - ruff
     - pydantic
     - langchain-core

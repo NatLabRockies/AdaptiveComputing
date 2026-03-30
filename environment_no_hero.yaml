@@ -1,4 +1,4 @@
-name: AC
+name: AC_no_hero
 channels:
   - defaults
 dependencies:
@@ -7,7 +7,12 @@ dependencies:
   - matplotlib
   - ipython
   - pytest
+  - pandas
   - pip
   - pip:
     - smt
     - ruff
+    - scikit-learn==1.8.0
+    - soogo==2.0.1
+    - pydantic
+    - langchain-core
