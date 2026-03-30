@@ -37,7 +37,7 @@ if __name__ == '__main__':
     verify_remote_managers()
 
     params = [ContinuousVariable(min=0.8, max=2.0)]
-    ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT', acq_func='maximum_variance', blocking=False)
+    ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT_GP', acq_func='maximum_variance', blocking=False)
 
     # Sampling techniques that don't use the surrogate model:
     # 1) queue hero samples at the given x_data values. No initial guess provided.

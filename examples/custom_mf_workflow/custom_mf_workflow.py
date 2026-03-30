@@ -40,7 +40,7 @@ def bayesian_1d_sf():
                                             func_hf],
                                    fidelity_costs=[1,10],
                                    params=params,
-                                   surrogate='SMT')
+                                   surrogate='SMT_GP')
     
     ac_driver.run(N_steps = 10)
 

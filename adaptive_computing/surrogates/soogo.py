@@ -5,7 +5,7 @@ from adaptive_computing.surrogates.base import SurrogateModelBase
 import numpy as np
 import warnings
 
-class SOOGOGP(SurrogateModelBase):
+class SOOGO_GP(SurrogateModelBase):
     """
     A wrapper class for using soogo Gaussian Process as surrogate model.
     
@@ -14,7 +14,7 @@ class SOOGOGP(SurrogateModelBase):
         scaler (StandardScaler): Scaler for normalizing input data.
         
     Methods:
-        __init__(dataset, soogo_kwargs=None): Initializes the SOOGOGP.
+        __init__(dataset, soogo_kwargs=None): Initializes the SOOGO_GP.
         train(x_data, y_data): Trains the surrogate models.
         predict_values(x_data, fidelity_level=-1): Predicts values using the surrogate model.
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
@@ -22,7 +22,7 @@ class SOOGOGP(SurrogateModelBase):
     
     def __init__(self, dataset, soogo_kwargs=None):
         """
-        Initializes the SOOGOGP with the dataset and optional soogo-specific keyword arguments.
+        Initializes the SOOGO_GP with the dataset and optional soogo-specific keyword arguments.
         
         Args:
             dataset (DatasetBase): The dataset to use for training and prediction.

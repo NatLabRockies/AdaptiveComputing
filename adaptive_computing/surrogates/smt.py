@@ -4,7 +4,7 @@ from smt.applications.mixed_integer import MixedIntegerSurrogateModel, MixedInte
 from adaptive_computing.surrogates.base import SurrogateModelBase
 import numpy as np
 
-class SMTGP(SurrogateModelBase):
+class SMT_GP(SurrogateModelBase):
     """
     A wrapper class for using Surrogate Modeling Toolbox (SMT)
      Kriging or Multi-fidelity Kriging as surrogate model.
@@ -13,7 +13,7 @@ class SMTGP(SurrogateModelBase):
         surrogate_model (list): List of surrogate models for each fidelity level.
         
     Methods:
-        __init__(dataset, smt_kwargs=None): Initializes the SMTGP.
+        __init__(dataset, smt_kwargs=None): Initializes the SMT_GP.
         train(x_data, y_data): Trains the surrogate models.
         predict_values(x_data, fidelity_level=-1): Predicts values using the surrogate model.
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
@@ -21,7 +21,7 @@ class SMTGP(SurrogateModelBase):
     
     def __init__(self, dataset, smt_kwargs=None, design_space=None):
         """
-        Initializes the SMTGP with the dataset and optional SMT-specific keyword arguments.
+        Initializes the SMT_GP with the dataset and optional SMT-specific keyword arguments.
         
         Args:
             dataset (DatasetBase): The dataset to use for training and prediction.
@@ -105,7 +105,7 @@ class SMTGP(SurrogateModelBase):
         return self.surrogate_model[fidelity_level].predict_variances(np.atleast_2d(x_data))
 
 
-class ConstrainedSMTGP(SMTGP):
+class ConstrainedSMT_GP(SMT_GP):
     """
     A wrapper class for using Constrained Surrogate Modeling Toolbox (SMT) models as surrogate models.
     
@@ -113,13 +113,13 @@ class ConstrainedSMTGP(SMTGP):
         constraint_func (function): Function to compute constraints.
         
     Methods:
-        __init__(dataset, constraint_func, smt_kwargs=None, i_out=0): Initializes the ConstrainedSMTGP.
+        __init__(dataset, constraint_func, smt_kwargs=None, i_out=0): Initializes the ConstrainedSMT_GP.
         predict_constraint(x_data, fidelity_level=-1): Predicts constraints using the constraint function.
     """
     
     def __init__(self, dataset, constraint_func, smt_kwargs=None, i_out=0):
         """
-        Initializes the ConstrainedSMTGP with the dataset, constraint function, optional SMT-specific keyword arguments, and output index.
+        Initializes the ConstrainedSMT_GP with the dataset, constraint function, optional SMT-specific keyword arguments, and output index.
         
         Args:
             dataset (DatasetBase): The dataset to use for training and prediction.

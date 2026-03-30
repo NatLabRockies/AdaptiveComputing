@@ -1,4 +1,33 @@
 import numpy as np
+import matplotlib
+import os
+
+# Ensure appropriate backend for plotting
+def set_matplotlib_backend():
+    if os.environ.get('DISPLAY'):
+        # Try backends in order of preference for X11 forwarding
+        backends_to_try = ['TkAgg', 'Qt5Agg', 'GTK3Agg']
+        for backend in backends_to_try:
+            try:
+                matplotlib.use(backend, force=True)
+                # Test if backend actually works
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots()
+                plt.close(fig)
+                print(f"Using interactive matplotlib backend: {backend}")
+                return
+            except (ImportError, Exception):
+                continue
+        
+        # If no GUI backends work, fall back to Agg
+        print("No working interactive backends, using Agg backend")
+        matplotlib.use('Agg')
+    else:
+        print("No DISPLAY detected, using Agg backend")
+        matplotlib.use('Agg')
+
+set_matplotlib_backend()
+
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriver
@@ -47,7 +76,7 @@ def bayesian_2d_sf(test_mode=False):
 
     ac_driver = ActiveLoopDriver(simulations=[func_2d],
                                    params=params,
-                                   surrogate='SMT')
+                                   surrogate='SMT_GP')
     
     if is_testing:
         # Fast testing configuration: minimal samples for pytest
@@ -73,7 +102,15 @@ def bayesian_2d_sf(test_mode=False):
     plt.colorbar(sc, label='Iteration')
     plt.xlabel('x_0')
     plt.ylabel('x_1')
-    plt.show()
+    plt.title('Bayesian 2D Optimization Results')
+    plt.savefig('bayesian_2d_sf_result.png', dpi=150, bbox_inches='tight')
+    print("Plot saved as 'bayesian_2d_sf_result.png'")
+    
+    # Try to show plot if backend supports it
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"Interactive display failed ({e}), but plot was saved")
 
     return ac_driver
 

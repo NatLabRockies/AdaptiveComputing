@@ -10,7 +10,7 @@ from tests.test_examples import output_validator
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.datasets import DatasetBase
-from adaptive_computing.surrogates import SMTGP
+from adaptive_computing.surrogates import SMT_GP
 from adaptive_computing.samplers import BayesianSampler
 from adaptive_computing.samplers.acquisition_functions.expected_improvement import expected_improvement
 from adaptive_computing.samplers.acquisition_functions.maximum_variance import maximum_variance
@@ -31,7 +31,7 @@ def test_acq_func_minimum_variance():
     dataset.add_samples(np.atleast_2d(np.array([4])), np.atleast_2d(np.array([0])), 0)
     sampler = BayesianSampler(dataset, maximum_variance)
     #sampler = BayesianSampler(dataset, expected_improvement)
-    surrogate = SMTGP(dataset)
+    surrogate = SMT_GP(dataset)
     sample = sampler.get_sample(surrogate, dataset)
 
     computed_output = [sample[0][0]]

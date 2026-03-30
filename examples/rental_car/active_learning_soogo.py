@@ -1,4 +1,33 @@
 import numpy as np
+import matplotlib
+import os
+
+# Ensure appropriate backend for plotting
+def set_matplotlib_backend():
+    if os.environ.get('DISPLAY'):
+        # Try backends in order of preference for X11 forwarding
+        backends_to_try = ['TkAgg', 'Qt5Agg', 'GTK3Agg']
+        for backend in backends_to_try:
+            try:
+                matplotlib.use(backend, force=True)
+                # Test if backend actually works
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots()
+                plt.close(fig)
+                print(f"Using interactive matplotlib backend: {backend}")
+                return
+            except (ImportError, Exception):
+                continue
+        
+        # If no GUI backends work, fall back to Agg
+        print("No working interactive backends, using Agg backend")
+        matplotlib.use('Agg')
+    else:
+        print("No DISPLAY detected, using Agg backend")
+        matplotlib.use('Agg')
+
+set_matplotlib_backend()
+
 import matplotlib.pyplot as plt
 import sys
 import os
@@ -280,7 +309,7 @@ def AC_surrogate_hero(n_bayes_opt=10, n_initial=20):
     # Create the ActiveLoopDriver with SOOGO surrogate and maximum variance acquisition
     ac_driver = ActiveLoopDriver(simulations=[func_4d_hero],
                                 params=params,
-                                surrogate='SOOGO',
+                                surrogate='SOOGO_GP',
                                 acq_func='maximum_variance')
     
     print(f"4D continuous space: utility_rate×solution×demand×soc_mean")
@@ -419,7 +448,15 @@ def AC_surrogate_hero(n_bayes_opt=10, n_initial=20):
         plt.ylim(0, 1.1)
     
     plt.tight_layout()
-    plt.show()
+    plt.suptitle('Rental Car SOOGO Active Learning Results', y=1.02)
+    plt.savefig('rental_car_soogo_active_learning_result.png', dpi=150, bbox_inches='tight')
+    print("Plot saved as 'rental_car_soogo_active_learning_result.png'")
+    
+    # Try to show plot if backend supports it
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"Interactive display failed ({e}), but plot was saved")
     
     # Print variance reduction summary
     print(f"\nUncertainty Quantification Results:")

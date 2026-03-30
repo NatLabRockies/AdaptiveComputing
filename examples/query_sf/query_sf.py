@@ -15,7 +15,7 @@ def bayesian_1d_sf():
 
     ac_driver = ActiveLoopDriver(simulations=[func_1d],
                                    params=params,
-                                   surrogate='SMT')
+                                   surrogate='SMT_GP')
     
     ac_driver.initialize()
 

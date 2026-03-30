@@ -16,7 +16,7 @@ def initialize_driver():
     params = [ContinuousVariable(min=0, max=10)]
     ac_driver = ActiveLoopDriver(simulations=[func_1d],
                                  params=params,
-                                 surrogate='SMT')
+                                 surrogate='SMT_GP')
     ac_driver.initialize()
     return ac_driver
 

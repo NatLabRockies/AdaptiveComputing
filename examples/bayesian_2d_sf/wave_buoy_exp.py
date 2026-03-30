@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     ac_driver = ActiveLoopDriver(simulations=[None],
                                    params=params,
-                                   surrogate='SMT',
+                                   surrogate='SMT_GP',
                                    acq_func='maximum_variance')
 
     # Create meshgrid
