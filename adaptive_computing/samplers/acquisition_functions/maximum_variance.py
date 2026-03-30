@@ -30,12 +30,12 @@ def maximum_variance(x, surrogate, dataset, fidelity_level):
         if np.any(variances <= 0):
             variances = np.maximum(variances, 1e-10)
         
-        # Return negative variance for maximization (scalar if single point)
+        # Return negative variance for maximization (always as array for optimizer compatibility)
         result = -variances
         
-        # Always return scalar for single-point evaluation (required by optimizer)
+        # Always return as array to ensure [0] indexing works in optimizer  
         if result.size == 1:
-            return float(result.item())
+            return np.array([float(result.item())])
         else:
             return result.ravel()
             
@@ -46,4 +46,4 @@ def maximum_variance(x, surrogate, dataset, fidelity_level):
             n_points = x.shape[0] if x.ndim > 1 else 1
         else:
             n_points = 1
-        return -1e-6 if n_points == 1 else np.full(n_points, -1e-6)
+        return np.array([-1e-6]) if n_points == 1 else np.full(n_points, -1e-6)

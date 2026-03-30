@@ -1,0 +1,12 @@
+# NREL HERO Backend Environment Configuration Template
+# 
+# Instructions:
+# 1. Copy this file: cp env_template.txt env.txt
+# 2. Edit env.txt and replace all placeholder values with your actual credentials
+# 3. Source before running: source env.txt
+# 4. NEVER commit env.txt to version control!
+export HERO_ENV="dev"
+export HERO_PROJECT="aeroportal-app"
+export HERO_CLIENT_ID="your_client_id" # Ask your HERO admin
+export HERO_CLIENT_SECRET="your_client_secret" # Ask your HERO admin
+export HERO_WORKER_NAME=$HERO_ENV-"rental-car-worker"
