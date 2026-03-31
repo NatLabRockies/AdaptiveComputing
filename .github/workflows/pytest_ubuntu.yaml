@@ -17,21 +17,29 @@ jobs:
         python-version: ["3.9","3.10","3.11","3.12"]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set up Conda with Mamba
+        uses: conda-incubator/setup-miniconda@v3
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
+          mamba-version: "*"
+          channels: conda-forge,defaults
+          auto-activate-base: false
+          activate-environment: AC
+          environment-file: environment.yml
+      - name: Install AdaptiveComputing in development mode
+        shell: bash -l {0}
         run: |
-          python -m pip install --upgrade pip
-          pip install ruff pytest matplotlib smt ipython numpy pandas scikit-learn==1.8.0 soogo==2.0.1 pydantic langchain-core
+          pip install -e .
+          pip install git+https://github.com/NatLabRockies/tf-melt.git#egg=tfmelt
       - name: Lint with ruff
+        shell: bash -l {0}
         run: |
           # stop the build if there are Python syntax errors or undefined names
           ruff check --select=E9,F63,F7,F82 --target-version=py312 .
           # default set of ruff rules with GitHub Annotations
           ruff check --target-version=py312 .
       - name: Test with pytest
+        shell: bash -l {0}
         run: |
           python -m pytest --junitxml=pytest_report.xml
       - name: Publish Test Results

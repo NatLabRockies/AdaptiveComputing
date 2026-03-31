@@ -13,79 +13,60 @@ The Adaptive Computing (AC) software stack supports goal-based computing, for wh
    ```bash
    module load conda
 
-### Steps
+### Quick Setup
 
-**First, clone the repository:**
+**1. Clone the repository:**
 
 ```bash
 git clone https://github.com/NatLabRockies/AdaptiveComputing.git
 cd AdaptiveComputing
 ```
 
-**Then choose one of the following setup options:**
+**2. Create and activate the conda environment:**
 
-#### Option 1: Full Setup with Hero Support (Recommended)
+```bash
+mamba env create -f environment.yml
+mamba activate AC
+```
 
-Use this option if you plan to use Hero framework features for distributed computing.
+**3. Install AdaptiveComputing with core dependencies:**
 
-1. **Create the conda environment with Hero dependencies**
+```bash
+pip install -e .
+```
 
-   ```bash
-   mamba env create -f environment.yaml
+**4. Install deep learning framework (for neural network surrogates):**
 
-2. **Activate the conda environment**
+```bash
+pip install git+https://github.com/NatLabRockies/tf-melt.git#egg=tfmelt
+```
 
-   ```bash
-   mamba activate AC_hero
+**5. Install Hero (optional, for distributed computing):**
 
-3. **Set up Hero credentials (if using Hero features)**
+If you plan to use Hero distributed computing features:
 
-   The Hero environment file will be auto-created from the template when you first use Hero functionality. To configure your credentials:
+```bash
+pip install git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
+```
 
-   ```bash
-   # The file will be created automatically, then edit it:
-   nano adaptive_computing/hero_utils/set_hero_env_vars.py
-   ```
+*Note: Hero requires access to NREL's private GitHub Enterprise. Contact your Hero admin for access.*
 
-   Replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values).
+**6. Set up Hero credentials (Hero users only):**
 
-4. **Add AC to your conda python path**
+The Hero environment file will be auto-created from the template when you first use Hero functionality. To configure your credentials:
 
-   ```bash
-   pip install -e .
+```bash
+# The file will be created automatically, then edit it:
+nano adaptive_computing/hero_utils/set_hero_env_vars.py
+```
 
-5. **Run the tests**
+Replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values).
 
-   ```bash
-   python -m pytest
+**7. Run the tests:**
 
-#### Option 2: Basic Setup without Hero
-
-Use this option if you only need core AC functionality without Hero framework features.
-
-1. **Create the conda environment without Hero dependencies**
-
-   ```bash
-   mamba env create -f environment_no_hero.yaml
-
-2. **Activate the conda environment**
-
-   ```bash
-   mamba activate AC
-
-3. **Hero environment setup (automatic)**
-
-   No manual setup needed! The Hero environment file will be auto-created from the template when first accessed. Since you're not using Hero features, you can ignore any credential-related messages.
-
-4. **Add AC to your conda python path**
-
-   ```bash
-   pip install -e .
-
-5. **Run the tests**
-
-   ```bash
-   python -m pytest
+```bash
+python -m pytest
+```
    
 ## Examples
 
