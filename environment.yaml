@@ -11,9 +11,11 @@ dependencies:
   - pip
   - pip:
     - git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
+    - git+https://github.com/NatLabRockies/tf-melt.git
     - smt
     - ruff
     - scikit-learn==1.8.0
     - soogo==2.0.1
     - pydantic
     - langchain-core
+    

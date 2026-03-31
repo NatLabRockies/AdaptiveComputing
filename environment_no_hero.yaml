@@ -10,6 +10,7 @@ dependencies:
   - pandas
   - pip
   - pip:
+    - git+https://github.com/NatLabRockies/tf-melt.git
     - smt
     - ruff
     - scikit-learn==1.8.0
