@@ -25,7 +25,10 @@ jobs:
           channels: conda-forge,defaults
           auto-activate-base: false
           activate-environment: AC
-          environment-file: environment.yml
+      - name: Install conda dependencies
+        shell: bash -l {0}
+        run: |
+          mamba install --file conda-requirements.txt
       - name: Install AdaptiveComputing in development mode
         shell: bash -l {0}
         run: |
