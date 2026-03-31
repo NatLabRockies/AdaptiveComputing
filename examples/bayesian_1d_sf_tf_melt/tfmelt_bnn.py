@@ -37,8 +37,7 @@ def bayesian_1d_sf():
 
     ac_driver = ActiveLoopDriver(simulations=[func_1d],
                                    params=params,
-                                   surrogate='TFMELT_BNN',
-                                   acq_func='maximum_variance')
+                                   surrogate='TFMELT_BNN')                                   
     
     ac_driver.initialize(N_samples_init=13)
     ac_driver.run(N_steps = 2)
