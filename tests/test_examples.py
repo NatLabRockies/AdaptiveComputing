@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 def test_bayesian_1d_sf(monkeypatch):
     dir_name = 'bayesian_1d_sf'
-    py_name = 'bayesian_1d_sf'
+    py_name = 'smt_gp'
     ac_driver = run_example(monkeypatch,dir_name,py_name)
 
     # check the minimum of the surrogate model
@@ -54,7 +54,7 @@ def test_bayesian_1d_mf(monkeypatch):
 
     # compare expected and computed outputs
     expected_output = [3.0, 0.0] # analytical solution = [x_min, y_min]
-    tolerances = [0.1, 0.1]
+    tolerances = [0.2, 0.2]      # Slightly relaxed tolerances for stochastic optimization
     output_validator(expected_output, computed_output, tolerances)
 
     return

@@ -30,7 +30,6 @@ set_matplotlib_backend()
 
 import matplotlib.pyplot as plt
 import sys
-import os
 
 # Add the model directory to path
 sys.path.append('/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/rental_car/model-aeroportal-rental-car')

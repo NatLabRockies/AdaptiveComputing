@@ -41,7 +41,7 @@ def bayesian_1d_sf():
 
     ac_driver = ActiveLoopDriver(simulations=[func_1d],
                                    params=params,
-                                   surrogate='SMT_GP')
+                                   surrogate='SOOGO_GP')
     
     ac_driver.run(N_steps = 7)
 
@@ -61,7 +61,7 @@ def bayesian_1d_sf():
     plt.legend(loc=0)
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.title('Bayesian 1D Surrogate with SMT')
+    plt.title('Bayesian 1D Surrogate with SOOGO')
     
     # Save plot and try to show
     if matplotlib.get_backend() == 'Agg':

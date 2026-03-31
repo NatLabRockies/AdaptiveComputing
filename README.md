@@ -111,7 +111,12 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 
 ### Other Examples
 
-- [examples/bayesian_1d_sf/](examples/bayesian_1d_sf/): Single-fidelity Bayesian optimization
+- [examples/bayesian_1d_sf/](examples/bayesian_1d_sf/): Single-fidelity Bayesian optimization with 4 surrogate model options:
+  - **SMT_GP**: Surrogate Modeling Toolbox's implementation of Gaussian Process (recommended starting point). Also, supports multi-fidelity.
+  - **SOOGO_GP**: Alternative Gaussian Process implementation with different optimization algorithms
+  - **TFMELT_BNN**: TensorFlow-based Bayesian Neural Network for uncertainty quantification
+  - **TFMELT_MDN**: TensorFlow-based Mixture Density Network for multi-modal uncertainty
+  - Neural network approaches (BNN/MDN) excel with larger datasets and complex functions
 - [examples/bayesian_2d_sf/](examples/bayesian_2d_sf/): Multi-dimensional optimization
 - [examples/cpp_embedding/](examples/cpp_embedding/): C++ integration
 - [examples/query_sf/](examples/query_sf/): Simple query examples
