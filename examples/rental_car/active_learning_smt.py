@@ -206,7 +206,7 @@ def AC_surrogate_smt(n_bayes_opt=10, n_initial=20):
     # Create the ActiveLoopDriver with SMT surrogate and maximum variance acquisition
     ac_driver = ActiveLoopDriver(simulations=[func_rental_car_smt],
                                 params=params,
-                                   surrogate='SMT_GP')
+                                surrogate='SMT_GP',
                                 acq_func='maximum_variance')
     
     print(f"4D discrete space: 2×5×13×4 = {2*5*13*4} total combinations")
