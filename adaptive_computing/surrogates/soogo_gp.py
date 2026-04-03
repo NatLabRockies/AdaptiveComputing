@@ -20,15 +20,26 @@ class SOOGO_GP(SurrogateModelBase):
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
     """
     
-    def __init__(self, dataset, soogo_kwargs=None):
+    def __init__(self, dataset, soogo_kwargs=None, i_output=0):
         """
         Initializes the SOOGO_GP with the dataset and optional soogo-specific keyword arguments.
         
         Args:
             dataset (DatasetBase): The dataset to use for training and prediction.
             soogo_kwargs (dict, optional): Additional keyword arguments for configuring soogo models. Defaults to None.
+            i_output (int, optional): Index of output dimension to model (for multi-output datasets). Defaults to 0.
+                SOOGO GP models only support single outputs, so this parameter specifies which
+                output dimension from a multi-output dataset should be used.
         """
         super().__init__(dataset)
+        
+        # Validate output index
+        if i_output < 0 or i_output >= dataset.n_out:
+            raise ValueError(f"i_output={i_output} is invalid. Dataset has {dataset.n_out} outputs (valid range: 0 to {dataset.n_out-1})")
+        
+        self.i_output = i_output
+        if dataset.n_out > 1:
+            print(f"Note: SOOGO GP modeling output dimension {i_output} of {dataset.n_out} total outputs")
 
         if soogo_kwargs is None:
             soogo_kwargs = {}
@@ -107,21 +118,21 @@ class SOOGO_GP(SurrogateModelBase):
 
         return best_alpha
 
-    def train(self, x_data, y_data):
+    def _train_impl(self, x_data, y_data):
         """
-        Trains the surrogate models with the provided data.
+        Internal SOOGO_GP training implementation.
+        This method receives only validated, unmasked training data.
         
         Args:
-            x_data (list): List of input data arrays for each fidelity level.
-                Each element of list has shape (N samples, N input dimension)
-            y_data (list): List of output data arrays for each fidelity level.
-                Each element of list has shape (N samples, N output dimension)
+            x_data (list): List of input data arrays for each fidelity level (unmasked only).
+            y_data (list): List of output data arrays for each fidelity level (unmasked only).
         """
-        x_data, y_data = self._validate_data(x_data, y_data)
-
         for i_fidelity in range(self.n_fidelity):
             if x_data[i_fidelity].shape[0] == 0:
                 continue
+            
+            # Extract only the selected output dimension for GP modeling
+            y_selected = y_data[i_fidelity][:, self.i_output:self.i_output+1]  # Keep as 2D array
                 
             # Scale the input data for the first fidelity level (assuming single fidelity)
             if i_fidelity == 0 and not self.is_scaled:
@@ -133,7 +144,7 @@ class SOOGO_GP(SurrogateModelBase):
             # Optional alpha tuning - only if enabled and we have enough data
             if self.tune_alpha and x_scaled.shape[0] > 10:
                 try:
-                    self.best_alpha = self._tune_alpha(x_scaled, y_data[i_fidelity])
+                    self.best_alpha = self._tune_alpha(x_scaled, y_selected)
                 except Exception as e:
                     print(f"Alpha tuning failed: {e}. Using default alpha = {self.best_alpha}")
             
@@ -143,13 +154,13 @@ class SOOGO_GP(SurrogateModelBase):
             
             # Train the model with error handling
             try:
-                self.surrogate_model[i_fidelity].update(x_scaled, y_data[i_fidelity].ravel())
+                self.surrogate_model[i_fidelity].update(x_scaled, y_selected.ravel())
             except Exception as e:
                 print(f"GP training failed: {e}. Trying with higher alpha.")
                 # Retry with higher noise level
                 kernel = DotProduct(sigma_0=0.0, sigma_0_bounds="fixed") + RBF(length_scale=1.0)
                 self.surrogate_model[i_fidelity] = GaussianProcess(kernel=kernel, alpha=max(self.best_alpha * 10, 1e-2))
-                self.surrogate_model[i_fidelity].update(x_scaled, y_data[i_fidelity].ravel())
+                self.surrogate_model[i_fidelity].update(x_scaled, y_selected.ravel())
         
         self.untrained = False
 

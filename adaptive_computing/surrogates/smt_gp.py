@@ -19,7 +19,7 @@ class SMT_GP(SurrogateModelBase):
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
     """
     
-    def __init__(self, dataset, smt_kwargs=None, design_space=None):
+    def __init__(self, dataset, smt_kwargs=None, design_space=None, i_output=0):
         """
         Initializes the SMT_GP with the dataset and optional SMT-specific keyword arguments.
         
@@ -27,8 +27,19 @@ class SMT_GP(SurrogateModelBase):
             dataset (DatasetBase): The dataset to use for training and prediction.
             smt_kwargs (dict, optional): Additional keyword arguments for configuring SMT models. Defaults to None.
             design_space (DesignSpace, optional): SMT design space for mixed-type problems. Defaults to None.
+            i_output (int, optional): Index of output dimension to model (for multi-output datasets). Defaults to 0.
+                SMT Kriging models only support single outputs, so this parameter specifies which
+                output dimension from a multi-output dataset should be used.
         """
         super().__init__(dataset)
+        
+        # Validate output index
+        if i_output < 0 or i_output >= dataset.n_out:
+            raise ValueError(f"i_output={i_output} is invalid. Dataset has {dataset.n_out} outputs (valid range: 0 to {dataset.n_out-1})")
+        
+        self.i_output = i_output
+        if dataset.n_out > 1:
+            print(f"Note: SMT GP modeling output dimension {i_output} of {dataset.n_out} total outputs")
 
         if smt_kwargs is None:
             smt_kwargs = {}
@@ -54,22 +65,23 @@ class SMT_GP(SurrogateModelBase):
         
         self.untrained = True # used to track if the surrogate model has never been trained
 
-    def train(self, x_data, y_data):
+    def _train_impl(self, x_data, y_data):
         """
-        Trains the surrogate models with the provided data.
+        Internal SMT_GP training implementation.
+        This method receives only validated, unmasked training data.
         
         Args:
-            x_data (list): List of input data arrays for each fidelity level.
-                Each element of list has shape (N samples, N input dimension)
-            y_data (list): List of output data arrays for each fidelity level.
-                Each element of list has shape (N samples, N output dimension)
+            x_data (list): List of input data arrays for each fidelity level (unmasked only).
+            y_data (list): List of output data arrays for each fidelity level (unmasked only).
         """
-        x_data, y_data = self._validate_data(x_data, y_data)
-
         for i_fidelity in range(self.n_fidelity):
+            # Extract only the selected output dimension for GP modeling
+            y_selected = y_data[i_fidelity][:, self.i_output:self.i_output+1]  # Keep as 2D array
+            
             for ii_fidelity in range(i_fidelity):
-                self.surrogate_model[i_fidelity].set_training_values(x_data[ii_fidelity], y_data[ii_fidelity], name=ii_fidelity)
-            self.surrogate_model[i_fidelity].set_training_values(x_data[i_fidelity], y_data[i_fidelity])
+                y_ii_selected = y_data[ii_fidelity][:, self.i_output:self.i_output+1]
+                self.surrogate_model[i_fidelity].set_training_values(x_data[ii_fidelity], y_ii_selected, name=ii_fidelity)
+            self.surrogate_model[i_fidelity].set_training_values(x_data[i_fidelity], y_selected)
             self.surrogate_model[i_fidelity].train()
         
         self.untrained = False
@@ -126,8 +138,9 @@ class ConstrainedSMT_GP(SMT_GP):
             constraint_func (function): Function to compute constraints based on input data.
             smt_kwargs (dict, optional): Additional keyword arguments for configuring SMT models. Defaults to None.
             i_out (int, optional): Index of the output for constrained optimization. Defaults to 0.
+                This parameter is passed as i_output to the parent SMT_GP class.
         """
-        super().__init__(dataset, smt_kwargs=smt_kwargs)
+        super().__init__(dataset, smt_kwargs=smt_kwargs, i_output=i_out)
         self.constraint_func = constraint_func
         
     def predict_constraint(self, x_data, fidelity_level=-1):

@@ -8,7 +8,7 @@ class DatasetBase():
         params (list): List of parameter objects, each with 'limits' and 'type' attributes.
         n_fidelity (int): Number of fidelity levels.
         y_bounds (tuple): Bounds for the output data.
-        nan_behavior (str): Behavior when encountering NaN values ('fail', 'mask_replace', 'mask_ignore').
+        nan_behavior (str): Behavior when encountering NaN values ('fail', 'mask_ignore').
         oob_behavior (str): Behavior when encountering out-of-bounds values (None, 'fail').
         
     Methods:
@@ -27,7 +27,7 @@ class DatasetBase():
             params (list): List of parameter objects, each with 'limits' and 'type' attributes.
             n_fidelity (int): Number of fidelity levels. Defaults to 1.
             y_bounds (tuple, optional): Bounds for the output data. Defaults to None.
-            nan_behavior (str): Behavior when encountering NaN values ('fail', 'mask_replace', 'mask_ignore'). Defaults to 'fail'.
+            nan_behavior (str): Behavior when encountering NaN values ('fail', 'mask_ignore'). Defaults to 'fail'.
             oob_behavior (str, optional): Behavior when encountering out-of-bounds values (None, 'fail'). Defaults to None.
         
         Raises:
@@ -58,14 +58,18 @@ class DatasetBase():
         # Each entry will be an n_samp[i_fidelity] x (n_in or n_out) np array
         self._x_data = [np.empty([0, self.n_in])] * self.n_fidelity
         self._y_data = [np.empty([0, self.n_out])] * self.n_fidelity
+        
+        # Unified masking: track validity for each output dimension (True=valid, False=masked)
+        # Shape: [n_samples, n_out] per fidelity level
+        self._unmasked_data = [np.empty([0, self.n_out], dtype=bool)] * self.n_fidelity
 
         self.y_bounds = y_bounds
 
-        if nan_behavior not in ['fail', 'mask_replace', 'mask_ignore']:
-            print("nan_behavior must be one of ('fail','mask_replace', 'mask_ignore')")
+        if nan_behavior not in ['fail', 'mask_ignore']:
+            print("nan_behavior must be one of ('fail', 'mask_ignore')")
             raise ValueError
-        if oob_behavior not in [None, 'fail']:
-            print("oob_behavior must be one of (None, 'fail')")
+        if oob_behavior not in [None, 'fail', 'mask_ignore']:
+            print("oob_behavior must be one of (None, 'fail', 'mask_ignore')")
             raise ValueError
         if oob_behavior is not None and self.y_bounds is None:
             print("If oob_behavior is not None, y_bounds must be provided")
@@ -113,6 +117,41 @@ class DatasetBase():
     def y_data(self):
         """Returns the output data."""
         return self._y_data
+        
+    def get_unmasked_data(self, i_fidelity=None, i_output=None):
+        """
+        Get only the unmasked (valid) data for training.
+        
+        Args:
+            i_fidelity (int, optional): Specific fidelity level. If None, returns all fidelities.
+            i_output (int, optional): Specific output dimension. If None, requires all outputs to be valid.
+                For single-output surrogates (SMT_GP, SOOGO_GP): pass i_output to filter by that specific output.
+                For multi-output surrogates (TFMELT_*): don't pass i_output to require all outputs valid.
+            
+        Returns:
+            tuple: (x_data, y_data) containing only unmasked data points
+        """
+        if i_fidelity is not None:
+            if i_output is not None:
+                # Filter by specific output dimension
+                mask = self._unmasked_data[i_fidelity][:, i_output]
+            else:
+                # All outputs must be valid
+                mask = np.all(self._unmasked_data[i_fidelity], axis=1)
+            return self._x_data[i_fidelity][mask], self._y_data[i_fidelity][mask]
+        else:
+            x_unmasked = []
+            y_unmasked = []
+            for i_fid in range(self.n_fidelity):
+                if i_output is not None:
+                    # Filter by specific output dimension
+                    mask = self._unmasked_data[i_fid][:, i_output]
+                else:
+                    # All outputs must be valid
+                    mask = np.all(self._unmasked_data[i_fid], axis=1) if self._unmasked_data[i_fid].shape[0] > 0 else np.empty([0], dtype=bool)
+                x_unmasked.append(self._x_data[i_fid][mask])
+                y_unmasked.append(self._y_data[i_fid][mask])
+            return x_unmasked, y_unmasked
     
     def _validate_input(self, x_data, i_fidelity):
         """
@@ -175,33 +214,55 @@ class DatasetBase():
             i_fidelity (int): The fidelity level of the data.
         
         Returns:
-            tuple: Validated input and output data arrays.
+            tuple: (validated x_data, validated y_data, unmasked_data) where unmasked_data 
+                   indicates valid data points per output dimension [N samples, N outputs].
+                   For 'mask_ignore' behavior: returns original data with mask indicating valid outputs.
+                   For 'fail' behavior: raises exception if invalid data found.
         
         Raises:
             ValueError: If NaNs or out-of-bounds values are found and behavior is set to 'fail'.
         """
         x_data = np.asarray(x_data)
         y_data = np.asarray(y_data)
+        
+        # Ensure y_data is 2D for consistent handling
+        if y_data.ndim == 1:
+            y_data = y_data.reshape(-1, 1)
+        
+        # Initialize mask as all valid for each output dimension
+        unmasked_data = np.ones((len(x_data), self.n_out), dtype=bool)
 
+        # Check for NaN values per output dimension
         idx_nan = np.isnan(y_data)
         if np.any(idx_nan):
-            print(f"NaN data point detected at {x_data[idx_nan]}, i_fidelity {i_fidelity}")
+            nan_samples = np.any(idx_nan, axis=1)  # Which samples have any NaN
+            print(f"NaN data point detected at {x_data[nan_samples]}, i_fidelity {i_fidelity}")
+            
             if self.nan_behavior == 'mask_ignore':
-                print("Ignoring NaN data point. This may result in repeated sampling of the same value.")
-                x_data = x_data[~idx_nan].reshape(-1, self.n_in)
-                y_data = y_data[~idx_nan].reshape(-1, 1)
+                print("Marking NaN output dimensions as masked. This may result in repeated sampling of the same value.")
+                # Mark specific output dimensions with NaN as masked
+                unmasked_data[idx_nan] = False
             else:
-                print("NaN data triggers a ValueError. Consider setting mask_ignore=True to ignore NaNs.")
+                print("NaN data triggers a ValueError. Consider setting nan_behavior='mask_ignore' to mask NaNs.")
                 raise ValueError("NaN values detected in y_data. Use 'mask_ignore' to ignore them.")
         
+        # Check for out-of-bounds values per output dimension
         if self.y_bounds is not None:
             idx_oob = (y_data < self.y_bounds[0]) | (y_data > self.y_bounds[1])
             if np.any(idx_oob):
-                print(f"Simulation at {x_data[idx_oob]}, i_fidelity {i_fidelity} returned OOB value")
-                print(f"{y_data[idx_oob]}")
-                raise ValueError("Out-of-bounds values detected in y_data.")
+                oob_samples = np.any(idx_oob, axis=1)  # Which samples have any OOB
+                print(f"Simulation at {x_data[oob_samples]}, i_fidelity {i_fidelity} returned OOB value")
+                print(f"{y_data[oob_samples]}")
+                
+                if self.oob_behavior == 'mask_ignore':
+                    print("Marking out-of-bounds output dimensions as masked. This may result in repeated sampling of the same value.")
+                    # Mark specific output dimensions that are OOB as masked
+                    unmasked_data[idx_oob] = False
+                else:
+                    print("Out-of-bounds data triggers a ValueError. Consider setting oob_behavior='mask_ignore' to mask OOB values.")
+                    raise ValueError("Out-of-bounds values detected in y_data. Use 'mask_ignore' to ignore them.")
 
-        return x_data, y_data
+        return x_data, y_data, unmasked_data
             
     def add_samples(self, x_data, y_data, i_fidelity=0):
         """
@@ -213,10 +274,12 @@ class DatasetBase():
             i_fidelity (int): The fidelity level of the data.
         """
         self._validate_input(x_data, i_fidelity)
-        x_data, y_data = self._validate_data(x_data, y_data, i_fidelity)
+        x_data, y_data, unmasked_data = self._validate_data(x_data, y_data, i_fidelity)
 
+        # Keep all data and track which output dimensions are valid
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
         self._y_data[i_fidelity] = np.concatenate([self._y_data[i_fidelity], y_data])
+        self._unmasked_data[i_fidelity] = np.concatenate([self._unmasked_data[i_fidelity], unmasked_data])
         
     @property
     def N_samples(self):

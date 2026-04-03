@@ -68,40 +68,63 @@ class BayesianSampler(SamplerBase):
             surrogate (Surrogate): The surrogate model.
             dataset (Dataset): The dataset to sample from.
             i_fidelity (int): The fidelity level. Defaults to 0.
-            N_samples (int): The number of samples to generate. Defaults to 1.
+            N_samples (int): The number of samples to generate. Must be 1 for Bayesian optimization.
         
         Returns:
             x samples (N samples, N input dimension): The generated samples.
+            
+        Raises:
+            ValueError: If N_samples != 1. Use the run() method to get multiple samples with proper 
+                       evaluation and surrogate updates between each sample.
         """
-        # if dataset is instance HeroDataset:
-        #     tmp_dataset = DatasetBase(dataset.params, n_fidelity=dataset.n_fidelity)
-        #     for i_fidelity in dataset.n_fidelity:
-        #         tmp_dataset.add_samples(dataset.x_data,dataset.y_data,i_fidelity=i_fidelity)
-        #     # XXX Note that any masked data will be added as unmasked. But for non-Hero this is not the behavior. Not sure which is best
-        # else:
+        if N_samples != 1:
+            raise ValueError(
+                f"BayesianSampler.get_sample() only supports N_samples=1, got {N_samples}. "
+                "For multiple samples, use the run() of ActiveLoopDriver method which properly evaluates the "
+                "objective function and updates the surrogate between each sample."
+            )
+        # Train the surrogate on all unmasked data first
+        surrogate.train(dataset)
+        # Create temporary dataset and surrogate for Bayesian optimization
+        # We need to see the full design space (unmask all data) to avoid resampling failed points
         tmp_dataset = deepcopy(dataset)
+        
+        # For all masked data points, populate with surrogate predictions as placeholder values
+        # This helps the acquisition function avoid resampling masked regions
+        has_masked_data = False
+        for i_fid in range(tmp_dataset.n_fidelity):
+            if tmp_dataset._unmasked_data[i_fid].shape[0] > 0:
+                # Find samples where any output dimension is masked (sample-level masking)
+                sample_mask = np.all(tmp_dataset._unmasked_data[i_fid], axis=1)
+                masked_points = ~sample_mask  # Invert to get masked samples
+                if np.any(masked_points):
+                    has_masked_data = True
+                    # Get surrogate predictions for masked X locations
+                    x_masked = tmp_dataset._x_data[i_fid][masked_points]
+                    if len(x_masked) > 0:
+                        y_pred = surrogate.predict_values(x_masked)  # Get predictions
+                        # Replace Y values at masked locations with predictions  
+                        if y_pred.ndim == 1:
+                            y_pred = y_pred.reshape(-1, 1)
+                        tmp_dataset._y_data[i_fid][masked_points] = y_pred
+                    # Set all output dimensions to unmasked=True for Bayesian optimization
+                    tmp_dataset._unmasked_data[i_fid] = np.ones_like(tmp_dataset._unmasked_data[i_fid])
+
+        if has_masked_data:
+            print("Populated masked data points with surrogate predictions for Bayesian optimization")
         
         tmp_surrogate = deepcopy(surrogate)
 
-        x_samples = []
+        # Train on the temporary dataset (with placeholders for masked data)
+        tmp_surrogate.train(tmp_dataset)
+        
+        x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)
+        
+        # Post-process mixed-type samples to ensure proper data types
+        if self.mixed_type:
+            x_est = self._process_mixed_type_samples(x_est)
 
-        for i_sample in range(N_samples):
-            tmp_surrogate.train(tmp_dataset.x_data, tmp_dataset.y_data)
-            
-            x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)
-            
-            # Post-process mixed-type samples to ensure proper data types
-            if self.mixed_type:
-                x_est = self._process_mixed_type_samples(x_est)
-                
-            y_est = tmp_surrogate.predict_values(x_est)
-            if HeroDataset and isinstance(dataset, HeroDataset):
-                tmp_dataset.add_samples_nohero(x_est, y_est, i_fidelity=i_fidelity)
-            else:
-                tmp_dataset.add_samples(x_est, y_est, i_fidelity=i_fidelity)
-            x_samples.append(x_est)
-
-        return np.concatenate(x_samples, axis=0)
+        return x_est
 
     def minimize_acq_func(self, surrogate, dataset, i_fidelity=0):
         """
