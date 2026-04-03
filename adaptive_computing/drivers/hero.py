@@ -6,10 +6,13 @@ import numpy as np
 
 class ActiveLoopDriverHero(ActiveLoopDriver):
     def __init__(self, simulations, params, machine_names, surrogate=None, dataset=None,
-                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', blocking=False):
+                 nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', blocking=False, 
+                 output_field_path='cost', task_formatter=None):
         self.use_hero = True
         if dataset is None:
-            dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=blocking)
+            dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=blocking, 
+                                output_field_path=output_field_path, task_formatter=task_formatter, 
+                                nan_behavior=nan_behavior)
         self.dataset = dataset
         if blocking:
             retrain = True
@@ -50,12 +53,10 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
     
     def hero_wait_for_data_and_train(self):
         self.dataset.hero_wait_for_data()
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        self.surrogate.train(self.dataset)
     
     def hero_update_avail_data_and_train(self):
         self.dataset.hero_update_avail_data()
-        self.surrogate.train(self.dataset.x_data,
-                             self.dataset.y_data)
+        self.surrogate.train(self.dataset)
 
     
