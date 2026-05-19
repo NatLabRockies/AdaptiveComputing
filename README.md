@@ -51,6 +51,21 @@ pip install git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
 
 *Note: Hero requires access to NREL's private GitHub Enterprise. Contact your Hero admin for access.*
 
+**5b. Install agentic AI dependencies (optional, for LLM-driven workflows):**
+
+If you plan to use AC with LangGraph-based agentic workflows (e.g., LLM agents that reason over the parameter space and submit simulations autonomously):
+
+```bash
+pip install langchain-openai langchain-core langgraph pydantic typing_extensions
+```
+
+These packages enable:
+- **LangGraph** — stateful multi-step agent graphs
+- **LangChain** — LLM provider abstraction (OpenAI, Azure OpenAI, Anthropic, etc.)
+- **Pydantic** — structured LLM output parsing
+
+Most AC users do not need these packages. They are intentionally kept separate from the core `environment.yml` to avoid imposing heavy ML framework dependencies on users who only need AC's optimization and surrogate modeling capabilities. As agentic AI features mature in AC, a dedicated extras install target (e.g., `pip install -e ".[agents]"`) may be added.
+
 **6. Set up Hero credentials (Hero users only):**
 
 The Hero environment file will be auto-created from the template when you first use Hero functionality. To configure your credentials:
