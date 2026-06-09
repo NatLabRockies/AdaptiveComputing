@@ -1,6 +1,10 @@
 from hero import HeroClient, get_env_variable
 import subprocess
 import os
+import sys
+
+# add the path to the adaptive_computing module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
@@ -50,12 +54,29 @@ def kill_slurm_jobs():
     # For all tasks, cancel any associated slurm job
     ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
     running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
-    all_tasks = ready_tasks + running_tasks
+    error_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
+    all_tasks = ready_tasks + running_tasks + error_tasks
+    
+    # Also cancel all SLURM jobs for this user as a failsafe
+    print(f"Canceling all SLURM jobs for user")
+    try:
+        result = subprocess.run(f"scancel -u $(whoami)", shell=True, capture_output=True, text=True)
+        if result.stdout.strip():
+            print(f"Canceled jobs: {result.stdout.strip()}")
+        if result.stderr.strip():
+            print(f"Scancel output: {result.stderr.strip()}")
+    except Exception as e:
+        print(f"Error running scancel: {e}")
+    
+    # Cancel specific jobs from Hero queue (for completeness)
     for current_task in all_tasks:
         if current_task['metadata']['slurm_job_id'][machine_name] != -1:
             command = f"scancel {current_task['metadata']['slurm_job_id'][machine_name]}"
             print(f"Running command: {command}")
-            result = subprocess.run(command, shell=True, check=True)
+            try:
+                result = subprocess.run(command, shell=True, check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Job may already be canceled: {e}")
             current_task['metadata']['slurm_job_id'][machine_name] = -1
             task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
         

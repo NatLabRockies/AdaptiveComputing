@@ -5,14 +5,13 @@ from time import sleep
 import numpy as np
 
 class ActiveLoopDriverHero(ActiveLoopDriver):
-    def __init__(self, simulations, params, machine_names, surrogate=None, dataset=None,
+    def __init__(self, simulations, params, machine_names, output_field_path, surrogate=None, dataset=None,
                  nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', blocking=False, 
-                 output_field_path='cost', task_formatter=None):
+                 task_formatter=None):
         self.use_hero = True
         if dataset is None:
-            dataset = HeroDataset(params, machine_names, n_fidelity=1, blocking=blocking, 
-                                output_field_path=output_field_path, task_formatter=task_formatter, 
-                                nan_behavior=nan_behavior)
+            dataset = HeroDataset(params, machine_names, output_field_path, n_fidelity=1, blocking=blocking, 
+                                task_formatter=task_formatter, nan_behavior=nan_behavior)
         self.dataset = dataset
         if blocking:
             retrain = True

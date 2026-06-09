@@ -7,7 +7,7 @@ import sys
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 
 class HeroDataset(DatasetBase):
-    def __init__(self, params, machine_names, n_fidelity=1, blocking=False, output_field_path='cost', 
+    def __init__(self, params, machine_names, output_field_path, n_fidelity=1, blocking=False, 
                  task_formatter=None, nan_behavior='mask_ignore'):
         """
         Initialize HeroDataset for distributed task execution.
@@ -17,11 +17,10 @@ class HeroDataset(DatasetBase):
             machine_names: Available machine names
             n_fidelity: Number of fidelity levels
             blocking: Whether to block on task completion
-            output_field_path: Path to desired output field in worker responses.
-                Can be:
-                - Simple field name: 'cost' (tries common locations)
+            output_field_path: Required path to desired output field in worker responses.
+                Examples:
+                - Simple field name: 'cost'
                 - Nested path: 'Task.response.cost', 'Task.outputs.value', etc.
-                - List of possible paths: ['cost', 'Task.response.cost']
             task_formatter: Optional function to convert x_data arrays to worker-specific task format.
                 Should take (x_data_array) and return metadata dict for the worker.
             nan_behavior: Behavior when encountering NaN values ('fail', 'mask_ignore')
@@ -70,109 +69,47 @@ class HeroDataset(DatasetBase):
         Returns:
             tuple: (y_eval_data, field_used) or (None, None) if not found
         """
-        # Handle list of possible paths
-        paths_to_try = self.output_field_path if isinstance(self.output_field_path, list) else [self.output_field_path]
+        # Use the single user-specified path
+        y_eval_data, field_used = self._try_field_path(task_data, self.output_field_path)
+        if y_eval_data is not None:
+            print(f'  Using {field_used}: {y_eval_data}')
+            return y_eval_data, field_used
         
-        for field_path in paths_to_try:
-            y_eval_data, field_used = self._try_field_path(task_data, field_path)
-            if y_eval_data is not None:
-                print(f'  Using {field_used}: {y_eval_data}')
-                return y_eval_data, field_used
-        
-        # Fallback: try common locations if user-specified path doesn't work
-        fallback_paths = [
-            'y_data',  # Standard location used by some workers
-            'Task.response.cost',
-            'Task.response.value', 
-            'Task.response.result',
-            'Task.outputs.cost',
-            'Task.outputs.value',
-            'response'
-        ]
-        
-        for fallback_path in fallback_paths:
-            if fallback_path not in paths_to_try:  # Don't retry what we already tried
-                y_eval_data, field_used = self._try_field_path(task_data, fallback_path)
-                if y_eval_data is not None:
-                    print(f'  Using fallback {field_used}: {y_eval_data}')
-                    return y_eval_data, field_used
-        
+        # If the user-specified path didn't work, fail explicitly
+        print(f'Error: Could not find output data using specified path: {self.output_field_path}')
+        print(f'Available metadata keys: {list(task_data.get("metadata", {}).keys())}')
         return None, None
     
     def _try_field_path(self, task_data, field_path):
         """
-        Try to extract a field from task data using a specific path.
+        Try to extract a field from task data using a simple path.
         
         Args:
             task_data: Hero task data dictionary
-            field_path: String path like 'cost', 'Task.response.cost', 'y_data', etc.
+            field_path: String path like 'y_data', 'Task.response.cost', etc.
             
         Returns:
             tuple: (y_eval_data, field_used_description) or (None, None) if not found
         """
         try:
-            if field_path == 'y_data':
-                # Handle standard y_data location
-                if "y_data" in task_data["metadata"] and task_data["metadata"]["y_data"] is not None:
-                    return task_data["metadata"]["y_data"], "y_data"
+            # Navigate through the path by splitting on '.'
+            current_obj = task_data["metadata"]
+            path_parts = field_path.split('.')
             
-            elif field_path.startswith('Task.'):
-                # Handle nested Task paths
-                if ("Task" not in task_data["metadata"] or 
-                    not isinstance(task_data["metadata"]["Task"], dict)):
+            for part in path_parts:
+                if isinstance(current_obj, dict) and part in current_obj:
+                    current_obj = current_obj[part]
+                else:
                     return None, None
-                    
-                task_obj = task_data["metadata"]["Task"]
-                path_parts = field_path.split('.')[1:]  # Remove 'Task' prefix
-                
-                # Navigate through nested path
-                current_obj = task_obj
-                for part in path_parts[:-1]:  # All but last part
-                    if isinstance(current_obj, dict) and part in current_obj:
-                        current_obj = current_obj[part]
-                    else:
-                        return None, None
-                
-                # Get final field
-                final_field = path_parts[-1]
-                if isinstance(current_obj, dict) and final_field in current_obj:
-                    data = current_obj[final_field]
-                    if isinstance(data, (list, tuple)):
-                        return list(data), field_path
-                    else:
-                        return [data], field_path
-                        
-            elif field_path == 'response':
-                # Handle direct response field
-                if "response" in task_data["metadata"] and task_data["metadata"]["response"] is not None:
-                    response_data = task_data["metadata"]["response"]
-                    if hasattr(response_data, '__iter__') and not isinstance(response_data, str):
-                        return list(response_data), "response"
-                    else:
-                        return [response_data], "response"
-                        
+            
+            # Convert result to list format
+            if current_obj is None:
+                return None, None
+            elif isinstance(current_obj, (list, tuple)):
+                return list(current_obj), field_path
             else:
-                # Handle simple field name - try common locations
-                locations_to_check = [
-                    ("y_data", lambda: task_data["metadata"].get("y_data")),
-                    ("Task.response", lambda: task_data["metadata"].get("Task", {}).get("response", {}).get(field_path)),
-                    ("Task.outputs", lambda: task_data["metadata"].get("Task", {}).get("outputs", {}).get(field_path)),
-                    ("response", lambda: task_data["metadata"].get("response", {}).get(field_path) if isinstance(task_data["metadata"].get("response"), dict) else None),
-                ]
+                return [current_obj], field_path
                 
-                for location_name, getter in locations_to_check:
-                    try:
-                        data = getter()
-                        if data is not None:
-                            if isinstance(data, (list, tuple)):
-                                return list(data), f"{location_name}.{field_path}"
-                            else:
-                                return [data], f"{location_name}.{field_path}"
-                    except:
-                        continue
-            
-            return None, None
-            
         except Exception as e:
             print(f"  Error extracting field '{field_path}': {e}")
             return None, None

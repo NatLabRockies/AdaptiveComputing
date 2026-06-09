@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --time=0:05:00 
 #SBATCH --nodes=1
+#SBATCH --partition=debug
 #SBATCH --account=degrees
 #SBATCH --job-name=lammps_test
 #SBATCH --output=out_%j.out
@@ -34,8 +35,8 @@ if [ -z "$machine_name" ]; then
 fi
 
 # Run hero_initialize.py to indicate the job is running and unqueue it.
-module load conda
-source activate AC_hero
+module load mamba
+mamba activate AC
 echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name"
 python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name
 return_code=$?
@@ -69,8 +70,8 @@ fi
 echo "Conductivity passed to python: $result"
 
 # Run hero_finalize.py to publish result and mark it as done
-module load conda
-source activate AC_hero
+module load mamba
+mamba activate AC
 echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name"
 python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name
 if [ $? -ne 0 ]; then

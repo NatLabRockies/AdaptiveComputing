@@ -34,8 +34,8 @@ if [ -z "$machine_name" ]; then
 fi
 
 # Run hero_initialize.py to indicate the job is running and unqueue it.
-module load conda
-source activate AC_hero
+module load mamba
+mamba activate AC
 echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name"
 python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name
 return_code=$?

@@ -27,6 +27,9 @@ def compute_conductivity(temperature):
     """
     Compute conductivity from temperature using the formula:
     conductivity = temperature^2 / 1000
+    
+    This simulates a simple physical computation that might be done
+    by a more complex simulation in a real-world scenario.
     """
     return temperature * temperature / 1000.0
 
@@ -48,7 +51,13 @@ def hero_worker(worker_name='local_worker'):
         sys.exit(1)
 
     # Use the queue corresponding to fidelity level zero
-    queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')
+    # Try to find existing queue first, otherwise create new one
+    try:
+        queue_record = task_engine.read_queue_by_name(name=HERO_QUEUE, state="active")
+        print(f'Found existing active queue: {HERO_QUEUE}')
+    except Exception:
+        print(f'Creating new queue: {HERO_QUEUE}')
+        queue_record = task_engine.add_queue(name=HERO_QUEUE)
     
     print(f'Worker "{worker_name}" starting - processing tasks locally...')
     
@@ -76,6 +85,7 @@ def hero_worker(worker_name='local_worker'):
                 conductivity = compute_conductivity(temperature)
                 
                 # Update task metadata with the result
+                # Note: Using 'y_data' field to match the controller's output_field_path
                 task['metadata']['y_data'] = [conductivity]
                 
                 # Mark task as done
@@ -86,11 +96,11 @@ def hero_worker(worker_name='local_worker'):
                     metadata=task['metadata']
                 )
                 
-                print(f"Completed task {task_id}: temperature={temperature} -> conductivity={conductivity}")
+                print(f"Completed task {task_id}: temperature={temperature} -> conductivity={conductivity:.6f}")
                 
             except Exception as e:
                 print(f"Error processing task {task.get('id', 'unknown')}: {e}")
-                # Mark task as error
+                # Mark task as error if processing fails
                 try:
                     task_engine.update_task(
                         task_id=task['id'], 
@@ -98,8 +108,9 @@ def hero_worker(worker_name='local_worker'):
                         name=task['name'], 
                         metadata=task['metadata']
                     )
-                except Exception:
-                    pass  # Ignore secondary errors
+                    print(f"Marked task {task['id']} as error due to processing failure")
+                except Exception as update_error:
+                    print(f"Failed to update task {task['id']} to error state: {update_error}")
         
         # Wait before checking again
         time.sleep(2)
