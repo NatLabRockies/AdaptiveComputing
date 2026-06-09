@@ -16,25 +16,25 @@ remote_hosts = {
     'machine_b': 'machine-b.hpc.example.gov'
 }
 
-# Remote directory paths where AdaptiveComputing is installed
+# Remote directory paths to the hero_HPC_managers directory on the remote machines
 remote_dirs = {
-    'machine_a': '/path/to/AdaptiveComputing/examples/hero_2clusters/',
-    'machine_b': '/path/to/AdaptiveComputing/examples/hero_2clusters/'
+    'machine_a': '/path/to/AdaptiveComputing/examples/hero_HPC_managers/',
+    'machine_b': '/path/to/AdaptiveComputing/examples/hero_HPC_managers/'
 }
 
 # SLURM batch scripts to run for each machine
-# These scripts must exist in the remote_dirs[machine]/simulation_files/ directory
+# These are the relative paths to the slurm scripts remote_dirs[machine]/slurm_scripts[machine]
 slurm_scripts = {
-    'machine_a': 'script_machine_a.sh',
-    'machine_b': 'script_machine_b.sh'
+    'machine_a': 'simulation_files/script_machine_a.sh',
+    'machine_b': 'simulation_files/script_machine_b.sh'
 }
 
-# Example configuration for NREL systems (commented out):
+# Example configuration for NLR systems (commented out):
 # machine_names = ['kestrel', 'vermilion']
-# remote_usernames = {'kestrel': 'your_nrel_username', 'vermilion': 'your_nrel_username'}
-# remote_hosts = {'kestrel': 'kl1.hpc.nrel.gov', 'vermilion': 'vs-login-1.hpc.nrel.gov'}
+# remote_usernames = {'kestrel': 'your_nlr_username', 'vermilion': 'your_nlr_username'}
+# remote_hosts = {'kestrel': 'kl1.hpc.nlr.gov', 'vermilion': 'vs-login-1.hpc.nlr.gov'}
 # remote_dirs = {
-#     'kestrel': '/home/your_nrel_username/AdaptiveComputing/examples/hero_2clusters/',
-#     'vermilion': '/projects/degrees/your_nrel_username/AdaptiveComputing/examples/hero_2clusters/'
+#     'kestrel': '/home/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/',
+#     'vermilion': '/projects/degrees/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/'
 # }
-# slurm_scripts = {'kestrel': 'script_kestrel.sh', 'vermilion': 'script_vermilion.sh'}
+# slurm_scripts = {'kestrel': 'simulation_files/script_kestrel.sh', 'vermilion': 'simulation_files/script_vermilion.sh'}

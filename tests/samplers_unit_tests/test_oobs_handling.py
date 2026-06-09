@@ -32,8 +32,20 @@ def test_oob_handling():
     ds.add_samples([[1.0]], [[1.0]],0)
     ds.add_samples([[1.0]],[[np.nan]],0)
 
-    assert (ds.x_data[0].shape == (1,1))  
-    assert (ds.y_data[0].shape == (1,1))
+    # With new masking behavior, all data is kept but masked status is tracked
+    assert (ds.x_data[0].shape == (2,1))  # Both data points are kept
+    assert (ds.y_data[0].shape == (2,1))
+    # Check sample-level masking (sample valid only if all outputs valid)
+    sample_mask = np.all(ds._unmasked_data[0], axis=1)
+    assert (sample_mask.shape == (2,))  # Mask tracks both points
+    assert sample_mask[0] == True   # First point is valid
+    assert sample_mask[1] == False  # Second point is masked (NaN)
+    
+    # Unmasked data should only contain the valid point
+    x_unmasked, y_unmasked = ds.get_unmasked_data(0)
+    assert (x_unmasked.shape == (1,1))
+    assert (y_unmasked.shape == (1,1))
+    assert not np.any(np.isnan(y_unmasked))
 
     # fail on OOB
     ds = DatasetBase([ContinuousVariable(min=0, max=10)],

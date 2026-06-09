@@ -53,7 +53,7 @@ class ActiveLoopDriver:
             params (list): List of parameters for the simulations.
             surrogate (SurrogateModelBase or str, optional): Surrogate model or string identifier for initializing surrogate. Defaults to None.
             dataset (DatasetBase, optional): Dataset object for storing input-output data. Defaults to None.
-            nan_behavior (str, optional): Behavior for handling NaN values ('fail', 'mask_replace', 'mask_ignore'). Defaults to 'fail'.
+            nan_behavior (str, optional): Behavior for handling NaN values ('fail', 'mask_ignore'). Defaults to 'fail'.
             fidelity_costs (dict or None, optional): Dictionary specifying costs associated with each fidelity level. Defaults to None.
         """
         self.retrain = retrain
@@ -110,8 +110,7 @@ class ActiveLoopDriver:
         for i_fidelity in range(self.n_fidelity):
             self._initialize_fidelity(i_fidelity, N_samples_init=N_samples_init)
         if self.retrain:
-            self.surrogate.train(self.dataset.x_data,
-                                 self.dataset.y_data)
+            self.surrogate.train(self.dataset)
         self._bopt_initialized = True
 
     def get_next_sample(self, i_fidelity=0):
@@ -136,8 +135,7 @@ class ActiveLoopDriver:
         y = self.evaluate_sample(x, fi_eval)
         self.dataset.add_samples(x, y, i_fidelity=fi_eval)
         if self.retrain:
-            self.surrogate.train(self.dataset.x_data,
-                                self.dataset.y_data)
+            self.surrogate.train(self.dataset)
 
     def run(self, N_steps=None):
         """
@@ -209,7 +207,7 @@ class ActiveLoopDriver:
         #         y = self.evaluate_sample(points[[i]], i_fidelity=0)
         #         self.dataset.add_samples(points[[i]], y, i_fidelity=0)
         #         if self.retrain:
-        #             self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+        #             self.surrogate.train(self.dataset)
         #         # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
         #         surrogate_value = self.surrogate.predict_values(points[[i]])
         #     values[i] = surrogate_value
@@ -227,7 +225,7 @@ class ActiveLoopDriver:
             y = self.evaluate_sample(points[[i]], i_fidelity=0)
             self.dataset.add_samples(points[[i]], y, i_fidelity=0)
             if self.retrain:
-                self.surrogate.train(self.dataset.x_data, self.dataset.y_data)
+                self.surrogate.train(self.dataset)
             # don't allow the same point to be evaluated again
             surrogate_variances[i] = 0
             # reevalute the variance of all points not set to zero

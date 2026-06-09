@@ -70,18 +70,15 @@ class TFMELT_MDN(SurrogateModelBase):
         
         self.untrained = True
 
-    def train(self, x_data, y_data):
+    def _train_impl(self, x_data, y_data):
         """
-        Trains the surrogate models with the provided data.
+        Internal TFMELT_MDN training implementation.
+        This method receives only validated, unmasked training data.
         
         Args:
-            x_data (list): List of input data arrays for each fidelity level.
-                Each element of list has shape (N samples, N input dimension)
-            y_data (list): List of output data arrays for each fidelity level.
-                Each element of list has shape (N samples, N output dimension)
+            x_data (list): List of input data arrays for each fidelity level (unmasked only).
+            y_data (list): List of output data arrays for each fidelity level (unmasked only).
         """
-        x_data, y_data = self._validate_data(x_data, y_data)
-
         for i_fidelity in range(self.n_fidelity):
             if len(x_data[i_fidelity]) == 0:
                 continue

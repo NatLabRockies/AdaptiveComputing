@@ -18,7 +18,7 @@ def setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dir
     signal.signal(signal.SIGINT, signal_handler)
 
 def signal_handler(sig, frame):
-    print("\nReceived signal {sig}. Canceling all slurm jobs and then terminating the remote queue managers...")
+    print(f"\nReceived signal {sig}. Canceling all slurm jobs and then terminating the remote queue managers...")
     cleanup_remote_managers()
     os._exit(0) # unlike sys.exit(0), os._exit(0) avoids sending SystemExit signal to Hero, which it doesn't know how to handle
 
@@ -27,6 +27,9 @@ def run_remote_managers():
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
+            "-o", "BatchMode=yes",  # Disable interactive prompts
+            "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
+            "-o", "ConnectTimeout=30",  # Set connection timeout
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
             f"cd {_remote_dirs[machine_name]} && nohup ./run_manager.sh {machine_name} > manager_{machine_name}.log 2>&1 &"
         ]
@@ -52,6 +55,9 @@ def verify_remote_managers():
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
+            "-o", "BatchMode=yes",  # Disable interactive prompts
+            "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
+            "-o", "ConnectTimeout=15",  # Set connection timeout
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
             f"cd {_remote_dirs[machine_name]} && tmux list-sessions | grep manager_session && echo 'Manager session found' || echo 'No manager session'"
         ]
@@ -68,8 +74,11 @@ def cleanup_remote_managers():
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
+            "-o", "BatchMode=yes",  # Disable interactive prompts
+            "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
+            "-o", "ConnectTimeout=30",  # Set connection timeout
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
-            f"{_remote_dirs[machine_name]}run_kill_slurm_jobs.sh {machine_name}"
+            f"cd {_remote_dirs[machine_name]} && ./run_kill_slurm_jobs.sh {machine_name}"
         ]
         try:
             subprocess.run(ssh_command, check=True)

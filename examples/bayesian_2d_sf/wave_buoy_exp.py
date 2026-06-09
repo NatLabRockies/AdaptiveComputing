@@ -63,7 +63,7 @@ if __name__ == "__main__":
     y_samples = np.atleast_2d(y_samples).T
 
     ac_driver.dataset.add_samples(x_samples,y_samples,i_fidelity=0)
-    ac_driver.surrogate.train(ac_driver.dataset.x_data, ac_driver.dataset.y_data)
+    ac_driver.surrogate.train(ac_driver.dataset)
 
     # Stack into a (N, 2) array of points
     points = np.column_stack([X1.ravel(), X2.ravel()])  # shape (160000, 2)

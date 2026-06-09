@@ -3,6 +3,10 @@ import numpy as np
 import time
 import subprocess
 import os
+import sys
+
+# add the path to the adaptive_computing module
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
@@ -41,7 +45,13 @@ def hero_manager():
         sys.exit(1)
 
     # Use the queue corresponding to fidelity level zero
-    queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')
+    # Try to find existing active queue first (like HeroDataset does)
+    try:
+        queue_record = task_engine.read_queue_by_name(name=HERO_QUEUE, state="active")
+        print(f'Found existing active queue: {HERO_QUEUE}')
+    except Exception:
+        print(f'No active queue found, creating new queue: {HERO_QUEUE}')
+        queue_record = task_engine.add_queue(name=HERO_QUEUE)
 
     print('Continuously check the queue, claim a ready task, and launch a slurm process...')
     os.chdir('simulation_files')
@@ -65,20 +75,25 @@ def hero_manager():
                 # Use configured script name for this machine
                 if machine_name in hpc_config.slurm_scripts:
                     script_name = hpc_config.slurm_scripts[machine_name]
-                    command = f"sbatch {script_name} {t} {current_task['id']} {machine_name}"
+                    # Use absolute path for the script
+                    script_dir = os.path.dirname(os.path.abspath(__file__))
+                    absolute_script_path = os.path.join(script_dir, script_name)
+                    command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name}"
                 else:
                     raise Exception(f"The machine name '{machine_name}' is not configured in hpc_config.slurm_scripts. Available machines: {list(hpc_config.slurm_scripts.keys())}")
                 print(f"Running command: {command}")
-                result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+                result = subprocess.run(command, shell=True, capture_output=True, text=True)
                 if result.returncode != 0:
                     print("Error occurred during sbatch script.")
                     print("STDOUT:")
                     print(result.stdout)
                     print("STDERR:")
                     print(result.stderr)
+                    print(f"Return code: {result.returncode}")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
                     current_task['metadata']['running'][machine_name] = False
                     task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                    continue
                 job_id = result.stdout.strip().split()[-1] # parse the job_id from the string returned
                 current_task['metadata']['slurm_job_id'][machine_name] = job_id
                 task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
@@ -88,7 +103,18 @@ def hero_manager():
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
-                    pass # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue. Or the job may have started on another machine first and that why the corresponding job on this machine ended without marking the job as done.
+                    # Job completed successfully - check if hero_finalize worked
+                    # First re-read the task to get current state
+                    updated_task = task_engine.read_task(task_id=current_task['id'])
+                    if updated_task['state'] == 'done':
+                        print(f"Job {job_id} completed successfully for task {current_task['id']} - hero_finalize succeeded")
+                    else:
+                        print(f"WARNING: Job {job_id} completed successfully for task {current_task['id']}, but Hero task is still in '{updated_task['state']}' state")
+                        print(f"This likely indicates hero_finalize failed. Check SLURM output files for errors.")
+                    
+                    # Reset the slurm job id since this job is done
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
+                    current_task['metadata']['running'][machine_name] = False
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                     print("Slurm job error detected.")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
@@ -115,7 +141,18 @@ def hero_manager():
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
-                    pass # it is possible that the job completed after the task_engine.read_tasks was called so this isn't necessarily an issue. Or the job may have started on another machine first and that why the corresponding job on this machine ended without marking the job as done.
+                    # Job completed successfully - check if hero_finalize worked
+                    # First re-read the task to get current state
+                    updated_task = task_engine.read_task(task_id=current_task['id'])
+                    if updated_task['state'] == 'done':
+                        print(f"Job {job_id} completed successfully for task {current_task['id']} - hero_finalize succeeded")
+                    else:
+                        print(f"WARNING: Job {job_id} completed successfully for task {current_task['id']}, but Hero task is still in '{updated_task['state']}' state")
+                        print(f"This likely indicates hero_finalize failed. Check SLURM output files for errors.")
+                    
+                    # Reset the slurm job id since this job is done  
+                    current_task['metadata']['slurm_job_id'][machine_name] = -1
+                    current_task['metadata']['running'][machine_name] = False
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                     print("Slurm job error detected.")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1

@@ -37,7 +37,7 @@ if __name__ == '__main__':
     verify_remote_managers()
 
     params = [ContinuousVariable(min=0.8, max=2.0)]
-    ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, surrogate='SMT_GP', acq_func='maximum_variance', blocking=False)
+    ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, output_field_path='y_data', surrogate='SMT_GP', acq_func='maximum_variance', blocking=False)
 
     # Sampling techniques that don't use the surrogate model:
     # 1) queue hero samples at the given x_data values. No initial guess provided.
@@ -50,22 +50,30 @@ if __name__ == '__main__':
     # ac_driver.initialize(N_samples_init=3)
     
     # Print the data before and after a hero wait
-    # print(f'_x_data = {ac_driver.dataset._x_data}')
-    # print(f'_y_data = {ac_driver.dataset._y_data}')
-    # print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
-    # print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
+    print(f'Before first wait:')
+    print(f'_x_data = {ac_driver.dataset._x_data}')
+    print(f'_y_data = {ac_driver.dataset._y_data}')
+    print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
+    print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
     ac_driver.hero_wait_for_data_and_train()
-    # print(f'_x_data = {ac_driver.dataset._x_data}')
-    # print(f'_y_data = {ac_driver.dataset._y_data}')
-    # print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
-    # print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
+    print(f'After first wait:')
+    print(f'_x_data = {ac_driver.dataset._x_data}')
+    print(f'_y_data = {ac_driver.dataset._y_data}')
+    print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
+    print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
     # Surrogate-based sampling:
     # 1) Manually add points and use the surrogate model to determine the placeholder value for the y_data.
+    print(f'About to add_points...')
     ac_driver.add_points(np.array([[1.3],[1.7]]),i_fidelity=0)
+    print(f'After add_points:')
+    print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
     # 2) Bayesian optimization. Use an acquisition function to determine which x values to add. y_data placeholder values are computed using the surrogate.
     ac_driver._bopt_initialized = True # Skip additional initialization of the surrogate since already initialized it above
+    print(f'About to run(N_steps=5)...')
     ac_driver.run(N_steps=5)
+    print(f'After run(N_steps=5):')
+    print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
     # Print the data before and after a hero wait
     # print(f'_x_data = {ac_driver.dataset._x_data}')
