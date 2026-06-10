@@ -1,6 +1,14 @@
-![AGPL License](https://img.shields.io/badge/license-AGPL%20v3-blue)
+![BSD-3-Clause License](https://img.shields.io/badge/license-BSD--3--Clause-blue)
 
 # Adaptive Computing
+
+## Citation
+
+If you use this project, please cite:
+
+K. P. Griffin et al., "Adaptive Computing for Scale-Up Problems" in *Computing in Science & Engineering*, vol. 27, no. 01, pp. 28-38, Jan.-March 2025, doi: 10.1109/MCSE.2025.3555589.
+
+URL: https://doi.ieeecomputersociety.org/10.1109/MCSE.2025.3555589
 
 The Adaptive Computing (AC) software stack supports goal-based computing, for which a simulation workload is created on the fly, adapting to the results of calculations. Application-specific code defines an objective, which may be to solve an optimization problem or to train a surrogate model with minimal uncertainty. Then, the AC driver decides where in the design parameter space to run simulations to best achieve that objective. This process is iterative and online; as new data is returned from simulations, the AC driver chooses new simulations to run. The AC driver can strategically run simulations on distributed hardware resources (including high performance computing machines, cloud resources, and edge devices) to maximize throughput and obey resource constraints.
 
@@ -120,6 +128,10 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 **Recommended learning path**: Start with `examples/hero/` to understand the basics, then explore `examples/hero_HPC_managers/` for production deployment.
 
 ## Developer instructions
+
+## License
+
+This project is licensed under the BSD-3-Clause license (BDS-3). See LICENSE.txt for details.
 
 ### Testing
 

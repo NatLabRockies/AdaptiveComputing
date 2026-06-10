@@ -3,6 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="adaptive_computing",
     version="1.0",
+    license="BSD-3-Clause",
     packages=find_packages(),
     install_requires=[
         "smt", 
