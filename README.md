@@ -18,8 +18,9 @@ The Adaptive Computing (AC) software stack supports goal-based computing, for wh
 
 - [Miniconda](https://docs.conda.io/en/latest/miniconda.html) or [Anaconda](https://www.anaconda.com/products/distribution) should be installed on your system. HPC users can try
 
-   ```bash
-   module load conda
+```bash
+module load conda
+```
 
 ### Quick Setup
 
@@ -54,10 +55,8 @@ pip install git+https://github.com/NatLabRockies/tf-melt.git#egg=tfmelt
 If you plan to use Hero distributed computing features:
 
 ```bash
-pip install git+https://github.nrel.gov/Hero/hero.git@v0.10.0#egg=hero
+pip install git+https://github.com/NLR-hero/hero.git@v0.10.0#egg=hero
 ```
-
-*Note: Hero requires access to NREL's private GitHub Enterprise. Contact your Hero admin for access.*
 
 **5b. Install agentic AI dependencies (optional, for LLM-driven workflows):**
 
@@ -76,14 +75,16 @@ Most AC users do not need these packages. They are intentionally kept separate f
 
 **6. Set up Hero credentials (Hero users only):**
 
-The Hero environment file will be auto-created from the template when you first use Hero functionality. To configure your credentials:
+Set Hero credentials as environment variables in your local shell session or in a local, untracked environment file.
+
+If you prefer using the helper file, `adaptive_computing/hero_utils/set_hero_env_vars.py` will be auto-created from the template when you first use Hero functionality. You can then edit it locally:
 
 ```bash
 # The file will be created automatically, then edit it:
 nano adaptive_computing/hero_utils/set_hero_env_vars.py
 ```
 
-Replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values).
+Replace the placeholder values with your actual Hero credentials (ask your Hero admin for these values). Do not commit secrets.
 
 **7. Run the tests:**
 
@@ -129,23 +130,10 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 
 ## Developer instructions
 
+Development workflows, testing expectations, and pull request guidelines are documented in CONTRIBUTING.md.
+
+For security vulnerability reporting, see SECURITY.md.
+
 ## License
 
-This project is licensed under the BSD-3-Clause license (BDS-3). See LICENSE.txt for details.
-
-### Testing
-
-1. Before pushing or opening a pull request, make sure your code passes the test suite:
-
-   ```bash
-   # cd to the AdaptiveComputing home directory
-   python -m pytest
-   # stop the build if there are Python syntax errors or undefined names
-   ruff check --select=E9,F63,F7,F82 --target-version=py312 .
-   # check for style and potential bugs
-   ruff check --target-version=py312 .
-
-
-### Pull requests
-
-1. Most users of the Adaptive Computing repository have read access. If you attempt to push your code, you will be guided to open a pull request. A bot will comment on the pull request when the tests complete and someone with write access will need to approve and merge your pull request.
+This project is licensed under the BSD-3-Clause license. See LICENSE.txt for details.

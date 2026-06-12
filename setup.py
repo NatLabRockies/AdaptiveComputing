@@ -7,7 +7,6 @@ setup(
     packages=find_packages(),
     install_requires=[
         "smt", 
-        "ruff",
         "scikit-learn==1.8.0",
         "soogo==2.0.1", 
         "pydantic",

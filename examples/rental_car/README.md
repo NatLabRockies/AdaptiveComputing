@@ -2,6 +2,8 @@
 
 This example demonstrates active learning techniques applied to the NLR rental car optimization model using both SMT and SOOGO surrogates. The goal is to efficiently explore the 4D parameter space and quantify and reduce uncertainty using adaptive sampling.
 
+This workflow is only accessible from within the NLR firewall (or an approved VPN path into that network).
+
 ## Overview
 
 The rental car model optimizes EV fleet management across four key parameters:
@@ -25,16 +27,16 @@ First, ensure you have the AdaptiveComputing environment properly set up:
 cd /path/to/AdaptiveComputing_1.0/AdaptiveComputing
 
 # Create and activate the conda environment
-conda env create -f environment.yaml
+conda env create -f environment.yml
 conda activate AC
 
 # Install AdaptiveComputing in development mode
 pip install -e .
 ```
 
-### 2. NLR Rental Car Model Setup
+### 2. NLR Rental Car Model Setup (Firewall-Restricted)
 
-Clone the required NLR genesis model repository:
+Clone the required NLR genesis model repository (accessible only behind the NLR firewall):
 
 ```bash
 # Clone the rental car model repository
@@ -176,7 +178,7 @@ rental_car/
 ## Important Notes
 
 - **Each evaluation calls the actual HERO simulation** - expect longer runtimes
-- **HERO backend requires NLR network access** - ensure proper VPN connection if needed
+- **Model access may be firewall-restricted** - the Genesis model repository is hosted on github.NLR.gov
 - **Start with small sample sizes** for testing (e.g., `--n-initial 5 --n-bayes-opt 5`)
 - **SMT approach is generally more efficient** for this discrete optimization problem
 - **Always source env.txt first** before running any scripts
@@ -191,8 +193,7 @@ rental_car/
    ```
 
 2. **HERO connection errors**:
-   - Check VPN connection to NLR network
-   - Verify credentials in `env.txt`
+   - Verify Hero credentials and API settings in `env.txt`
    - Test with smaller sample sizes first
 
 3. **Import errors**:

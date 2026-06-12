@@ -17,7 +17,7 @@ This directory provides a simple introduction to the Hero framework for task que
 
 ## Prerequisites
 
-1. Complete the [main repository setup](../../README.md) (Option 1: Full Setup with Hero Support)
+1. Complete the [main repository setup](../../README.md)
 2. Configure your Hero credentials in `adaptive_computing/hero_utils/set_hero_env_vars.py`
 
 ## Quick Start
@@ -25,14 +25,14 @@ This directory provides a simple introduction to the Hero framework for task que
 **Terminal 1** - Start the worker:
 ```bash
 cd examples/hero
-mamba activate AC_hero
+mamba activate AC
 python worker.py
 ```
 
 **Terminal 2** - Run the controller:
 ```bash
 cd examples/hero
-mamba activate AC_hero  
+mamba activate AC  
 python controller.py      # HeroDataset example with different add methods
 # OR
 python controller_noAC.py # Basic Hero queue management example
@@ -87,4 +87,4 @@ Once you're comfortable with these concepts, explore the [production HPC workflo
 
 **"Queue not found"**: Make sure your HERO_QUEUE environment variable is set correctly
 
-**Import errors**: Ensure you've activated the `AC_hero` conda environment and run `pip install -e .`
+**Import errors**: Ensure you've activated the `AC` conda environment and run `pip install -e .`

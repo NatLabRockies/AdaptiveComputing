@@ -20,7 +20,7 @@ This directory demonstrates production-scale Hero framework integration with HPC
 
 ## 2. Repository Setup
 
-Ensure you have completed **Option 1: Full Setup with Hero Support** from the [main repository README](../../README.md).
+Ensure you have completed the setup steps in the [main repository README](../../README.md).
 
 ## 3. Hero Credentials
 
@@ -80,14 +80,14 @@ All controllers use real molecular dynamics simulations to compute thermal condu
    **Terminal 1** - Manager on first cluster:
    ```bash
    cd examples/hero_HPC_managers
-   mamba activate AC_hero
+   mamba activate AC
    python manager.py <machine_name_1>
    ```
    
    **Terminal 2** - Manager on second cluster:
    ```bash
    cd examples/hero_HPC_managers
-   mamba activate AC_hero
+   mamba activate AC
    python manager.py <machine_name_2>
    ```
 
@@ -96,7 +96,7 @@ All controllers use real molecular dynamics simulations to compute thermal condu
    **Terminal 3** - Controller:
    ```bash
    cd examples/hero_HPC_managers
-   mamba activate AC_hero
+   mamba activate AC
    python controller_offline_training.py    # Train surrogates with AC strategies
    # OR
    python controller_offline_inference.py   # Use pre-trained surrogates 
@@ -139,7 +139,7 @@ Replace `<machine_name_1>`, `<machine_name_2>` with actual cluster names from yo
 ```bash
 cd examples/hero_HPC_managers
 module load conda  # or module load mamba
-mamba activate AC_hero
+mamba activate AC
 python manager.py <machine_name>
 ```
 
@@ -154,19 +154,19 @@ Instead of running the Python controllers, you can run the C++ counterpart using
 1. **Load environment**:
    ```bash
    module load mamba
-   mamba activate AC_hero
+   mamba activate AC
    ```
 
 2. **Export library path** (adjust path as needed for your conda environment):
    ```bash
-   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mamba/envs/AC_hero/lib
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mamba/envs/AC/lib
    ```
 
 3. **Compile C++ code** (adjust paths as needed):
    ```bash
    g++ controller_offline_inference.cpp -o controller_offline_inference \
-       -L ~/.mamba/envs/AC_hero/lib -lpython3.11 \
-       -I ~/.mamba/envs/AC_hero/include/python3.11
+      -L ~/.mamba/envs/AC/lib -lpython3.11 \
+      -I ~/.mamba/envs/AC/include/python3.11
    ```
 
 **Note**: The C++ program loads and executes the Python file at runtime, not during compilation, so you can modify the Python file after compilation.
