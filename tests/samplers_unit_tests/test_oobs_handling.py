@@ -38,8 +38,8 @@ def test_oob_handling():
     # Check sample-level masking (sample valid only if all outputs valid)
     sample_mask = np.all(ds._unmasked_data[0], axis=1)
     assert (sample_mask.shape == (2,))  # Mask tracks both points
-    assert sample_mask[0] == True   # First point is valid
-    assert sample_mask[1] == False  # Second point is masked (NaN)
+    assert sample_mask[0]   # First point is valid
+    assert not sample_mask[1]  # Second point is masked (NaN)
     
     # Unmasked data should only contain the valid point
     x_unmasked, y_unmasked = ds.get_unmasked_data(0)
