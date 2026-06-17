@@ -1,4 +1,4 @@
-# NREL HERO Backend Environment Configuration Template
+# NLR HERO Backend Environment Configuration Template
 # 
 # Instructions:
 # 1. Copy this file: cp env_template.txt env.txt
