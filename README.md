@@ -2,7 +2,7 @@
 
 # Adaptive Computing
 
-This software corresponds to the National Laboratory of the Rockies (NLR) software record SWR-24-106. https://doi.org/10.11578/dc.20250414.5
+The Adaptive Computing (AC) software stack supports goal-based computing, for which a simulation workload is created on the fly, adapting to the results of calculations. Application-specific code defines an objective, which may be to solve an optimization problem or to train a surrogate model with minimal uncertainty. Then, the AC driver decides where in the design parameter space to run simulations to best achieve that objective. This process is iterative and online; as new data is returned from simulations, the AC driver chooses new simulations to run. The AC driver can strategically run simulations on distributed hardware resources (including high performance computing machines, cloud resources, and edge devices) to maximize throughput and obey resource constraints.
 
 ## Citation
 
@@ -12,7 +12,7 @@ K. P. Griffin et al., "Adaptive Computing for Scale-Up Problems" in *Computing i
 
 URL: https://doi.ieeecomputersociety.org/10.1109/MCSE.2025.3555589
 
-The Adaptive Computing (AC) software stack supports goal-based computing, for which a simulation workload is created on the fly, adapting to the results of calculations. Application-specific code defines an objective, which may be to solve an optimization problem or to train a surrogate model with minimal uncertainty. Then, the AC driver decides where in the design parameter space to run simulations to best achieve that objective. This process is iterative and online; as new data is returned from simulations, the AC driver chooses new simulations to run. The AC driver can strategically run simulations on distributed hardware resources (including high performance computing machines, cloud resources, and edge devices) to maximize throughput and obey resource constraints.
+This software corresponds to the National Laboratory of the Rockies (NLR) software record SWR-24-106. https://doi.org/10.11578/dc.20250414.5
 
 ## Setup Instructions
 
