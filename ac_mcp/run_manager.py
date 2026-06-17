@@ -274,7 +274,7 @@ def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def _opt_worker(run_id: str, entry: dict,
-                n_init: int, n_steps: int, acq_func: str):
+                n_init: int, n_steps: int, acq_func: str, blocking: bool = False):
     from adaptive_computing.drivers import ActiveLoopDriverHero
     from ac_mcp.param_builder import build_ac_params, build_task_formatter
     from ac_mcp import registry
@@ -298,6 +298,8 @@ def _opt_worker(run_id: str, entry: dict,
             ac_params = build_ac_params(param_specs)
             formatter = build_task_formatter(param_specs, fixed_context,
                                              hpc.machine_names)
+            mode_str = "sequential (blocking)" if blocking else "parallel (non-blocking)"
+            print(f"[run {run_id[:8]}] BO mode: {mode_str}")
             driver = ActiveLoopDriverHero(
                 simulations=[None],
                 params=ac_params,
@@ -305,7 +307,7 @@ def _opt_worker(run_id: str, entry: dict,
                 output_field_path=entry["output_field_path"],
                 surrogate="SMT_GP",
                 acq_func=acq_func,
-                blocking=False,
+                blocking=blocking,
                 task_formatter=formatter,
             )
 
@@ -323,23 +325,27 @@ def _opt_worker(run_id: str, entry: dict,
             registry.save_driver(entry["id"], driver)
 
             # Phase 2: EI-guided BO
-            # driver.step() = get_next_sample() + evaluate_sample() (surrogate
-            # placeholder) + add_samples() — this is what queues the Hero task.
-            # hero_wait_for_data_and_train() then waits for the real result.
-            print(f"[run {run_id[:8]}] BO steps ({n_steps})...")
-            for step in range(n_steps):
-                _update(rs, message=f"BO step {step+1}/{n_steps}: submitting job")
-                driver.step()
-                _update(rs, message=f"BO step {step+1}/{n_steps}: waiting for job")
-                driver.hero_wait_for_data_and_train()
+            # blocking=False (parallel): run() queues all n_steps Hero tasks at
+            #   once using surrogate placeholders between steps (Kriging Believer
+            #   batch BO), then hero_wait_for_data_and_train() collects all results.
+            # blocking=True (sequential): run() blocks after each step() until
+            #   the simulation completes and retrains the surrogate on real data
+            #   before proposing the next point.  hero_wait_for_data_and_train()
+            #   is then a fast no-op (all data already collected).
+            print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
+            _update(rs, message=f"BO: running {n_steps} steps ({mode_str})")
+            driver.run(N_steps=n_steps)
 
-                results, best_x, best_y = _extract_results(driver, param_specs,
-                                                            fixed_context)
-                _update(rs, n_completed=n_init + step + 1,
-                        results=results, best_x=best_x, best_y=best_y,
-                        message=f"BO step {step+1}/{n_steps} done")
-                registry.save_driver(entry["id"], driver)
-                print(f"[run {run_id[:8]}] step {step+1}/{n_steps} best_y={best_y}")
+            _update(rs, message=f"BO: waiting for {n_steps} jobs")
+            driver.hero_wait_for_data_and_train()
+
+            results, best_x, best_y = _extract_results(driver, param_specs,
+                                                        fixed_context)
+            _update(rs, n_completed=n_init + n_steps,
+                    results=results, best_x=best_x, best_y=best_y,
+                    message="BO complete")
+            registry.save_driver(entry["id"], driver)
+            print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
 
             _update(rs, status="completed", message="optimization complete")
 
@@ -354,10 +360,11 @@ def _opt_worker(run_id: str, entry: dict,
 
 
 def submit_optimization_run(entry: dict, n_init: int,
-                             n_steps: int, acq_func: str) -> str:
+                             n_steps: int, acq_func: str,
+                             blocking: bool = False) -> str:
     run_id = create_run(entry["id"], "optimization", n_init + n_steps)
     t = threading.Thread(target=_opt_worker,
-                         args=(run_id, entry, n_init, n_steps, acq_func),
+                         args=(run_id, entry, n_init, n_steps, acq_func, blocking),
                          daemon=True)
     t.start()
     return run_id

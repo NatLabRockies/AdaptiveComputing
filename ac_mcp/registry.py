@@ -59,7 +59,17 @@ def _load_registry() -> dict:
     if not path.exists():
         return {}
     with open(path, "r") as f:
-        return json.load(f)
+        data = json.load(f)
+    # Back-fill run_status for entries created before this field was added.
+    dirty = False
+    for entry in data.values():
+        if "run_status" not in entry:
+            pkl = Path(entry.get("pkl_path", ""))
+            entry["run_status"] = "completed" if pkl.exists() else "in_progress"
+            dirty = True
+    if dirty:
+        _save_registry(data)
+    return data
 
 
 def _save_registry(data: dict) -> None:
@@ -89,6 +99,7 @@ def register_experiment(
         "name":              name,
         "description":       description,
         "created_at":        datetime.now(timezone.utc).isoformat(),
+        "run_status":        "in_progress",   # "in_progress" | "completed"
         "param_specs":       param_specs,
         "fixed_context":     fixed_context,
         "output_label":      output_label,
@@ -161,7 +172,8 @@ def save_driver(experiment_id: str, ac_driver: Any) -> None:
             best_y = float(y_data[valid_mask][idx, 0])
             best_x = x_data[valid_mask][idx].tolist()
 
-        update_entry(experiment_id, n_samples=n_samples, best_x=best_x, best_y=best_y)
+        update_entry(experiment_id, n_samples=n_samples, best_x=best_x, best_y=best_y,
+                     run_status="completed")
     except Exception:
         pass  # stats are best-effort; don't crash on partial data
 
@@ -173,3 +185,43 @@ def load_driver(experiment_id: str) -> Any:
         raise FileNotFoundError(f"No saved driver for experiment {experiment_id!r}")
     with open(pkl, "rb") as f:
         return pickle.load(f)
+
+
+# ---------------------------------------------------------------------------
+# Experiment matching
+# ---------------------------------------------------------------------------
+
+def find_matching_experiment(
+    name: str,
+    param_specs: list[dict],
+    fixed_context: dict,
+    experiment_type: str,
+) -> Optional[dict]:
+    """Return the most recent *completed* experiment that matches the given key fields.
+
+    Identity is defined by name + experiment_type + fixed_context + param *names*
+    and *types* (not bounds).  Bounds are treated as tuning metadata — a completed
+    experiment with different bounds on the same parameters is still considered a
+    valid cache hit, since the surrogate can predict anywhere in the space.
+    Returns None if no completed match exists.
+    """
+    with _registry_lock:
+        reg = _load_registry()
+
+    # Extract just name+type from param_specs for matching (ignore min/max/categories)
+    def _param_key(specs: list[dict]) -> list[tuple]:
+        return sorted((s.get("name", ""), s.get("type", "")) for s in specs)
+
+    target_key = _param_key(param_specs)
+
+    candidates = [
+        e for e in reg.values()
+        if e.get("run_status") == "completed"
+        and e["name"] == name
+        and e["experiment_type"] == experiment_type
+        and e["fixed_context"] == fixed_context
+        and _param_key(e["param_specs"]) == target_key
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda e: e["created_at"])

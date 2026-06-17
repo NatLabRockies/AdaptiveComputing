@@ -61,9 +61,15 @@ def create_experiment(
     hpc_config_path: str,
     output_field_path: str = "y_data",
     experiment_type: str = "optimization",
+    force_new: bool = False,
 ) -> dict:
     """
     Register a new experiment and return its experiment_id.
+
+    Before creating a new entry, checks the registry for an existing *completed*
+    experiment with the same name, experiment_type, fixed_context, and param_specs.
+    If one is found it is returned immediately (no new simulations needed).
+    Pass force_new=True to skip the cache check and always create a fresh experiment.
 
     Parameters
     ----------
@@ -92,12 +98,29 @@ def create_experiment(
         Defaults to "y_data".
     experiment_type : str
         "optimization" or "evaluation".
+    force_new : bool
+        If True, skip cache check and always register a new experiment.
 
     Returns
     -------
-    dict with "experiment_id" (str).
+    dict with "experiment_id" (str) and "reused" (bool, True if an existing
+    completed experiment was returned instead of creating a new one).
     """
     from ac_mcp import registry
+
+    if not force_new:
+        existing = registry.find_matching_experiment(
+            name=name,
+            param_specs=param_specs,
+            fixed_context=fixed_context,
+            experiment_type=experiment_type,
+        )
+        if existing is not None:
+            return {"experiment_id": existing["id"], "reused": True,
+                    "n_samples": existing["n_samples"],
+                    "best_x": existing["best_x"],
+                    "best_y": existing["best_y"]}
+
     exp_id = registry.register_experiment(
         name=name,
         description=description,
@@ -108,7 +131,7 @@ def create_experiment(
         output_field_path=output_field_path,
         experiment_type=experiment_type,
     )
-    return {"experiment_id": exp_id}
+    return {"experiment_id": exp_id, "reused": False}
 
 
 # ===========================================================================
@@ -165,13 +188,24 @@ def run_optimization(
     n_init_samples: int = 3,
     n_steps: int = 5,
     acq_func: str = "expected_improvement",
+    blocking: bool = False,
 ) -> dict:
     """
     Run a full Bayesian optimisation loop (LHS warm-up + EI-guided steps)
     and return a run_id immediately.  Poll get_run_status for progress and results.
 
-    The driver uses Latin Hypercube Sampling to generate n_init_samples initial
-    evaluations, then runs n_steps steps guided by the acquisition function.
+    Both modes use driver.run(N_steps) then hero_wait_for_data_and_train().
+    The difference is how ActiveLoopDriverHero is instantiated:
+
+    blocking=False (default, parallel / "Kriging Believer" batch BO):
+        All n_steps Hero tasks are queued immediately using surrogate placeholder
+        predictions between steps.  Simulations run in parallel on HPC.  The
+        surrogate is retrained once on all real results.  Faster wall-clock time.
+
+    blocking=True (sequential BO):
+        Each step waits for the simulation to complete and retrains the surrogate
+        on real data before proposing the next point.  Higher sample efficiency
+        (each EI decision uses real results), but n_steps times slower.
 
     Parameters
     ----------
@@ -183,6 +217,9 @@ def run_optimization(
         Number of acquisition-function-guided evaluations after warm-up.
     acq_func : str
         Acquisition function: "expected_improvement" or "maximum_variance".
+    blocking : bool
+        False (default): parallel batch BO — all n_steps jobs run simultaneously.
+        True: sequential BO — each job informs the next before it is submitted.
 
     Returns
     -------
@@ -197,7 +234,7 @@ def run_optimization(
             "Use run_evaluations for fixed-parameter jobs."
         )
     run_id = run_manager.submit_optimization_run(
-        entry, n_init_samples, n_steps, acq_func
+        entry, n_init_samples, n_steps, acq_func, blocking
     )
     return {"run_id": run_id}
 
