@@ -2,6 +2,8 @@
 
 # Adaptive Computing
 
+This software corresponds to the National Laboratory of the Rockies (NLR) software record SWR-24-106. https://doi.org/10.11578/dc.20250414.5
+
 ## Citation
 
 If you use this project, please cite:
