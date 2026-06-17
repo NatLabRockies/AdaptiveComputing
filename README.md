@@ -4,6 +4,8 @@
 
 The Adaptive Computing (AC) software stack supports goal-based computing, for which a simulation workload is created on the fly, adapting to the results of calculations. Application-specific code defines an objective, which may be to solve an optimization problem or to train a surrogate model with minimal uncertainty. Then, the AC driver decides where in the design parameter space to run simulations to best achieve that objective. This process is iterative and online; as new data is returned from simulations, the AC driver chooses new simulations to run. The AC driver can strategically run simulations on distributed hardware resources (including high performance computing machines, cloud resources, and edge devices) to maximize throughput and obey resource constraints.
 
+AC also provides an **MCP (Model Context Protocol) server** (`ac_mcp/`) that exposes surrogate modelling and Bayesian optimisation as callable tools for AI agents. The MCP interface supports stateful simulation orchestration — an agent can create an experiment, submit evaluation or optimization runs asynchronously, poll for results, and query the trained surrogate for predictions — all through a standard HTTP/SSE tool API. Experiment state (dataset, trained surrogate) is persisted to a per-application **experiment registry**, allowing agents to build up a library of investigations, reason across past results, and plan future experiments.
+
 ## Citation
 
 If you use this project, please cite:
@@ -60,18 +62,19 @@ If you plan to use Hero distributed computing features:
 pip install git+https://github.com/NLR-hero/hero.git@v0.10.0#egg=hero
 ```
 
-**5b. Install agentic AI dependencies (optional, for LLM-driven workflows):**
+**5b. Install agentic AI and MCP dependencies (optional, for LLM-driven workflows):**
 
-If you plan to use AC with LangGraph-based agentic workflows (e.g., LLM agents that reason over the parameter space and submit simulations autonomously):
+If you plan to use AC with LangGraph-based agentic workflows or the AC MCP server (e.g., LLM agents that reason over the parameter space and submit simulations autonomously):
 
 ```bash
-pip install langchain-openai langchain-core langgraph pydantic typing_extensions
+pip install langchain-openai langchain-core langgraph pydantic typing_extensions fastmcp
 ```
 
 These packages enable:
 - **LangGraph** — stateful multi-step agent graphs
 - **LangChain** — LLM provider abstraction (OpenAI, Azure OpenAI, Anthropic, etc.)
 - **Pydantic** — structured LLM output parsing
+- **FastMCP** — MCP server and client for exposing AC capabilities as agent-callable tools
 
 Most AC users do not need these packages. They are intentionally kept separate from the core `environment.yml` to avoid imposing heavy ML framework dependencies on users who only need AC's optimization and surrogate modeling capabilities. As agentic AI features mature in AC, a dedicated extras install target (e.g., `pip install -e ".[agents]"`) may be added.
 
