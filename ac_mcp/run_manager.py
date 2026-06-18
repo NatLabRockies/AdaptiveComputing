@@ -248,6 +248,11 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
                     best_x = dict(job)
 
             registry.save_driver(run_id, driver)   # save under run_id as a snapshot
+            # Mark the *experiment* itself as completed so list_experiments shows the right status
+            n_successful = sum(1 for r in results if r["y"] is not None)
+            registry.update_entry(entry["id"], run_status="completed",
+                                   n_samples=n_successful,
+                                   best_x=best_x, best_y=best_y)
             _update(rs, status="completed", n_completed=n,
                     results=results, best_x=best_x, best_y=best_y)
 
@@ -274,13 +279,14 @@ def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def _opt_worker(run_id: str, entry: dict,
-                n_init: int, n_steps: int, acq_func: str, blocking: bool = False):
+                n_init: int, n_steps: int, acq_func: str, blocking: bool = False,
+                fork_experiment_id: str = None):
     from adaptive_computing.drivers import ActiveLoopDriverHero
     from ac_mcp.param_builder import build_ac_params, build_task_formatter
     from ac_mcp import registry
 
     rs = _runs[run_id]   # RunStatus object (named 'rs' to avoid collision with status= kwarg)
-    n_total = n_init + n_steps
+    n_total = n_steps if fork_experiment_id else n_init + n_steps
     _update(rs, n_total=n_total)
 
     param_specs   = entry["param_specs"]
@@ -311,27 +317,46 @@ def _opt_worker(run_id: str, entry: dict,
                 task_formatter=formatter,
             )
 
-            # Phase 1: LHS warm-up
-            print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
-            _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
-            driver.initialize(N_samples_init=n_init)
-            driver.hero_wait_for_data_and_train()
+            if fork_experiment_id:
+                # ── Fork path: seed from prior experiment, skip LHS warm-up ────
+                # Strip any surrounding brackets the LLM may have included (e.g. "[61082afc]")
+                fork_experiment_id = fork_experiment_id.strip().strip("[]")
+                print(f"[run {run_id[:8]}] Forking from {fork_experiment_id[:8]} ...")
+                _update(rs, message=f"loading prior data from {fork_experiment_id[:8]}")
+                old_driver = registry.load_driver(fork_experiment_id)
+                x_old = old_driver.dataset.x_data[0]   # (N, d)
+                y_old = old_driver.dataset.y_data[0]   # (N, 1)
+                valid = ~np.isnan(y_old[:, 0])
+                x_valid, y_valid = x_old[valid], y_old[valid]
+                n_prior = len(x_valid)
+                print(f"[run {run_id[:8]}] Seeding {n_prior} prior points, then {n_steps} BO steps")
+                _update(rs, n_total=n_prior + n_steps,
+                        message=f"seeding {n_prior} prior points")
+                if n_prior > 0:
+                    # add_samples_nohero stores data without submitting Hero tasks
+                    driver.dataset.add_samples_nohero(x_valid, y_valid, 0)
+                    driver.surrogate.train(driver.dataset)
+                results, best_x, best_y = _extract_results(driver, param_specs,
+                                                            fixed_context)
+                _update(rs, n_completed=n_prior, results=results,
+                        best_x=best_x, best_y=best_y,
+                        message=f"seeded {n_prior} points; starting {n_steps} BO steps")
+                registry.save_driver(entry["id"], driver)
+            else:
+                # ── Normal path: LHS warm-up ─────────────────────────────────────
+                print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
+                _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
+                driver.initialize(N_samples_init=n_init)
+                driver.hero_wait_for_data_and_train()
 
-            results, best_x, best_y = _extract_results(driver, param_specs,
-                                                        fixed_context)
-            _update(rs, n_completed=n_init, results=results,
-                    best_x=best_x, best_y=best_y,
-                    message=f"warmup done; starting {n_steps} BO steps")
-            registry.save_driver(entry["id"], driver)
+                results, best_x, best_y = _extract_results(driver, param_specs,
+                                                            fixed_context)
+                _update(rs, n_completed=n_init, results=results,
+                        best_x=best_x, best_y=best_y,
+                        message=f"warmup done; starting {n_steps} BO steps")
+                registry.save_driver(entry["id"], driver)
 
-            # Phase 2: EI-guided BO
-            # blocking=False (parallel): run() queues all n_steps Hero tasks at
-            #   once using surrogate placeholders between steps (Kriging Believer
-            #   batch BO), then hero_wait_for_data_and_train() collects all results.
-            # blocking=True (sequential): run() blocks after each step() until
-            #   the simulation completes and retrains the surrogate on real data
-            #   before proposing the next point.  hero_wait_for_data_and_train()
-            #   is then a fast no-op (all data already collected).
+            # ── BO phase (same for both paths) ────────────────────────────────
             print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
             _update(rs, message=f"BO: running {n_steps} steps ({mode_str})")
             driver.run(N_steps=n_steps)
@@ -341,7 +366,8 @@ def _opt_worker(run_id: str, entry: dict,
 
             results, best_x, best_y = _extract_results(driver, param_specs,
                                                         fixed_context)
-            _update(rs, n_completed=n_init + n_steps,
+            n_done = (n_prior if fork_experiment_id else n_init) + n_steps
+            _update(rs, n_completed=n_done,
                     results=results, best_x=best_x, best_y=best_y,
                     message="BO complete")
             registry.save_driver(entry["id"], driver)
@@ -361,10 +387,13 @@ def _opt_worker(run_id: str, entry: dict,
 
 def submit_optimization_run(entry: dict, n_init: int,
                              n_steps: int, acq_func: str,
-                             blocking: bool = False) -> str:
-    run_id = create_run(entry["id"], "optimization", n_init + n_steps)
+                             blocking: bool = False,
+                             fork_experiment_id: str = None) -> str:
+    n_total = n_steps if fork_experiment_id else n_init + n_steps
+    run_id = create_run(entry["id"], "optimization", n_total)
     t = threading.Thread(target=_opt_worker,
-                         args=(run_id, entry, n_init, n_steps, acq_func, blocking),
+                         args=(run_id, entry, n_init, n_steps, acq_func,
+                               blocking, fork_experiment_id),
                          daemon=True)
     t.start()
     return run_id

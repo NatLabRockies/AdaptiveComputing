@@ -179,8 +179,22 @@ def save_driver(experiment_id: str, ac_driver: Any) -> None:
 
 
 def load_driver(experiment_id: str) -> Any:
-    """Unpickle an AC driver from disk."""
+    """Unpickle an AC driver from disk.
+
+    Accepts either a full UUID or an 8-char prefix (as shown in the registry
+    summary).  If the exact file is not found, a prefix glob is attempted.
+    """
     pkl = _pkl_path(experiment_id)
+    if not pkl.exists() and len(experiment_id) < 36:
+        # Try prefix match: find any .pkl whose filename starts with this prefix
+        candidates = list((_storage_dir() / "experiments").glob(f"{experiment_id}*.pkl"))
+        if len(candidates) == 1:
+            pkl = candidates[0]
+        elif len(candidates) > 1:
+            raise FileNotFoundError(
+                f"Ambiguous experiment prefix {experiment_id!r}: "
+                f"matches {[p.stem for p in candidates]}"
+            )
     if not pkl.exists():
         raise FileNotFoundError(f"No saved driver for experiment {experiment_id!r}")
     with open(pkl, "rb") as f:

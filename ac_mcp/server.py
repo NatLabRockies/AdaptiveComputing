@@ -189,6 +189,7 @@ def run_optimization(
     n_steps: int = 5,
     acq_func: str = "expected_improvement",
     blocking: bool = False,
+    fork_from_experiment_id: Optional[str] = None,
 ) -> dict:
     """
     Run a full Bayesian optimisation loop (LHS warm-up + EI-guided steps)
@@ -213,6 +214,7 @@ def run_optimization(
         Must have been created with at least one param_spec (the optimisation space).
     n_init_samples : int
         Number of LHS warm-up evaluations before the surrogate is first trained.
+        Ignored when fork_from_experiment_id is provided.
     n_steps : int
         Number of acquisition-function-guided evaluations after warm-up.
     acq_func : str
@@ -220,6 +222,10 @@ def run_optimization(
     blocking : bool
         False (default): parallel batch BO — all n_steps jobs run simultaneously.
         True: sequential BO — each job informs the next before it is submitted.
+    fork_from_experiment_id : str or None
+        If provided, load all data from this completed experiment, train the
+        surrogate on it, and run n_steps new BO iterations without LHS warm-up.
+        The new experiment (experiment_id) may have different bounds.
 
     Returns
     -------
@@ -234,7 +240,8 @@ def run_optimization(
             "Use run_evaluations for fixed-parameter jobs."
         )
     run_id = run_manager.submit_optimization_run(
-        entry, n_init_samples, n_steps, acq_func, blocking
+        entry, n_init_samples, n_steps, acq_func, blocking,
+        fork_experiment_id=fork_from_experiment_id,
     )
     return {"run_id": run_id}
 
@@ -410,9 +417,12 @@ def list_experiments(name_filter: Optional[str] = None) -> list:
             "created_at":      e["created_at"],
             "output_label":    e["output_label"],
             "experiment_type": e["experiment_type"],
+            "run_status":      e.get("run_status", "unknown"),
             "n_samples":       e["n_samples"],
             "best_x":          e["best_x"],
             "best_y":          e["best_y"],
+            "fixed_context":   e.get("fixed_context", {}),
+            "param_specs":     e.get("param_specs", []),
             "forked_from":     e.get("forked_from"),
         }
         for e in entries
