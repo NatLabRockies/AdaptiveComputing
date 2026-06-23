@@ -79,10 +79,10 @@ Most AC users do not need these packages. They are intentionally kept separate f
 
 Set Hero credentials as environment variables in your local shell session or in a local, untracked environment file.
 
-If you prefer using the helper file, `adaptive_computing/hero_utils/set_hero_env_vars.py` will be auto-created from the template when you first use Hero functionality. You can then edit it locally:
+If you prefer using the helper file, copy the template and edit it:
 
 ```bash
-# The file will be created automatically, then edit it:
+cp adaptive_computing/hero_utils/set_hero_env_vars_template.py adaptive_computing/hero_utils/set_hero_env_vars.py
 nano adaptive_computing/hero_utils/set_hero_env_vars.py
 ```
 
