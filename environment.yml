@@ -5,4 +5,8 @@ channels:
 dependencies:
   - python=3.11
   - pip
-  - --file conda-requirements.txt
+  - pytest
+  - numpy
+  - scipy
+  - matplotlib
+  - ruff

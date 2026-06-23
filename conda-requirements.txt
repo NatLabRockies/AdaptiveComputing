@@ -1,7 +1,0 @@
-# Core scientific computing dependencies
-# Used by both environment.yml and GitHub Actions
-pytest
-numpy
-scipy
-matplotlib
-ruff
