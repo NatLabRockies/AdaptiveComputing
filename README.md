@@ -57,7 +57,7 @@ pip install git+https://github.com/NatLabRockies/tf-melt.git#egg=tfmelt
 If you plan to use Hero distributed computing features:
 
 ```bash
-pip install git+https://github.com/NLR-hero/hero.git@v0.10.0#egg=hero
+pip install git+https://github.com/kevingriffin1/hero.git
 ```
 
 **5b. Install agentic AI dependencies (optional, for LLM-driven workflows):**
