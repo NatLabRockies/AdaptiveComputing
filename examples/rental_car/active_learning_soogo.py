@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 import sys
 
 # Add the model directory to path
-sys.path.append('/home/kgriffin/AdaptiveComputing_1.0/AdaptiveComputing/examples/rental_car/model-aeroportal-rental-car')
+sys.path.append('/home/kgriffin/AdaptiveComputing/examples/rental_car/model-aeroportal-rental-car')
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriver

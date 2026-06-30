@@ -20,30 +20,16 @@ Two surrogate approaches are available:
 
 ### 1. AdaptiveComputing Environment Setup
 
-First, ensure you have the AdaptiveComputing environment properly set up:
-
-```bash
-# Navigate to the AdaptiveComputing root directory
-cd /path/to/AdaptiveComputing_1.0/AdaptiveComputing
-
-# Create and activate the conda environment
-conda env create -f environment.yml
-conda activate AC
-
-# Install AdaptiveComputing in development mode
-pip install -e .
-```
+First, ensure you have the AdaptiveComputing environment properly set up with HERO installed and HERO credentials setup. See the instructions in AdaptiveComputing/README.md for details.
 
 ### 2. NLR Rental Car Model Setup (Firewall-Restricted)
 
-Clone the required NLR genesis model repository (accessible only behind the NLR firewall):
+Clone the required NLR rental car model repository (accessible only behind the NLR firewall):
 
 ```bash
 # Clone the rental car model repository
+cd AdaptiveComputing/examples/rental_car
 git clone https://github.NLR.gov/Genesis/model-aeroportal-rental-car
-
-# The repository should be cloned to:
-# /path/to/AdaptiveComputing_1.0/AdaptiveComputing/examples/rental_car/model-aeroportal-rental-car
 ```
 
 ### 3. Environment Configuration
