@@ -150,9 +150,14 @@ examples/hero_HPC_managers/simulation_files/err_*.err
 # files containing Hero passwords
 adaptive_computing/hero_utils/set_hero_env_vars.py
 
-# Environment files with credentials (rental car examples)
-examples/rental_car/env.txt
-examples/rental_car_*/env.txt
+# Environment files with credentials
+**/env.txt
+**/env_vars.txt
+
+# Agent workflows
+**/cases_agent/
+**/experiments/
+**/registry.json
 
 # HPC configuration files with personal machine/credential info
 **/hpc_config.py

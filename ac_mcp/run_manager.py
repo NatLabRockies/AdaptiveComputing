@@ -17,6 +17,7 @@ be active at a time.  A global lock enforces this.
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import threading
 import traceback
@@ -130,6 +131,83 @@ def _update(rs: RunStatus, **kwargs):
             setattr(rs, k, v)
 
 
+# ---------------------------------------------------------------------------
+# Manager health watchdog
+# ---------------------------------------------------------------------------
+
+def _check_manager_alive(machine: str, username: str, host: str) -> bool | None:
+    """SSH-ping the remote manager_session.  Returns True/False/None (unknown)."""
+    try:
+        r = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+             f"{username}@{host}",
+             "tmux has-session -t manager_session 2>/dev/null && echo ALIVE || echo DEAD"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if "ALIVE" in r.stdout:
+            return True
+        if "DEAD" in r.stdout:
+            return False
+        return None
+    except Exception:
+        return None
+
+
+def _wait_with_watchdog(wait_fn, hpc, rs: RunStatus, phase: str,
+                        check_interval: int = 30):
+    """
+    Call wait_fn() while a background thread polls each remote manager every
+    `check_interval` seconds.  If a manager is found dead the run message is
+    updated with a warning, _abort_event is set so hero_wait_for_data() exits
+    its loop cleanly, and a RuntimeError is raised here to abort the run.
+    """
+    from adaptive_computing.datasets import hero as _hero_ds
+    _hero_ds._abort_event.clear()          # ensure flag is unset before we start
+
+    done_event  = threading.Event()
+    abort_event = threading.Event()
+
+    def watchdog():
+        while not done_event.wait(timeout=check_interval):
+            for machine in hpc.machine_names:
+                alive = _check_manager_alive(
+                    machine,
+                    hpc.remote_usernames[machine],
+                    hpc.remote_hosts[machine],
+                )
+                if alive is False:
+                    msg = (f"Manager on {machine} has died during '{phase}'! "
+                           "Tasks are stuck — aborting run.")
+                    print(f"[run {rs.run_id[:8]}] WARNING: {msg}")
+                    _update(rs, message=f"WARNING: {msg}")
+                    abort_event.set()
+                    _hero_ds._abort_event.set()   # break hero_wait_for_data loop
+                    return
+
+    wt = threading.Thread(target=watchdog, daemon=True)
+    wt.start()
+    try:
+        wait_fn()
+    except RuntimeError as exc:
+        if abort_event.is_set():
+            raise RuntimeError(
+                f"Manager died during '{phase}': "
+                "run aborted. Restart the MCP server and re-run."
+            ) from exc
+        raise
+    finally:
+        done_event.set()
+        wt.join(timeout=5)
+
+    # Raise even if wait_fn returned without exception but abort was signalled
+    # (race: manager died after the last successful iteration).
+    if abort_event.is_set():
+        raise RuntimeError(
+            f"Manager died during '{phase}': "
+            "run aborted. Restart the MCP server and re-run."
+        )
+
+
 def _extract_results(ac_driver, param_specs: list[dict],
                      fixed_context: dict) -> tuple[list, Optional[dict], Optional[float]]:
     """Extract result list and best (x, y) from a driver's dataset."""
@@ -208,9 +286,10 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
 
     rs = _runs[run_id]   # RunStatus object (named 'rs' to avoid collision with status= kwarg)
     n = len(jobs)
-    _update(rs, n_total=n)
+    _update(rs, n_total=n, message="starting HPC managers...")
 
     with _hpc_lock:
+        _update(rs, message="starting HPC managers...")
         try:
             hpc, cleanup = _setup_hpc(entry["hpc_config_path"])
         except Exception as exc:
@@ -233,7 +312,8 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
             # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
             x_all = np.array([[i] for i in range(n)], dtype=float)
             driver.dataset.add_samples(x_all, None, 0)
-            driver.dataset.hero_wait_for_data()
+            _wait_with_watchdog(driver.dataset.hero_wait_for_data, hpc, rs,
+                                "evaluation")
 
             # Collect results
             y_data = driver.dataset.y_data[0]
@@ -287,12 +367,13 @@ def _opt_worker(run_id: str, entry: dict,
 
     rs = _runs[run_id]   # RunStatus object (named 'rs' to avoid collision with status= kwarg)
     n_total = n_steps if fork_experiment_id else n_init + n_steps
-    _update(rs, n_total=n_total)
+    _update(rs, n_total=n_total, message="starting HPC managers...")
 
     param_specs   = entry["param_specs"]
     fixed_context = entry["fixed_context"]
 
     with _hpc_lock:
+        _update(rs, message="starting HPC managers...")
         try:
             hpc, cleanup = _setup_hpc(entry["hpc_config_path"])
         except Exception as exc:
@@ -341,20 +422,21 @@ def _opt_worker(run_id: str, entry: dict,
                 _update(rs, n_completed=n_prior, results=results,
                         best_x=best_x, best_y=best_y,
                         message=f"seeded {n_prior} points; starting {n_steps} BO steps")
-                registry.save_driver(entry["id"], driver)
+                registry.save_driver(entry["id"], driver, set_completed=False)
             else:
                 # ── Normal path: LHS warm-up ─────────────────────────────────────
                 print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
                 _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
                 driver.initialize(N_samples_init=n_init)
-                driver.hero_wait_for_data_and_train()
+                _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
+                                    "LHS warmup")
 
                 results, best_x, best_y = _extract_results(driver, param_specs,
                                                             fixed_context)
                 _update(rs, n_completed=n_init, results=results,
                         best_x=best_x, best_y=best_y,
                         message=f"warmup done; starting {n_steps} BO steps")
-                registry.save_driver(entry["id"], driver)
+                registry.save_driver(entry["id"], driver, set_completed=False)
 
             # ── BO phase (same for both paths) ────────────────────────────────
             print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
@@ -362,7 +444,8 @@ def _opt_worker(run_id: str, entry: dict,
             driver.run(N_steps=n_steps)
 
             _update(rs, message=f"BO: waiting for {n_steps} jobs")
-            driver.hero_wait_for_data_and_train()
+            _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
+                                "BO")
 
             results, best_x, best_y = _extract_results(driver, param_specs,
                                                         fixed_context)

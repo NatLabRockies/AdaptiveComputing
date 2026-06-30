@@ -73,8 +73,11 @@ def _load_registry() -> dict:
 
 
 def _save_registry(data: dict) -> None:
-    with open(_registry_path(), "w") as f:
+    path = _registry_path()
+    tmp = path.with_suffix(".json.tmp")
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
+    tmp.replace(path)  # atomic rename — prevents partial-write corruption
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +155,16 @@ def list_entries(name_filter: Optional[str] = None) -> list[dict]:
 # Driver persistence
 # ---------------------------------------------------------------------------
 
-def save_driver(experiment_id: str, ac_driver: Any) -> None:
-    """Pickle an AC driver to disk, then update n_samples/best in registry."""
+def save_driver(experiment_id: str, ac_driver: Any, *, set_completed: bool = True) -> None:
+    """Pickle an AC driver to disk, then update n_samples/best in registry.
+
+    Parameters
+    ----------
+    set_completed : bool
+        When True (default) the registry entry is updated to run_status="completed".
+        Pass False for intermediate checkpoints (e.g. after LHS warmup but before
+        BO completes) so the experiment is not treated as reusable prematurely.
+    """
     pkl = _pkl_path(experiment_id)
     with open(pkl, "wb") as f:
         pickle.dump(ac_driver, f)
@@ -172,8 +183,10 @@ def save_driver(experiment_id: str, ac_driver: Any) -> None:
             best_y = float(y_data[valid_mask][idx, 0])
             best_x = x_data[valid_mask][idx].tolist()
 
-        update_entry(experiment_id, n_samples=n_samples, best_x=best_x, best_y=best_y,
-                     run_status="completed")
+        kwargs: dict = dict(n_samples=n_samples, best_x=best_x, best_y=best_y)
+        if set_completed:
+            kwargs["run_status"] = "completed"
+        update_entry(experiment_id, **kwargs)
     except Exception:
         pass  # stats are best-effort; don't crash on partial data
 
@@ -213,10 +226,10 @@ def find_matching_experiment(
 ) -> Optional[dict]:
     """Return the most recent *completed* experiment that matches the given key fields.
 
-    Identity is defined by name + experiment_type + fixed_context + param *names*
-    and *types* (not bounds).  Bounds are treated as tuning metadata — a completed
-    experiment with different bounds on the same parameters is still considered a
-    valid cache hit, since the surrogate can predict anywhere in the space.
+    Identity is defined by experiment_type + fixed_context + param *names* and
+    *types* (not bounds).  The experiment name is intentionally excluded from
+    matching because the LLM may generate slightly different label strings across
+    runs for the same underlying problem.  Bounds are treated as tuning metadata.
     Returns None if no completed match exists.
     """
     with _registry_lock:
@@ -231,7 +244,6 @@ def find_matching_experiment(
     candidates = [
         e for e in reg.values()
         if e.get("run_status") == "completed"
-        and e["name"] == name
         and e["experiment_type"] == experiment_type
         and e["fixed_context"] == fixed_context
         and _param_key(e["param_specs"]) == target_key

@@ -1,10 +1,14 @@
 from adaptive_computing.datasets import DatasetBase
 
 from hero import HeroClient, get_env_variable
+import threading
 import time
 import numpy as np
 import sys
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+
+# Set this event from outside (e.g. a manager watchdog) to abort hero_wait_for_data().
+_abort_event = threading.Event()
 
 class HeroDataset(DatasetBase):
     def __init__(self, params, machine_names, output_field_path, n_fidelity=1, blocking=False, 
@@ -364,6 +368,11 @@ class HeroDataset(DatasetBase):
     def hero_wait_for_data(self):
         print('Waiting until managers complete all tasks in all hero queues.')
         while True:
+            if _abort_event.is_set():
+                _abort_event.clear()
+                raise RuntimeError(
+                    "hero_wait_for_data aborted: manager died (see run log for details)"
+                )
             for i_fl in range(self.n_fidelity):
                 self.hero_update_avail_data(i_fl)
             
