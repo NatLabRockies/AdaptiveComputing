@@ -11,8 +11,9 @@ This directory provides a simple introduction to the Hero framework for task que
 
 ## Files
 
-- **controller.py**: Demonstrates HeroDataset functionality by adding tasks with different methods (queued, local-only, with initial guesses)
-- **controller_noAC.py**: Basic Hero task management without adaptive computing - manually adds tasks and monitors queue status  
+- **controller_noAC.py**: Basic Hero task management without adaptive computing - manually adds tasks and monitors queue status (direct `HeroClient`/`TaskEngine` API)
+- **controller_manual.py**: Mid-level Hero integration using the `HeroDataset` API - demonstrates different ways to add samples (queued, local-only, with initial guesses)
+- **controller.py**: Full Bayesian optimization loop using `ActiveLoopDriverHero` - runs active learning with a surrogate model and acquisition function
 - **worker.py**: Processes tasks from the Hero queue using a simple conductivity calculation (`conductivity = temperature²/1000`)
 
 ## Prerequisites
@@ -33,9 +34,11 @@ python worker.py
 ```bash
 cd examples/hero
 mamba activate AC  
-python controller.py      # HeroDataset example with different add methods
+python controller_noAC.py  # Direct Hero API example
 # OR
-python controller_noAC.py # Basic Hero queue management example
+python controller_manual.py # HeroDataset API example
+# OR
+python controller.py        # Full Bayesian optimization example
 ```
 
 ## What Happens
@@ -44,11 +47,12 @@ python controller_noAC.py # Basic Hero queue management example
 2. **Worker**: Continuously monitors the queue, processes tasks locally, and marks them complete
 3. **Controller**: Retrieves completed results and displays the temperature/conductivity pairs
 
-**Two controller options**:
-- **controller.py**: Learn the **HeroDataset API** - demonstrates different ways to add samples (queued, local-only, with initial guesses)
-- **controller_noAC.py**: Learn the **direct Hero API** - shows low-level queue operations with detailed status monitoring
+**Three controllers in order of increasing abstraction**:
+- **controller_noAC.py**: Learn the **direct Hero API** - shows low-level `HeroClient`/`TaskEngine` queue operations with detailed status monitoring
+- **controller_manual.py**: Learn the **HeroDataset API** - demonstrates different ways to add samples (queued, local-only, with initial guesses)
+- **controller.py**: Learn the **ActiveLoopDriverHero API** - runs a full Bayesian optimization loop with a surrogate model and acquisition function
 
-Both controllers work with the same `worker.py` and teach complementary aspects of Hero framework usage.
+All three controllers work with the same `worker.py` and represent a natural learning progression from raw API to full adaptive computing.
 
 ## Expected Output
 
