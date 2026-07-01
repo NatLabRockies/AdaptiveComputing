@@ -189,6 +189,7 @@ def run_optimization(
     n_steps: int = 5,
     acq_func: str = "expected_improvement",
     blocking: bool = False,
+    skip_warmstart: bool = False,
 ) -> dict:
     """
     Run a full Bayesian optimisation loop (LHS warm-up + EI-guided steps)
@@ -225,6 +226,9 @@ def run_optimization(
     blocking : bool
         False (default): parallel batch BO — all n_steps jobs run simultaneously.
         True: sequential BO — each job informs the next before it is submitted.
+    skip_warmstart : bool
+        When True, ignore any prior in-bounds data and always run the LHS warm-up
+        from scratch.  Use when the user explicitly requests a fresh run.
 
     Returns
     -------
@@ -239,7 +243,7 @@ def run_optimization(
             "Use run_evaluations for fixed-parameter jobs."
         )
     run_id = run_manager.submit_optimization_run(
-        entry, n_init_samples, n_steps, acq_func, blocking,
+        entry, n_init_samples, n_steps, acq_func, blocking, skip_warmstart,
     )
     return {"run_id": run_id}
 

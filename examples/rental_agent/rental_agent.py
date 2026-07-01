@@ -239,18 +239,17 @@ class PlanStep(BaseModel):
         None,
         description="Initial LHS samples before BO starts (run_optimization only, default 3).",
     )
-    n_opt_steps: Optional[int] = Field(
+    n_bo_batches: Optional[int] = Field(
         None,
-        description="Number of Bayesian optimization iterations (run_optimization only, default 8).",
+        description="Serial BO rounds (run_optimization only, default 1). Total BO evals = n_bo_batches × n_parallel_per_batch.",
     )
-    parallel_bo: Optional[bool] = Field(
+    n_parallel_per_batch: Optional[int] = Field(
         None,
         description=(
-            "Whether to run BO in parallel (True, default) or sequentially (False). "
-            "Parallel submits all n_steps jobs at once — faster wall-clock but less "
-            "sample-efficient. Sequential waits for each result before choosing the next "
-            "point — more sample-efficient but slower. Ask the user when they prefer "
-            "maximum sample efficiency over speed (e.g. expensive HPC simulations)."
+            "Parallel evaluations per BO round (run_optimization only, default 1). "
+            "1 = sequential (most sample-efficient). "
+            ">1 = parallel batch (faster wall-clock, less sample-efficient). "
+            "Match exactly what the user specifies; ask when unspecified and the choice matters."
         ),
     )
     # --- shared fields ---
@@ -270,6 +269,21 @@ class ResearchPlan(BaseModel):
 class ClarificationDecision(BaseModel):
     needs_clarification: bool      = Field(description="True if clarifying questions are needed.")
     questions:           List[str] = Field(default_factory=list)
+
+
+class ReuseStepPatch(BaseModel):
+    """LLM-parsed preference for one warm-start optimization step."""
+    step_index:           int           = Field(..., description="1-based step index from the plan")
+    use_prior_data:       bool          = Field(True,  description="True=warm-start from prior data; False=discard and run fresh with LHS")
+    n_bo_batches:         Optional[int] = Field(None,  description="Override serial BO rounds; None=keep original planned value")
+    n_parallel_per_batch: Optional[int] = Field(None,  description="Override parallel evaluations per round; None=keep original planned value")
+
+
+class ReusePatchResult(BaseModel):
+    """Parsed reuse preferences for all warm-start optimization steps."""
+    patches: List[ReuseStepPatch] = Field(
+        ..., description="One patch per warm-start step (include ALL steps, even unmentioned ones)"
+    )
 
 
 class AgentState(TypedDict):
@@ -370,13 +384,13 @@ that parameter in the optimization.  At least one field must be omitted.
   opt_fixed_storage              float 0–100                       (omit to optimize)
   opt_fixed_number_of_daily_evs   float 10–10000                    (omit to optimize)
   opt_fixed_return_soc            float 25–55                       (omit to optimize)
-  n_init_samples, n_opt_steps, label, purpose,
-  parallel_bo (True=parallel/faster, default; False=sequential/more sample-efficient).
+  n_init_samples, n_bo_batches, n_parallel_per_batch, label, purpose.
 
-The optimizer minimizes cost over all unfixed parameters jointly.
-Use this to find the minimum-cost configuration for any scenario.
-If the user mentions expensive simulations or prefers sample efficiency, ask
-whether they want sequential BO (parallel_bo=False) before adding this step.
+  Total BO evaluations = n_bo_batches × n_parallel_per_batch.
+  n_parallel_per_batch=1 (default) is sequential (most sample-efficient).
+  n_parallel_per_batch>1 is a parallel batch (faster wall-clock, less efficient).
+  Ask the user when they specify a batch structure (e.g. "1 batch of 5 parallel",
+  "3 rounds of 4", "5 sequential"); otherwise default to n_bo_batches=1, n_parallel_per_batch=1.
 
 ### evaluate_surrogate
 Query the trained surrogate model from a prior run_optimization step to predict
@@ -774,16 +788,30 @@ def _run_optimization_step(step: dict) -> dict:
         return {"data_points": [], "reuse_note": None,
                 "error": "run_optimization: all 4 parameters are fixed — nothing to optimize."}
 
-    n_init  = int(step.get("n_init_samples") or 3)
-    n_steps = int(step.get("n_opt_steps") or 8)
-    fixed_str = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))
-    opt_str   = "+".join(opt_var_names)
-    label     = step.get("label") or "opt-{}".format(
+    n_init_raw = step.get("n_init_samples")
+    n_init     = 3 if n_init_raw is None else int(n_init_raw)
+    n_batches  = int(step.get("n_bo_batches") or 1)
+    n_parallel = int(step.get("n_parallel_per_batch") or 1)
+    n_steps    = n_batches * n_parallel   # total BO evaluations
+    blocking   = (n_parallel == 1)        # sequential when 1 per batch
+    fixed_str  = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))
+    opt_str    = "+".join(opt_var_names)
+    label      = step.get("label") or "opt-{}".format(
         "_".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))) or "opt-all"
-    exp_name  = label
+    exp_name   = label
 
-    print("  Optimizing [{}]: fixed=({})  (init={}, steps={})".format(
-        opt_str, fixed_str, n_init, n_steps))
+    print("  Optimizing [{}]: fixed=({})  (init={}, {}x{} BO = {} evals)".format(
+        opt_str, fixed_str, n_init, n_batches, n_parallel, n_steps))
+
+    # _found non-empty  → warm-start from prior data: create a NEW experiment so
+    #                      run_manager can seed from the old one via find_reusable_data.
+    # _fresh_run=True   → user explicitly discarded prior data: create a NEW experiment
+    #                      and pass skip_warmstart=True so _opt_worker ignores ALL prior
+    #                      data (including from other matching experiments).
+    # otherwise         → normal force_new=False behaviour.
+    has_warmstart = bool(step.get("_found"))      # non-empty list from search_registry
+    fresh_run     = bool(step.get("_fresh_run"))  # set by negotiate_reuse when user says fresh
+    force_new     = has_warmstart or fresh_run
 
     exp = _call_tool(
         "create_experiment",
@@ -794,15 +822,17 @@ def _run_optimization_step(step: dict) -> dict:
         output_label=_OUTPUT_LABEL,
         hpc_config_path=_HPC_CONFIG_PATH,
         experiment_type="optimization",
+        force_new=force_new,
     )
     exp_id = exp["experiment_id"]
 
-    if exp.get("reused"):
+    # Only skip new simulations when there's no warm-start data AND no fresh-run request.
+    # In both other cases we fall through and call run_optimization.
+    if exp.get("reused") and not has_warmstart and not fresh_run:
         print("  (reusing completed optimization {})".format(exp_id[:8]))
         best_x_raw = exp.get("best_x")
         raw_best   = exp.get("best_y")
         best_cost  = -raw_best if raw_best is not None else None
-        # Registry stores best_x as a list (numpy .tolist()); zip back to dict.
         if isinstance(best_x_raw, dict):
             best_x_dict = best_x_raw
         elif isinstance(best_x_raw, list):
@@ -810,24 +840,22 @@ def _run_optimization_step(step: dict) -> dict:
         else:
             best_x_dict = {}
         dp = {"label": label, "cost": best_cost, "is_best": True}
-        dp.update(fixed_context)  # include fixed params so all 4 are present
-        dp.update(best_x_dict)    # include optimized param values
+        dp.update(fixed_context)
+        dp.update(best_x_dict)
         return {
             "data_points": [dp],
             "reuse_note": "Reused cached optimization for {}.".format(label),
             "error": None,
         }
 
-    parallel_bo = step.get("parallel_bo")
-    if parallel_bo is None:
-        parallel_bo = True  # default: parallel (blocking=False)
     run = _call_tool(
         "run_optimization",
         experiment_id=exp_id,
         n_init_samples=n_init,
         n_steps=n_steps,
         acq_func="expected_improvement",
-        blocking=not parallel_bo,
+        blocking=blocking,
+        skip_warmstart=fresh_run,
     )
     run_id = run["run_id"]
     print("  run_id:", run_id)
@@ -841,10 +869,16 @@ def _run_optimization_step(step: dict) -> dict:
     best_x_dict = status.get("best_x") or {}
     raw_best    = status.get("best_y")
     best_cost   = -raw_best if raw_best is not None else None
+    # n_warmup is the actual number of seed/LHS points before BO started;
+    # fall back to n_init if the server didn't return it (older builds).
+    n_warmup    = status.get("n_warmup", n_init)
 
     data_points = []
     for i, r in enumerate(raw_results):
-        pt_lbl = "init-{}".format(i + 1) if i < n_init else "bo-{}".format(i - n_init + 1)
+        if i < n_warmup:
+            pt_lbl = "seed-{}".format(i + 1) if has_warmstart else "init-{}".format(i + 1)
+        else:
+            pt_lbl = "bo-{}".format(i - n_warmup + 1)
         dp = {"label": pt_lbl, "cost": -r["y"]}
         dp.update(r.get("x", {}))  # fills all 4 param values from the server result
         if all(dp.get(k) == best_x_dict.get(k) for k in opt_var_names):
@@ -951,9 +985,11 @@ def plan(state):
                                if k.startswith("opt_fixed_") and v is not None}
                 opt_vars = [k for k in _ALL_OPT_PARAMS if k not in fixed_parts]
                 fixed_str = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_parts.items()))
-                detail = "  → BO over [{}]: fixed=({}) (init={}, steps={})".format(
+                n_bat_d = s.get("n_bo_batches") or 1
+                n_par_d = s.get("n_parallel_per_batch") or 1
+                detail = "  → BO over [{}]: fixed=({}) (init={}, {}x{} BO = {} evals)".format(
                     "+".join(opt_vars), fixed_str,
-                    s.get("n_init_samples"), s.get("n_opt_steps"))
+                    s.get("n_init_samples"), n_bat_d, n_par_d, n_bat_d * n_par_d)
             elif s["tool"] == "evaluate_surrogate":
                 detail = "  → surrogate prediction at (ur={}, stor={}, evs={}, soc={})".format(
                     s.get("utility_rate"), s.get("storage"),
@@ -973,6 +1009,31 @@ def plan(state):
         return {**reset, "status": "error",
                 "error": "Planning failed: {}\n{}".format(exc, tb)}
 
+
+_NEGOTIATE_REUSE_SYSTEM_PROMPT = """\
+You are parsing user preferences for warm-start Bayesian optimization.
+
+Context: Prior optimization data was found for one or more steps in the
+research plan.  LHS initialization will be skipped automatically when prior
+data exists — existing samples are seeded into the BO surrogate.  The user
+was asked whether they want to reuse that data and how many additional BO
+evaluations to run, specified as M serial batches × N parallel per batch.
+
+Parse their response into one ReuseStepPatch per warm-start step.
+
+Rules:
+  - Plain number N (e.g. "3" or "3 samples")  → n_bo_batches=1, n_parallel_per_batch=N,
+    use_prior_data=True for ALL steps.  Treat a plain number as 1 batch of N parallel.
+  - "M batches of N" / "M×N" / "M rounds of N" → n_bo_batches=M, n_parallel_per_batch=N.
+  - "N sequential" / "N steps one at a time"  → n_bo_batches=N, n_parallel_per_batch=1.
+  - "fresh" / "from scratch"                  → use_prior_data=False for ALL steps.
+  - Per-step (e.g. "step 2: 3 samples, step 3: fresh") → apply only to those steps;
+    leave other steps with use_prior_data=True, n_bo_batches/n_parallel_per_batch=None.
+  - "keep" / "yes" / "default"               → use_prior_data=True, both batch fields=None.
+  - All counts must be >= 1 when set.
+  - Always return one patch per warm-start step, even if the user didn't mention it
+    (use defaults: use_prior_data=True, n_bo_batches=None, n_parallel_per_batch=None).
+"""
 
 _APPROVE_YES = {"yes", "y", "ok", "sure", "looks good", "approved",
                 "proceed", "go", "go ahead", "sounds good", ""}
@@ -1056,6 +1117,130 @@ def search_registry(state):
     return {"plan_steps": annotated, "status": "searched"}
 
 
+def negotiate_reuse(state):
+    """
+    Node: when warm-start data exists for any optimization step, ask the user
+    how they want to use it — reuse vs fresh, and how many additional BO steps.
+    LHS init is skipped automatically by run_manager when prior data is seeded,
+    so the key decision is n_opt_steps (and optionally discarding the data).
+    Updates plan_steps in place then routes to approve_concrete.
+    """
+    if state.get("status") == "error":
+        return {}
+
+    steps = list(state.get("plan_steps") or [])
+
+    ws_indices = [
+        i for i, s in enumerate(steps)
+        if s.get("tool") == "run_optimization" and s.get("_found")
+    ]
+    if not ws_indices:
+        return {}  # safety: nothing to negotiate
+
+    print("\n" + "=" * 70)
+    print("Warm-Start Data Available — Reuse Options")
+    print("=" * 70)
+    print("Prior optimization data was found for the following step(s).")
+    print("LHS initialization will be SKIPPED; existing samples seed the surrogate.")
+    print("You can adjust the number of additional BO steps, or run fresh.\n")
+
+    for i in ws_indices:
+        s          = steps[i]
+        prior_list = s.get("_found") or []
+        total_n    = sum(pe.get("n_samples", 0) or 0 for pe in prior_list)
+        lbl        = " ({})".format(s["label"]) if s.get("label") else ""
+        fixed_parts = {k[len("opt_fixed_"):]: v
+                       for k, v in s.items()
+                       if k.startswith("opt_fixed_") and v is not None}
+        opt_vars    = [k for k in _ALL_OPT_PARAMS if k not in fixed_parts]
+        fixed_str   = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_parts.items()))
+        print("  Step {}{}: optimize [{}]  fixed=({})".format(
+            i + 1, lbl, "+".join(opt_vars), fixed_str))
+        for pe in prior_list:
+            p_n    = pe.get("n_samples", "?")
+            p_best = pe.get("best_y")
+            p_best_str = " best=${:.0f}".format(-p_best) if p_best is not None else ""
+            print("    Prior data : [{}] {} samples{}".format(pe["id"][:8], p_n, p_best_str))
+        n_bat_p = s.get("n_bo_batches") or 1
+        n_par_p = s.get("n_parallel_per_batch") or 1
+        bo_mode_p = "{}×{} parallel".format(n_bat_p, n_par_p) if n_par_p > 1 else "{}×1 sequential".format(n_bat_p)
+        print("    Planned    : {} LHS init (auto-skipped) + {} BO evals ({})".format(
+            s.get("n_init_samples") or 3, n_bat_p * n_par_p, bo_mode_p))
+        print("    Total prior samples available to seed: {} (exact count after dedup may be lower)".format(total_n))
+        print()
+
+    print("Options:")
+    print("  Enter      — keep planned BO steps (LHS skipped automatically)")
+    print("  N          — 1 batch of N parallel BO evals  (e.g. '3')")
+    print("  MxN        — M serial batches of N parallel  (e.g. '2 batches of 4')")
+    print("  fresh      — discard prior data and run from scratch with LHS")
+    if len(ws_indices) > 1:
+        print("  Per-step   — e.g. 'step 2: 3 samples, step 3: fresh'")
+    print()
+
+    try:
+        user_input = input("Reuse preference (or Enter to keep defaults): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        user_input = ""
+
+    if not user_input or user_input.lower() in _APPROVE_YES:
+        for i in ws_indices:
+            steps[i] = dict(steps[i])
+            steps[i]["n_init_samples"] = 0
+        return {"plan_steps": steps}
+
+    # Use the LLM to parse free-form input into per-step patches
+    context_lines = ["Warm-start optimization steps:"]
+    for i in ws_indices:
+        s       = steps[i]
+        total_n = sum(pe.get("n_samples", 0) or 0 for pe in (s.get("_found") or []))
+        n_bat_c = s.get("n_bo_batches") or 1
+        n_par_c = s.get("n_parallel_per_batch") or 1
+        context_lines.append(
+            "  Step {}: {} prior samples, planned {} BO evals ({} batches × {} parallel)".format(
+                i + 1, total_n, n_bat_c * n_par_c, n_bat_c, n_par_c)
+        )
+    context_lines += ["", 'User response: "{}"'.format(user_input)]
+
+    try:
+        llm    = _get_llm()
+        parser = llm.with_structured_output(ReusePatchResult)
+        result = parser.invoke([
+            SystemMessage(content=_NEGOTIATE_REUSE_SYSTEM_PROMPT),
+            HumanMessage(content="\n".join(context_lines)),
+        ])
+        patches = {p.step_index: p for p in result.patches}
+    except Exception as exc:
+        print("Warning: could not parse reuse preferences ({}); keeping defaults.".format(exc))
+        return {"plan_steps": steps}
+
+    # Apply patches to the relevant steps
+    updated = []
+    for i, s in enumerate(steps):
+        s = dict(s)
+        patch = patches.get(i + 1)
+        if patch:
+            if not patch.use_prior_data:
+                s["_found"]     = []
+                s["_fresh_run"] = True
+                print("  Step {}: will run FRESH (prior data discarded)".format(i + 1))
+            else:
+                if patch.n_bo_batches is not None:
+                    s["n_bo_batches"] = patch.n_bo_batches
+                if patch.n_parallel_per_batch is not None:
+                    s["n_parallel_per_batch"] = patch.n_parallel_per_batch
+                s["n_init_samples"] = 0
+                n_bat_u = s.get("n_bo_batches") or 1
+                n_par_u = s.get("n_parallel_per_batch") or 1
+                s["purpose"] = s["purpose"].rstrip() + "  [UPDATED: warm-start, {0}×{1} BO = {2} evals]".format(
+                    n_bat_u, n_par_u, n_bat_u * n_par_u)
+                print("  Step {}: warm-start, {} BO evals ({} batches × {} parallel)".format(
+                    i + 1, n_bat_u * n_par_u, n_bat_u, n_par_u))
+        updated.append(s)
+
+    return {"plan_steps": updated}
+
+
 def approve_concrete(state):
     if state.get("status") == "error":
         return {}
@@ -1088,13 +1273,22 @@ def approve_concrete(state):
                         id=pe["id"][:8], n=p_n, best=p_best_str))
                 status_str = (
                     "  \u2192 AUTO WARM-START from prior data:\n"
-                    + "\n".join("           " + l for l in prior_lines)
+                    + "\n".join("           " + line for line in prior_lines)
                 )
             else:
                 status_str = "  \u2192 RUN FRESH (no prior optimization data \u2014 LHS warm-up)"
         else:
             status_str = "  \u2192 RUN FRESH"
         print("  Step {}: [{}]{} — {}".format(i, s["tool"], lbl, s["purpose"]))
+        if s["tool"] == "run_optimization":
+            n_init_raw = s.get("n_init_samples")
+            n_init_d = 3 if n_init_raw is None else int(n_init_raw)
+            n_bat_d  = s.get("n_bo_batches") or 1
+            n_par_d  = s.get("n_parallel_per_batch") or 1
+            has_ws   = bool(s.get("_found"))
+            init_str = "0 (auto-skipped, warm-start)" if has_ws else str(n_init_d)
+            bo_mode  = "{}×{} parallel".format(n_bat_d, n_par_d) if n_par_d > 1 else "{}×1 sequential".format(n_bat_d)
+            print("           init={}  BO={} evals ({})".format(init_str, n_bat_d * n_par_d, bo_mode))
         print("         " + status_str)
     print()
     try:
@@ -1267,6 +1461,17 @@ def _route_after_approve_direction(state):
         return "synthesize_and_explain"
     return "plan"
 
+def _route_after_search_registry(state):
+    """Route to negotiate_reuse when any opt step has warm-start data, else go straight to approve_concrete."""
+    if state.get("status") == "error":
+        return "synthesize_and_explain"
+    steps = state.get("plan_steps") or []
+    has_warmstart = any(
+        s.get("tool") == "run_optimization" and s.get("_found")
+        for s in steps
+    )
+    return "negotiate_reuse" if has_warmstart else "approve_concrete"
+
 def _route_after_approve_concrete(state):
     if state["status"] == "approved":
         return "execute_step"
@@ -1291,6 +1496,7 @@ def build_graph():
     builder.add_node("plan",                   plan)
     builder.add_node("approve_direction",      approve_direction)
     builder.add_node("search_registry",        search_registry)
+    builder.add_node("negotiate_reuse",        negotiate_reuse)
     builder.add_node("approve_concrete",       approve_concrete)
     builder.add_node("execute_step",           execute_step)
     builder.add_node("synthesize_and_explain", synthesize_and_explain)
@@ -1300,7 +1506,8 @@ def build_graph():
     builder.add_edge("clarify",                    "plan")
     builder.add_conditional_edges("plan",              _route_after_plan)
     builder.add_conditional_edges("approve_direction", _route_after_approve_direction)
-    builder.add_edge("search_registry",               "approve_concrete")
+    builder.add_conditional_edges("search_registry",   _route_after_search_registry)
+    builder.add_edge("negotiate_reuse",               "approve_concrete")
     builder.add_conditional_edges("approve_concrete",  _route_after_approve_concrete)
     builder.add_conditional_edges("execute_step",      _route_after_execute)
     builder.add_edge("synthesize_and_explain",         "ask_followup")
@@ -1351,9 +1558,9 @@ if __name__ == "__main__":
         "Survey the full parameter space with LHS sampling and explain which parameters "
         "have the biggest impact on cost.",
 
-        "Conduct a parallel Bayesian optimization (3 initial samples, 5 parallel BO steps) to find the cost-minimizing demand (number of daily EVs) with fixed state of charge = 30, fixed storage=40 percent, and fixed utility rate = Aggressive.",
+        "Conduct a parallel Bayesian optimization (3 initial samples, 1 batch of 5 parallel BO samples) to find the cost-minimizing demand (number of daily EVs) with fixed state of charge = 30, fixed storage=40 percent, and fixed utility rate = Aggressive.",
 
-        "Survey the parameter space holding utility_rate=moderate fixed and the other variables varying. Use the maximum_variance acquisition function and 5 initial samples and 5 parallel BO samples. Then use the surrogate to interpolate to evaluate the point utility_rate=moderate, storage=50, number_of_daily_evs=2000, return_soc=40.",
+        "Survey the parameter space holding utility_rate=moderate fixed and the other variables varying. Use the maximum_variance acquisition function and 5 initial samples and 1 batch of 5 parallel BO samples. Then use the surrogate to interpolate to evaluate the point utility_rate=moderate, storage=50, number_of_daily_evs=2000, return_soc=40.",
 
         "Conduct a parallel Bayesian optimization (4 initial samples + 1 batch of 4 parallel BO samples) to find the cost-minimizing demand and state of charge (2 variable optimization) with fixed storage =20 percent and fixed utility rate=moderate.",
     ]

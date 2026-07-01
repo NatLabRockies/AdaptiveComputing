@@ -40,6 +40,7 @@ class RunStatus:
     status:        str = "running"   # "running" | "completed" | "error"
     n_completed:   int = 0
     n_total:       int = 0
+    n_warmup:      int = 0           # LHS init or prior seed points (before BO)
     message:       str = ""          # human-readable phase description
     results:       list = field(default_factory=list)
     best_x:        Optional[dict] = None
@@ -265,8 +266,7 @@ def get_status(run_id: str) -> dict:
             "run_type":      status.run_type,
             "status":        status.status,
             "n_completed":   status.n_completed,
-            "n_total":       status.n_total,
-            "message":       status.message,
+            "n_total":       status.n_total,            "n_warmup":       status.n_warmup,            "message":       status.message,
             "results":       list(status.results),
             "best_x":        status.best_x,
             "best_y":        status.best_y,
@@ -327,9 +327,11 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
                     best_y = acc
                     best_x = dict(job)
 
-            registry.update_entry(entry["id"], run_status="completed",
-                                   n_samples=n_successful,
-                                   best_x=best_x, best_y=best_y)
+            n_successful = sum(1 for r in results if r["y"] is not None)
+            x_arr = np.array([[i] for i in range(n)], dtype=float)
+            registry.save_dataset(entry["id"], x_arr, y_data)   # also sets run_status="completed"
+            registry.update_entry(entry["id"], best_x=best_x, best_y=best_y,
+                                   n_samples=n_successful)
             _update(rs, status="completed", n_completed=n,
                     results=results, best_x=best_x, best_y=best_y)
 
@@ -356,7 +358,8 @@ def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def _opt_worker(run_id: str, entry: dict,
-                n_init: int, n_steps: int, acq_func: str, blocking: bool = False):
+                n_init: int, n_steps: int, acq_func: str, blocking: bool = False,
+                skip_warmstart: bool = False):
     from adaptive_computing.drivers import ActiveLoopDriverHero
     from ac_mcp.param_builder import build_ac_params, build_task_formatter
     from ac_mcp import registry
@@ -373,7 +376,10 @@ def _opt_worker(run_id: str, entry: dict,
         exclude_id=entry["id"],
     )
     n_prior   = prior["n_valid"]
-    use_prior = n_prior > 0
+    n_dupes   = prior.get("n_duplicates_removed", 0)
+    use_prior = n_prior > 0 and not skip_warmstart
+    if skip_warmstart and n_prior > 0:
+        print(f"[run {run_id[:8]}] skip_warmstart=True: ignoring {n_prior} prior pts, running LHS from scratch")
 
     n_total = (n_prior + n_steps) if use_prior else (n_init + n_steps)
     _update(rs, n_total=n_total, message="starting HPC managers...")
@@ -407,17 +413,20 @@ def _opt_worker(run_id: str, entry: dict,
             if use_prior:
                 # ── Auto warm-start: seed from prior in-bounds data, skip LHS ──
                 src = ", ".join(prior["source_ids"])
-                print(f"[run {run_id[:8]}] Auto warm-start: {n_prior} pts from [{src}], then {n_steps} BO steps")
-                _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]")
+                print(f"[run {run_id[:8]}] Auto warm-start: {n_prior} pts from [{src}], then {n_steps} BO steps"
+                      + (f" ({n_dupes} duplicates removed)" if n_dupes else ""))
+                _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]"
+                        + (f" ({n_dupes} dupes removed)" if n_dupes else ""))
                 driver.dataset.add_samples_nohero(prior["x_valid"], prior["y_valid"], 0)
                 driver.surrogate.train(driver.dataset)
+                driver._bopt_initialized = True   # prevent run() from calling initialize() again
                 results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
-                _update(rs, n_completed=n_prior, results=results,
+                _update(rs, n_completed=n_prior, n_warmup=n_prior, results=results,
                         best_x=best_x, best_y=best_y,
                         message=f"seeded {n_prior} pts; starting {n_steps} BO steps")
                 registry.save_dataset(entry["id"],
-                                      driver.dataset.x_data[-1],
-                                      driver.dataset.y_data[-1],
+                                      driver.dataset.x_data[0],
+                                      driver.dataset.y_data[0],
                                       set_completed=False)
             else:
                 # ── Normal path: LHS warm-up ──────────────────────────────────
@@ -427,12 +436,12 @@ def _opt_worker(run_id: str, entry: dict,
                 _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
                                     "LHS warmup")
                 results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
-                _update(rs, n_completed=n_init, results=results,
+                _update(rs, n_completed=n_init, n_warmup=n_init, results=results,
                         best_x=best_x, best_y=best_y,
                         message=f"warmup done; starting {n_steps} BO steps")
                 registry.save_dataset(entry["id"],
-                                      driver.dataset.x_data[-1],
-                                      driver.dataset.y_data[-1],
+                                      driver.dataset.x_data[0],
+                                      driver.dataset.y_data[0],
                                       set_completed=False)
 
             # ── BO phase (same for both paths) ────────────────────────────────
@@ -451,8 +460,8 @@ def _opt_worker(run_id: str, entry: dict,
                     results=results, best_x=best_x, best_y=best_y,
                     message="BO complete")
             registry.save_dataset(entry["id"],
-                                   driver.dataset.x_data[-1],
-                                   driver.dataset.y_data[-1])
+                                   driver.dataset.x_data[0],
+                                   driver.dataset.y_data[0])
             print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
 
             _update(rs, status="completed", message="optimization complete")
@@ -469,10 +478,12 @@ def _opt_worker(run_id: str, entry: dict,
 
 def submit_optimization_run(entry: dict, n_init: int,
                              n_steps: int, acq_func: str,
-                             blocking: bool = False) -> str:
+                             blocking: bool = False,
+                             skip_warmstart: bool = False) -> str:
     run_id = create_run(entry["id"], "optimization", n_init + n_steps)
     t = threading.Thread(target=_opt_worker,
-                         args=(run_id, entry, n_init, n_steps, acq_func, blocking),
+                         args=(run_id, entry, n_init, n_steps, acq_func, blocking,
+                               skip_warmstart),
                          daemon=True)
     t.start()
     return run_id

@@ -335,13 +335,27 @@ def find_reusable_data(
             pass
 
     if not all_x:
-        return {"x_valid": None, "y_valid": None, "n_valid": 0, "source_ids": []}
+        return {"x_valid": None, "y_valid": None, "n_valid": 0,
+                "n_duplicates_removed": 0, "source_ids": []}
 
     x_combined = np.vstack(all_x)
     y_combined = np.vstack(all_y)
+
+    # Deduplicate: multiple source experiments may have evaluated the same x points
+    # (e.g. experiment B warm-started from A, so both datasets contain A's rows).
+    # Duplicate x points cause ill-conditioned GP covariance matrices and inflate
+    # sample counts.  Keep the first occurrence of each unique x row.
+    n_before = len(x_combined)
+    _, unique_idx = np.unique(x_combined, axis=0, return_index=True)
+    unique_idx = np.sort(unique_idx)          # preserve original ordering
+    x_combined = x_combined[unique_idx]
+    y_combined = y_combined[unique_idx]
+    n_duplicates = n_before - len(x_combined)
+
     return {
         "x_valid": x_combined,
         "y_valid": y_combined,
         "n_valid": len(x_combined),
+        "n_duplicates_removed": n_duplicates,
         "source_ids": source_ids,
     }
