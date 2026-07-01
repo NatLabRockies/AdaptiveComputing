@@ -56,7 +56,12 @@ def hero_manager():
         print(f"ERROR: HERO authentication failed: {e}")
         sys.exit(1)
 
-    queue_record = task_engine.add_queue(name=HERO_QUEUE)
+    try:
+        queue_record = task_engine.read_queue_by_name(name=HERO_QUEUE, state="active")
+        print(f'Found existing active queue: {HERO_QUEUE}')
+    except Exception:
+        print(f'No active queue found, creating new queue: {HERO_QUEUE}')
+        queue_record = task_engine.add_queue(name=HERO_QUEUE)
 
     print("Continuously checking queue — will claim ready tasks and launch Slurm jobs...")
     agent_dir = os.path.dirname(os.path.abspath(__file__))

@@ -54,9 +54,12 @@ echo "Running hero_initialize for task_id=$task_id on $machine_name"
 python -m adaptive_computing.hero_utils.hero_initialize "$task_id" "$machine_name"
 hero_init_code=$?
 
-if [ $hero_init_code -ne 0 ]; then
-    echo "hero_initialize returned code $hero_init_code — task already claimed. Exiting cleanly."
+if [ $hero_init_code -eq 2 ]; then
+    echo "hero_initialize: task already claimed by another machine. Exiting cleanly."
     exit 0
+elif [ $hero_init_code -ne 0 ]; then
+    echo "hero_initialize failed with code $hero_init_code. Exiting."
+    exit 1
 fi
 
 # =============================================================================

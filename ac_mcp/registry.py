@@ -1,20 +1,18 @@
-"""
-registry.py
-===========
-JSON-backed experiment registry with file locking.
+"""registry.py
+Dataset-centric experiment registry with file locking.
 
-Each entry records searchable metadata about one experiment; the full AC driver
-state (dataset + trained surrogate) is persisted as a separate pickle file.
+Each entry records searchable metadata about one experiment; the raw dataset
+(x_data, y_data) is persisted as a separate .npz file.
 
-Registry location: ~/.ac_mcp/registry.json
-Pickle directory:  ~/.ac_mcp/experiments/<experiment_id>.pkl
+Registry location:  <AC_MCP_DIR>/registry.json
+Dataset directory:  <AC_MCP_DIR>/experiments/<experiment_id>.npz
 """
 
 from __future__ import annotations
 
 import json
+import numpy as np
 import os
-import pickle
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -35,7 +33,7 @@ def _storage_dir() -> Path:
         )
     d = Path(raw)
     d.mkdir(parents=True, exist_ok=True)
-    (d / "experiments").mkdir(exist_ok=True)
+    (d / "datasets").mkdir(exist_ok=True)
     return d
 
 
@@ -43,8 +41,8 @@ def _registry_path() -> Path:
     return _storage_dir() / "registry.json"
 
 
-def _pkl_path(experiment_id: str) -> Path:
-    return _storage_dir() / "experiments" / f"{experiment_id}.pkl"
+def _npz_path(experiment_id: str) -> Path:
+    return _storage_dir() / "datasets" / f"{experiment_id}.npz"
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +62,8 @@ def _load_registry() -> dict:
     dirty = False
     for entry in data.values():
         if "run_status" not in entry:
-            pkl = Path(entry.get("pkl_path", ""))
-            entry["run_status"] = "completed" if pkl.exists() else "in_progress"
+            npz = Path(entry.get("data_path", ""))
+            entry["run_status"] = "completed" if npz.exists() else "in_progress"
             dirty = True
     if dirty:
         _save_registry(data)
@@ -109,10 +107,11 @@ def register_experiment(
         "output_field_path": output_field_path,
         "hpc_config_path":   hpc_config_path,
         "experiment_type":   experiment_type,
+        "output_labels":     [output_label],   # list for multi-output support
         "n_samples":         0,
         "best_x":            None,
         "best_y":            None,
-        "pkl_path":          str(_pkl_path(experiment_id)),
+        "data_path":         str(_npz_path(experiment_id)),
         "forked_from":       None,
     }
     with _registry_lock:
@@ -152,66 +151,72 @@ def list_entries(name_filter: Optional[str] = None) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Driver persistence
+# Dataset persistence
 # ---------------------------------------------------------------------------
 
-def save_driver(experiment_id: str, ac_driver: Any, *, set_completed: bool = True) -> None:
-    """Pickle an AC driver to disk, then update n_samples/best in registry.
+def save_dataset(
+    experiment_id: str,
+    x_data: np.ndarray,
+    y_data: np.ndarray,
+    output_labels: Optional[list[str]] = None,
+    *,
+    set_completed: bool = True,
+) -> None:
+    """Save (x_data, y_data) as .npz and update registry stats.
 
     Parameters
     ----------
-    set_completed : bool
-        When True (default) the registry entry is updated to run_status="completed".
-        Pass False for intermediate checkpoints (e.g. after LHS warmup but before
-        BO completes) so the experiment is not treated as reusable prematurely.
+    x_data : (N, d) array of parameter vectors.
+    y_data : (N, m) array of output values.  NaN rows are ignored for stats.
+    output_labels : optional list of m label strings.
+    set_completed : mark experiment as completed when True (default).
     """
-    pkl = _pkl_path(experiment_id)
-    with open(pkl, "wb") as f:
-        pickle.dump(ac_driver, f)
+    npz = _npz_path(experiment_id)
+    npz.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(str(npz), x_data=x_data, y_data=y_data)
 
-    # Refresh summary stats in registry
-    try:
-        import numpy as np
-        y_data = ac_driver.dataset.y_data[0]          # (N, 1)
-        x_data = ac_driver.dataset.x_data[0]          # (N, d)
-        valid_mask = ~np.isnan(y_data[:, 0])
-        n_samples = int(valid_mask.sum())
+    # Compute stats from first output column (primary objective)
+    y2d = np.atleast_2d(y_data) if y_data.ndim == 1 else y_data
+    valid_mask = ~np.isnan(y2d[:, 0])
+    n_samples = int(valid_mask.sum())
 
-        best_y, best_x = None, None
-        if n_samples > 0:
-            idx = int(np.argmax(y_data[valid_mask, 0]))
-            best_y = float(y_data[valid_mask][idx, 0])
-            best_x = x_data[valid_mask][idx].tolist()
+    best_y, best_x = None, None
+    if n_samples > 0:
+        idx = int(np.argmax(y2d[valid_mask, 0]))
+        best_y = float(y2d[valid_mask][idx, 0])
+        best_x = x_data[valid_mask][idx].tolist()
 
-        kwargs: dict = dict(n_samples=n_samples, best_x=best_x, best_y=best_y)
-        if set_completed:
-            kwargs["run_status"] = "completed"
-        update_entry(experiment_id, **kwargs)
-    except Exception:
-        pass  # stats are best-effort; don't crash on partial data
+    kwargs: dict[str, Any] = dict(
+        n_samples=n_samples, best_x=best_x, best_y=best_y,
+        data_path=str(npz),
+    )
+    if output_labels is not None:
+        kwargs["output_labels"] = output_labels
+    if set_completed:
+        kwargs["run_status"] = "completed"
+    update_entry(experiment_id, **kwargs)
 
 
-def load_driver(experiment_id: str) -> Any:
-    """Unpickle an AC driver from disk.
+def load_dataset(experiment_id: str) -> dict[str, np.ndarray]:
+    """Load (x_data, y_data) arrays for an experiment.
 
-    Accepts either a full UUID or an 8-char prefix (as shown in the registry
-    summary).  If the exact file is not found, a prefix glob is attempted.
+    Accepts a full UUID or an 8-char prefix.  Returns a dict with keys
+    'x_data' (N, d) and 'y_data' (N, m).
     """
-    pkl = _pkl_path(experiment_id)
-    if not pkl.exists() and len(experiment_id) < 36:
-        # Try prefix match: find any .pkl whose filename starts with this prefix
-        candidates = list((_storage_dir() / "experiments").glob(f"{experiment_id}*.pkl"))
+    npz = _npz_path(experiment_id)
+    if not npz.exists() and len(experiment_id) < 36:
+        candidates = list((_storage_dir() / "datasets").glob(f"{experiment_id}*.npz"))
         if len(candidates) == 1:
-            pkl = candidates[0]
+            npz = candidates[0]
         elif len(candidates) > 1:
             raise FileNotFoundError(
                 f"Ambiguous experiment prefix {experiment_id!r}: "
                 f"matches {[p.stem for p in candidates]}"
             )
-    if not pkl.exists():
-        raise FileNotFoundError(f"No saved driver for experiment {experiment_id!r}")
-    with open(pkl, "rb") as f:
-        return pickle.load(f)
+    if not npz.exists():
+        raise FileNotFoundError(f"No saved dataset for experiment {experiment_id!r}")
+    data = np.load(str(npz))
+    return {"x_data": data["x_data"], "y_data": data["y_data"]}
 
 
 # ---------------------------------------------------------------------------
@@ -251,3 +256,92 @@ def find_matching_experiment(
     if not candidates:
         return None
     return max(candidates, key=lambda e: e["created_at"])
+
+
+def find_reusable_data(
+    param_specs: list[dict],
+    fixed_context: dict,
+    experiment_type: str,
+    exclude_id: Optional[str] = None,
+) -> dict:
+    """Search all completed experiments that share fixed_context and param names/types
+    (regardless of bounds), load their datasets, and return only the data points
+    that fall within the bounds defined in *this* param_specs.
+
+    Parameters
+    ----------
+    param_specs : list[dict]
+        The current experiment's param specs — used for both identity matching
+        (name/type) and bounds filtering (min/max).
+    fixed_context : dict
+        Must match exactly.
+    experiment_type : str
+    exclude_id : str or None
+        Experiment ID to exclude (typically the current experiment itself).
+
+    Returns
+    -------
+    dict with keys:
+        x_valid : (N, d) ndarray or None
+        y_valid : (N, m) ndarray or None
+        n_valid : int   — number of in-bounds, non-NaN points found
+        source_ids : list[str]  — 8-char prefixes of experiments data came from
+    """
+    with _registry_lock:
+        reg = _load_registry()
+
+    def _param_key(specs):
+        return sorted((s.get("name", ""), s.get("type", "")) for s in specs)
+
+    target_key = _param_key(param_specs)
+
+    # Build per-param bounds from current param_specs
+    bounds = []  # list of (lo, hi) per continuous param, in param order
+    for s in param_specs:
+        if s.get("type") == "continuous":
+            bounds.append((s.get("min"), s.get("max")))
+        else:
+            bounds.append((None, None))
+
+    candidates = [
+        e for e in reg.values()
+        if e.get("run_status") == "completed"
+        and e["experiment_type"] == experiment_type
+        and e["fixed_context"] == fixed_context
+        and _param_key(e["param_specs"]) == target_key
+        and e["id"] != exclude_id
+    ]
+
+    all_x, all_y, source_ids = [], [], []
+    for e in candidates:
+        try:
+            data = load_dataset(e["id"])
+            x, y = data["x_data"], data["y_data"]
+            y2d = np.atleast_2d(y) if y.ndim == 1 else y
+
+            # Cherry-pick: must be within bounds AND have valid (non-NaN) primary output
+            mask = ~np.isnan(y2d[:, 0])
+            for j, (lo, hi) in enumerate(bounds):
+                if lo is not None:
+                    mask &= (x[:, j] >= lo)
+                if hi is not None:
+                    mask &= (x[:, j] <= hi)
+
+            if mask.any():
+                all_x.append(x[mask])
+                all_y.append(y2d[mask])
+                source_ids.append(e["id"][:8])
+        except FileNotFoundError:
+            pass
+
+    if not all_x:
+        return {"x_valid": None, "y_valid": None, "n_valid": 0, "source_ids": []}
+
+    x_combined = np.vstack(all_x)
+    y_combined = np.vstack(all_y)
+    return {
+        "x_valid": x_combined,
+        "y_valid": y_combined,
+        "n_valid": len(x_combined),
+        "source_ids": source_ids,
+    }

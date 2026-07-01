@@ -280,8 +280,9 @@ def predict(experiment_id: str, x_points: list[list]) -> dict:
     Query the trained surrogate model for mean and variance predictions at
     arbitrary input points.  No simulation jobs are submitted.
 
-    Requires the experiment to have a saved driver with a trained surrogate
-    (i.e. run_optimization must have completed at least the warm-up phase).
+    Requires the experiment to have a saved dataset (i.e. run_optimization must
+    have completed at least the warm-up phase).  The surrogate is rebuilt
+    on-the-fly from the stored (x_data, y_data) — no pickle required.
 
     Parameters
     ----------
@@ -295,13 +296,32 @@ def predict(experiment_id: str, x_points: list[list]) -> dict:
     dict with "predictions": list of {x, mean, variance}.
     """
     import numpy as np
+    from adaptive_computing.drivers import ActiveLoopDriverHero
     from ac_mcp import registry
+    from ac_mcp.param_builder import build_ac_params
+    from adaptive_computing.datasets import OrderedVariable
 
-    entry  = registry.get_entry(experiment_id)
-    driver = registry.load_driver(experiment_id)
+    entry   = registry.get_entry(experiment_id)
+    dataset = registry.load_dataset(experiment_id)
+    x_data  = dataset["x_data"]
+    y_data  = dataset["y_data"]
 
-    x_arr   = np.array(x_points, dtype=float)
-    means   = driver.surrogate.predict_values(x_arr)
+    # Rebuild a surrogate from stored data (no HPC needed for prediction only)
+    ac_params = build_ac_params(entry["param_specs"])
+    driver = ActiveLoopDriverHero(
+        simulations=[None],
+        params=ac_params,
+        machine_names=[],          # no HPC needed for pure prediction
+        output_field_path=entry["output_field_path"],
+        surrogate="SMT_GP",
+        blocking=False,
+        task_formatter=None,
+    )
+    driver.dataset.add_samples_nohero(x_data, y_data, 0)
+    driver.surrogate.train(driver.dataset)
+
+    x_arr     = np.array(x_points, dtype=float)
+    means     = driver.surrogate.predict_values(x_arr)
     variances = driver.surrogate.predict_variances(x_arr)
 
     preds = []
@@ -335,7 +355,8 @@ def fork_experiment(
     - Explore a different subspace after observing initial results
     - Build a secondary surrogate on a different output column
 
-    The forked experiment's surrogate is immediately trained on the copied data.
+    The forked experiment's dataset is copied immediately.  The surrogate will
+    be trained when BO starts on the new experiment.
 
     Parameters
     ----------
@@ -354,14 +375,11 @@ def fork_experiment(
     -------
     dict with "experiment_id" (str) for the new experiment.
     """
-    import pickle
-    import numpy as np
+    import shutil
     from ac_mcp import registry
 
     source_entry = registry.get_entry(source_id)
-    source_driver = registry.load_driver(source_id)
-
-    param_specs = new_param_specs or source_entry["param_specs"]
+    param_specs  = new_param_specs or source_entry["param_specs"]
 
     new_id = registry.register_experiment(
         name=new_name,
@@ -373,18 +391,16 @@ def fork_experiment(
         output_field_path=new_output_field_path,
         experiment_type=source_entry["experiment_type"],
     )
-    # Record provenance
     registry.update_entry(new_id, forked_from=source_id)
 
-    # Deep-copy driver, train surrogate immediately on copied data
-    new_driver = pickle.loads(pickle.dumps(source_driver))
+    # Copy the dataset file so the new experiment starts with the prior data
     try:
-        new_driver.surrogate.train(new_driver.dataset)
-    except Exception as exc:
-        # Not enough data yet — that's OK, will train when more data arrives
-        print(f"fork_experiment: surrogate training skipped ({exc})")
+        src_dataset = registry.load_dataset(source_id)
+        registry.save_dataset(new_id, src_dataset["x_data"], src_dataset["y_data"],
+                              set_completed=False)  # not complete yet; BO will continue
+    except FileNotFoundError:
+        pass  # source has no data yet — new experiment starts empty
 
-    registry.save_driver(new_id, new_driver)
     return {"experiment_id": new_id}
 
 

@@ -327,9 +327,6 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
                     best_y = acc
                     best_x = dict(job)
 
-            registry.save_driver(run_id, driver)   # save under run_id as a snapshot
-            # Mark the *experiment* itself as completed so list_experiments shows the right status
-            n_successful = sum(1 for r in results if r["y"] is not None)
             registry.update_entry(entry["id"], run_status="completed",
                                    n_samples=n_successful,
                                    best_x=best_x, best_y=best_y)
@@ -359,18 +356,27 @@ def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def _opt_worker(run_id: str, entry: dict,
-                n_init: int, n_steps: int, acq_func: str, blocking: bool = False,
-                fork_experiment_id: str = None):
+                n_init: int, n_steps: int, acq_func: str, blocking: bool = False):
     from adaptive_computing.drivers import ActiveLoopDriverHero
     from ac_mcp.param_builder import build_ac_params, build_task_formatter
     from ac_mcp import registry
 
     rs = _runs[run_id]   # RunStatus object (named 'rs' to avoid collision with status= kwarg)
-    n_total = n_steps if fork_experiment_id else n_init + n_steps
-    _update(rs, n_total=n_total, message="starting HPC managers...")
-
     param_specs   = entry["param_specs"]
     fixed_context = entry["fixed_context"]
+
+    # ── Auto warm-start: look for prior in-bounds data from matching experiments ──
+    prior     = registry.find_reusable_data(
+        param_specs=param_specs,
+        fixed_context=fixed_context,
+        experiment_type=entry["experiment_type"],
+        exclude_id=entry["id"],
+    )
+    n_prior   = prior["n_valid"]
+    use_prior = n_prior > 0
+
+    n_total = (n_prior + n_steps) if use_prior else (n_init + n_steps)
+    _update(rs, n_total=n_total, message="starting HPC managers...")
 
     with _hpc_lock:
         _update(rs, message="starting HPC managers...")
@@ -398,45 +404,36 @@ def _opt_worker(run_id: str, entry: dict,
                 task_formatter=formatter,
             )
 
-            if fork_experiment_id:
-                # ── Fork path: seed from prior experiment, skip LHS warm-up ────
-                # Strip any surrounding brackets the LLM may have included (e.g. "[61082afc]")
-                fork_experiment_id = fork_experiment_id.strip().strip("[]")
-                print(f"[run {run_id[:8]}] Forking from {fork_experiment_id[:8]} ...")
-                _update(rs, message=f"loading prior data from {fork_experiment_id[:8]}")
-                old_driver = registry.load_driver(fork_experiment_id)
-                x_old = old_driver.dataset.x_data[0]   # (N, d)
-                y_old = old_driver.dataset.y_data[0]   # (N, 1)
-                valid = ~np.isnan(y_old[:, 0])
-                x_valid, y_valid = x_old[valid], y_old[valid]
-                n_prior = len(x_valid)
-                print(f"[run {run_id[:8]}] Seeding {n_prior} prior points, then {n_steps} BO steps")
-                _update(rs, n_total=n_prior + n_steps,
-                        message=f"seeding {n_prior} prior points")
-                if n_prior > 0:
-                    # add_samples_nohero stores data without submitting Hero tasks
-                    driver.dataset.add_samples_nohero(x_valid, y_valid, 0)
-                    driver.surrogate.train(driver.dataset)
-                results, best_x, best_y = _extract_results(driver, param_specs,
-                                                            fixed_context)
+            if use_prior:
+                # ── Auto warm-start: seed from prior in-bounds data, skip LHS ──
+                src = ", ".join(prior["source_ids"])
+                print(f"[run {run_id[:8]}] Auto warm-start: {n_prior} pts from [{src}], then {n_steps} BO steps")
+                _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]")
+                driver.dataset.add_samples_nohero(prior["x_valid"], prior["y_valid"], 0)
+                driver.surrogate.train(driver.dataset)
+                results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
                 _update(rs, n_completed=n_prior, results=results,
                         best_x=best_x, best_y=best_y,
-                        message=f"seeded {n_prior} points; starting {n_steps} BO steps")
-                registry.save_driver(entry["id"], driver, set_completed=False)
+                        message=f"seeded {n_prior} pts; starting {n_steps} BO steps")
+                registry.save_dataset(entry["id"],
+                                      driver.dataset.x_data[-1],
+                                      driver.dataset.y_data[-1],
+                                      set_completed=False)
             else:
-                # ── Normal path: LHS warm-up ─────────────────────────────────────
+                # ── Normal path: LHS warm-up ──────────────────────────────────
                 print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
                 _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
                 driver.initialize(N_samples_init=n_init)
                 _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
                                     "LHS warmup")
-
-                results, best_x, best_y = _extract_results(driver, param_specs,
-                                                            fixed_context)
+                results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
                 _update(rs, n_completed=n_init, results=results,
                         best_x=best_x, best_y=best_y,
                         message=f"warmup done; starting {n_steps} BO steps")
-                registry.save_driver(entry["id"], driver, set_completed=False)
+                registry.save_dataset(entry["id"],
+                                      driver.dataset.x_data[-1],
+                                      driver.dataset.y_data[-1],
+                                      set_completed=False)
 
             # ── BO phase (same for both paths) ────────────────────────────────
             print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
@@ -449,11 +446,13 @@ def _opt_worker(run_id: str, entry: dict,
 
             results, best_x, best_y = _extract_results(driver, param_specs,
                                                         fixed_context)
-            n_done = (n_prior if fork_experiment_id else n_init) + n_steps
+            n_done = (n_prior if use_prior else n_init) + n_steps
             _update(rs, n_completed=n_done,
                     results=results, best_x=best_x, best_y=best_y,
                     message="BO complete")
-            registry.save_driver(entry["id"], driver)
+            registry.save_dataset(entry["id"],
+                                   driver.dataset.x_data[-1],
+                                   driver.dataset.y_data[-1])
             print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
 
             _update(rs, status="completed", message="optimization complete")
@@ -470,13 +469,10 @@ def _opt_worker(run_id: str, entry: dict,
 
 def submit_optimization_run(entry: dict, n_init: int,
                              n_steps: int, acq_func: str,
-                             blocking: bool = False,
-                             fork_experiment_id: str = None) -> str:
-    n_total = n_steps if fork_experiment_id else n_init + n_steps
-    run_id = create_run(entry["id"], "optimization", n_total)
+                             blocking: bool = False) -> str:
+    run_id = create_run(entry["id"], "optimization", n_init + n_steps)
     t = threading.Thread(target=_opt_worker,
-                         args=(run_id, entry, n_init, n_steps, acq_func,
-                               blocking, fork_experiment_id),
+                         args=(run_id, entry, n_init, n_steps, acq_func, blocking),
                          daemon=True)
     t.start()
     return run_id
