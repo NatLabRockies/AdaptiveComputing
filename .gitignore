@@ -13,6 +13,9 @@ __pycache__/
 # output files
 *output_data.csv
 
+# generated artifacts — reproducible from source, not for version control
+*.pkl
+
 # mac
 .DS_Store
 
