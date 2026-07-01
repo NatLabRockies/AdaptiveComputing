@@ -35,6 +35,9 @@ def hero_manager():
     else:
         print("Missing the machine_name as a command line argument when manager.py is run.")
     
+    i_fidelity = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    queue_name = HERO_QUEUE if i_fidelity == 0 else HERO_QUEUE + str(i_fidelity)
+
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -44,14 +47,13 @@ def hero_manager():
         print(f"ERROR: HERO authentication failed: {e}")
         sys.exit(1)
 
-    # Use the queue corresponding to fidelity level zero
     # Try to find existing active queue first (like HeroDataset does)
     try:
-        queue_record = task_engine.read_queue_by_name(name=HERO_QUEUE, state="active")
-        print(f'Found existing active queue: {HERO_QUEUE}')
+        queue_record = task_engine.read_queue_by_name(name=queue_name, state="active")
+        print(f'Found existing active queue: {queue_name}')
     except Exception:
-        print(f'No active queue found, creating new queue: {HERO_QUEUE}')
-        queue_record = task_engine.add_queue(name=HERO_QUEUE)
+        print(f'No active queue found, creating new queue: {queue_name}')
+        queue_record = task_engine.add_queue(name=queue_name)
 
     print('Continuously check the queue, claim a ready task, and launch a slurm process...')
     os.chdir('simulation_files')
@@ -74,11 +76,15 @@ def hero_manager():
                 t = current_task['metadata']['x_data'][0]
                 # Use configured script name for this machine
                 if machine_name in hpc_config.slurm_scripts:
-                    script_name = hpc_config.slurm_scripts[machine_name]
+                    scripts_for_machine = hpc_config.slurm_scripts[machine_name]
+                    if isinstance(scripts_for_machine, str):
+                        raise Exception(f"hpc_config.slurm_scripts['{machine_name}'] must be a list, not a string. "
+                                        f"Change it to ['{scripts_for_machine}'] in hpc_config.py.")
+                    script_name = scripts_for_machine[i_fidelity]
                     # Use absolute path for the script
                     script_dir = os.path.dirname(os.path.abspath(__file__))
                     absolute_script_path = os.path.join(script_dir, script_name)
-                    command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name}"
+                    command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name} {i_fidelity}"
                 else:
                     raise Exception(f"The machine name '{machine_name}' is not configured in hpc_config.slurm_scripts. Available machines: {list(hpc_config.slurm_scripts.keys())}")
                 print(f"Running command: {command}")

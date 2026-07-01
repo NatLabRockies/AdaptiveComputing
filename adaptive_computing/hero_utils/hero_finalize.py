@@ -17,7 +17,7 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
-def hero_finalize(cond, task_id, machine_name):
+def hero_finalize(cond, task_id, machine_name, i_fidelity=0):
     # Setup the HERO client and authenticate
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
@@ -27,8 +27,11 @@ def hero_finalize(cond, task_id, machine_name):
         print(f"ERROR: HERO authentication failed: {e}")
         sys.exit(1)
 
-    # Use the queue corresponding to fidelity level zero
-    queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')
+    queue_name = HERO_QUEUE if i_fidelity == 0 else HERO_QUEUE + str(i_fidelity)
+    try:
+        queue_record = task_engine.read_queue_by_name(name=queue_name, state="active")
+    except Exception:
+        queue_record = task_engine.add_queue(name=queue_name)
 
     task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
     print(f'There are {len(task_records)} in the "ready" state.')
@@ -56,8 +59,8 @@ def hero_finalize(cond, task_id, machine_name):
 
 if __name__ == "__main__":
     # Validate and parse command-line arguments
-    if len(sys.argv) != 4:
-        print("Usage: python hero_finalize.py <cond> <task_id> <machine_name>")
+    if len(sys.argv) not in (4, 5):
+        print("Usage: python hero_finalize.py <cond> <task_id> <machine_name> [i_fidelity]")
         sys.exit(1)
 
     try:
@@ -69,5 +72,6 @@ if __name__ == "__main__":
 
     task_id = sys.argv[2]
     machine_name = sys.argv[3]
+    i_fidelity = int(sys.argv[4]) if len(sys.argv) == 5 else 0
 
-    hero_finalize(cond, task_id, machine_name)
+    hero_finalize(cond, task_id, machine_name, i_fidelity)

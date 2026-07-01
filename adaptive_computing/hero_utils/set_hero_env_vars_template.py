@@ -5,8 +5,6 @@ def set_hero_env_vars():
     os.environ["HERO_CLIENT_ID"] = "ask_your_admin" # modify this. Ask your Hero admin.
     os.environ["HERO_CLIENT_SECRET"] =  "ask_your_admin" # modify this. Ask your Hero admin.
     os.environ["HERO_QUEUE"] = "your_unique_queue_name" # modify this. A unique string for your workflow. Consider using something containing your username to avoid interactions with other users on your project.
-    os.environ["HERO_QUEUE_VISIBILITY_TIMEOUT"] = "60"
-    os.environ["HERO_WORKER_NAME"] = "your_unique_worker_name" # modify this. A unique string for your workflow.
 
 if __name__ == "__main__":
     set_hero_env_vars()

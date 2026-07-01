@@ -73,6 +73,8 @@ class ActiveLoopDriver:
 
         if isinstance(surrogate, SurrogateModelBase):
             self.surrogate = surrogate
+        elif surrogate is None:
+            self.surrogate = None   # evaluation-only mode; BO methods must not be called
         else:
             self.surrogate = surrogate_initializer(surrogate, 
                                                    self.dataset)

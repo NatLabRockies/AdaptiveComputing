@@ -30,21 +30,22 @@ machine_name=$3
 # Check if the machine_name is provided
 if [ -z "$machine_name" ]; then
   echo "Error: No machine_name provided."
-  echo "Usage: sbatch script.sh <temp> <task-id> <machine_name>"
+  echo "Usage: sbatch script.sh <temp> <task-id> <machine_name> [i_fidelity]"
   exit 1
 fi
+i_fidelity=${4:-0}
 
 # Run hero_initialize.py to indicate the job is running and unqueue it.
 module load mamba
 mamba activate AC
-echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name"
-python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name
+echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name $i_fidelity"
+python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name $i_fidelity
 return_code=$?
-if [ $return_code -ne 0 ]; then
-    echo "python hero_initialize detected task already running on another machine. Terminating this slurm job successfully."
+if [ $return_code -eq 2 ]; then
+    echo "hero_initialize: task already running on another machine. Terminating this job successfully."
     exit 0
 elif [ $return_code -ne 0 ]; then
-    echo "python hero_initialize failed with code $return_code. Exiting Slurm job with failure."
+    echo "hero_initialize failed with code $return_code. Exiting."
     exit 1
 fi
 
@@ -72,8 +73,8 @@ echo "Conductivity passed to python: $result"
 # Run hero_finalize.py to publish result and mark it as done
 module load mamba
 mamba activate AC
-echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name"
-python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name
+echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name $i_fidelity"
+python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name $i_fidelity
 if [ $? -ne 0 ]; then
     echo "python hero_finalize failed. Exiting."
     exit 1

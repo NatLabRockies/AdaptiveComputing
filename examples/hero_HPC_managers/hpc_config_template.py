@@ -22,11 +22,14 @@ remote_dirs = {
     'machine_b': '/path/to/AdaptiveComputing/examples/hero_HPC_managers/'
 }
 
-# SLURM batch scripts to run for each machine
-# These are the relative paths to the slurm scripts remote_dirs[machine]/slurm_scripts[machine]
+# SLURM batch scripts to run for each machine, indexed by fidelity level.
+# Each entry is a list where index 0 = lowest fidelity, index 1 = next, etc.
+# script_generic.sh works on any SLURM system with mamba/conda and the AC
+# environment — edit its --partition and --account headers before use.
+# To add a higher-fidelity simulation, append a second script to each list.
 slurm_scripts = {
-    'machine_a': 'simulation_files/script_machine_a.sh',
-    'machine_b': 'simulation_files/script_machine_b.sh'
+    'machine_a': ['simulation_files/script_generic.sh'],  # [fidelity_0, fidelity_1, ...]
+    'machine_b': ['simulation_files/script_generic.sh'],
 }
 
 # Example configuration for NLR systems (commented out):
@@ -35,6 +38,9 @@ slurm_scripts = {
 # remote_hosts = {'kestrel': 'kl1.hpc.nlr.gov', 'vermilion': 'vs-login-1.hpc.nlr.gov'}
 # remote_dirs = {
 #     'kestrel': '/home/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/',
-#     'vermilion': '/projects/degrees/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/'
+#     'vermilion': '/home/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/'
 # }
-# slurm_scripts = {'kestrel': 'simulation_files/script_kestrel.sh', 'vermilion': 'simulation_files/script_vermilion.sh'}
+# slurm_scripts = {
+#     'kestrel': ['simulation_files/script_kestrel.sh'],    # NLR Kestrel: LAMMPS molecular dynamics
+#     'vermilion': ['simulation_files/script_vermilion.sh'] # NLR Vermilion: LAMMPS molecular dynamics
+# }

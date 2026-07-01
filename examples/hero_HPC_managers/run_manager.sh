@@ -11,6 +11,6 @@ tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true
 
 tmux new-session -d -s "$SESSION_NAME"
 tmux send-keys -t "$SESSION_NAME" \
-  "cd $WORK_DIR && module load mamba && mamba activate AC && python -u manager.py $1 > $LOG_FILE 2>&1" Enter
+  "cd $WORK_DIR && module load mamba && mamba activate AC && python -u manager.py $1 ${2:-0} > $LOG_FILE 2>&1" Enter
 
 echo "Started background session: $SESSION_NAME"

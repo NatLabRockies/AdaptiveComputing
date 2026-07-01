@@ -1,0 +1,9 @@
+# rental_agent environment variables
+# Copy this file to env_vars.txt and fill in your values.
+# Never commit env_vars.txt to version control.
+
+# LLM provider (LiteLLM-compatible model string)
+LITELLM_MODEL=gpt-5-mini
+
+LITELLM_API_KEY='...'
+LITELLM_ENDPOINT='https://litellm.nlr.gov/'

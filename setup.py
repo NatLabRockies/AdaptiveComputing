@@ -6,11 +6,19 @@ setup(
     license="BSD-3-Clause",
     packages=find_packages(),
     install_requires=[
-        "smt", 
+        "smt",
         "scikit-learn==1.8.0",
-        "soogo==2.0.1", 
+        "soogo==2.0.1",
         "pydantic",
-        "langchain-core"
-    ]
+    ],
+    extras_require={
+        "agents": [
+            "langchain-core",
+            "langchain-openai",
+            "langgraph",
+            "typing_extensions",
+            "fastmcp",
+        ],
+    },
     # Note: tf-melt and Hero are installed separately due to git repository requirements
 )
