@@ -119,6 +119,15 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 - Multi-cluster job distribution and error handling
 - Requires HPC access and SSH configuration
 
+### Agentic AI - MCP Co-Scientist
+
+**LLM-driven research**: [examples/rental_agent/](examples/rental_agent/) demonstrates the full AC MCP workflow with a LangGraph co-scientist agent:
+- An interactive AI agent that proposes, approves, and executes multi-step research plans
+- Runs simulations, Bayesian optimization, and surrogate evaluations entirely through the AC MCP server
+- Reuses cached experiment results automatically via the experiment registry
+- Supports HPC-backed simulations on remote clusters via SSH/SLURM
+- Requires Hero, HPC access, and agentic AI dependencies (step 5b above)
+
 ### Other Examples
 
 - [examples/bayesian_1d_sf/](examples/bayesian_1d_sf/): Single-fidelity Bayesian optimization with 4 surrogate model options:

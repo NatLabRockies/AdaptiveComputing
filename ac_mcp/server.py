@@ -189,11 +189,14 @@ def run_optimization(
     n_steps: int = 5,
     acq_func: str = "expected_improvement",
     blocking: bool = False,
-    fork_from_experiment_id: Optional[str] = None,
 ) -> dict:
     """
     Run a full Bayesian optimisation loop (LHS warm-up + EI-guided steps)
     and return a run_id immediately.  Poll get_run_status for progress and results.
+
+    Prior data from any completed experiment with the same fixed_context and
+    parameter names (regardless of bounds) is automatically loaded and cherry-
+    picked to the new bounds, replacing the LHS warm-up when enough points exist.
 
     Both modes use driver.run(N_steps) then hero_wait_for_data_and_train().
     The difference is how ActiveLoopDriverHero is instantiated:
@@ -214,7 +217,7 @@ def run_optimization(
         Must have been created with at least one param_spec (the optimisation space).
     n_init_samples : int
         Number of LHS warm-up evaluations before the surrogate is first trained.
-        Ignored when fork_from_experiment_id is provided.
+        Ignored if prior in-bounds data is found and used for warm-start.
     n_steps : int
         Number of acquisition-function-guided evaluations after warm-up.
     acq_func : str
@@ -222,10 +225,6 @@ def run_optimization(
     blocking : bool
         False (default): parallel batch BO — all n_steps jobs run simultaneously.
         True: sequential BO — each job informs the next before it is submitted.
-    fork_from_experiment_id : str or None
-        If provided, load all data from this completed experiment, train the
-        surrogate on it, and run n_steps new BO iterations without LHS warm-up.
-        The new experiment (experiment_id) may have different bounds.
 
     Returns
     -------
@@ -241,7 +240,6 @@ def run_optimization(
         )
     run_id = run_manager.submit_optimization_run(
         entry, n_init_samples, n_steps, acq_func, blocking,
-        fork_experiment_id=fork_from_experiment_id,
     )
     return {"run_id": run_id}
 

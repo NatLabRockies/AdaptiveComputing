@@ -1016,8 +1016,8 @@ def search_registry(state):
     annotated = []
     for step in steps:
         step = dict(step)
-        # Simple name-based match for pre-annotation; full dedup handled server-side
         step["_found"] = None
+        found_list = []
         for e in all_entries:
             if e.get("run_status") != "completed":
                 continue
@@ -1027,9 +1027,10 @@ def search_registry(state):
                         and ctx.get("storage") == step.get("storage")
                         and ctx.get("number_of_daily_evs") == step.get("number_of_daily_evs")
                         and ctx.get("return_soc") == step.get("return_soc")):
-                    step["_found"] = e
+                    step["_found"] = e   # exact match — single entry
                     break
             elif step["tool"] == "run_optimization":
+                # Build expected fixed_context for this step
                 expected_fixed = {}
                 if step.get("opt_fixed_utility_rate") is not None:
                     expected_fixed["utility_rate"]        = step["opt_fixed_utility_rate"]
@@ -1039,10 +1040,18 @@ def search_registry(state):
                     expected_fixed["number_of_daily_evs"] = float(step["opt_fixed_number_of_daily_evs"])
                 if step.get("opt_fixed_return_soc") is not None:
                     expected_fixed["return_soc"]          = float(step["opt_fixed_return_soc"])
-                if (e.get("experiment_type") == "optimization"
-                        and all(ctx.get(k) == v for k, v in expected_fixed.items())):
-                    step["_found"] = e
-                    break
+                # Match on experiment_type + fixed_context + same optimized param names
+                if e.get("experiment_type") != "optimization":
+                    continue
+                if not all(ctx.get(k) == v for k, v in expected_fixed.items()):
+                    continue
+                # Param names must match (the set of params being optimized)
+                opt_var_names = sorted(k for k in _ALL_OPT_PARAMS if k not in expected_fixed)
+                e_param_names = sorted(s.get("name") for s in (e.get("param_specs") or []))
+                if e_param_names == opt_var_names:
+                    found_list.append(e)
+        if step["tool"] == "run_optimization" and step["_found"] is None:
+            step["_found"] = found_list   # list (possibly empty) for opt steps
         annotated.append(step)
     return {"plan_steps": annotated, "status": "searched"}
 
@@ -1058,16 +1067,35 @@ def approve_concrete(state):
         lbl   = " ({})".format(s["label"]) if s.get("label") else ""
         found = s.get("_found")
         if s["tool"] == "evaluate_surrogate":
-            reuse_str = "  → SURROGATE PREDICTION (no simulation or HPC)"
-        elif found:
-            short_id  = found["id"][:8]
-            best_y    = found.get("best_y")
-            best_str  = " best=${:.0f}".format(-best_y) if best_y is not None else ""
-            reuse_str = "  → REUSE [{}]{} — no new simulation".format(short_id, best_str)
+            status_str = "  \u2192 SURROGATE PREDICTION (no simulation or HPC)"
+        elif s["tool"] == "run_simulation":
+            if found and not isinstance(found, list):
+                short_id  = found["id"][:8]
+                best_y    = found.get("best_y")
+                best_str  = " best=${:.0f}".format(-best_y) if best_y is not None else ""
+                status_str = "  \u2192 REUSE [{}]{} \u2014 no new simulation".format(short_id, best_str)
+            else:
+                status_str = "  \u2192 RUN FRESH"
+        elif s["tool"] == "run_optimization":
+            prior_list = found if isinstance(found, list) else []
+            if prior_list:
+                prior_lines = []
+                for pe in prior_list:
+                    p_n    = pe.get("n_samples", "?")
+                    p_best = pe.get("best_y")
+                    p_best_str = " best=${:.0f}".format(-p_best) if p_best is not None else ""
+                    prior_lines.append("[{id}] {n} samples{best}".format(
+                        id=pe["id"][:8], n=p_n, best=p_best_str))
+                status_str = (
+                    "  \u2192 AUTO WARM-START from prior data:\n"
+                    + "\n".join("           " + l for l in prior_lines)
+                )
+            else:
+                status_str = "  \u2192 RUN FRESH (no prior optimization data \u2014 LHS warm-up)"
         else:
-            reuse_str = "  → RUN FRESH"
+            status_str = "  \u2192 RUN FRESH"
         print("  Step {}: [{}]{} — {}".format(i, s["tool"], lbl, s["purpose"]))
-        print("         " + reuse_str)
+        print("         " + status_str)
     print()
     try:
         user_input = input("Approve execution? [yes / feedback to revise]: ").strip()
