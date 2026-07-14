@@ -6,6 +6,8 @@ WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 LOG_FILE="$WORK_DIR/kill_slurm_jobs.output.$1"
 
+command -v tmux &>/dev/null || module load tmux
+
 # Kill manager.py, which was running
 tmux send-keys -t $SESSION_NAME C-c
 sleep 1

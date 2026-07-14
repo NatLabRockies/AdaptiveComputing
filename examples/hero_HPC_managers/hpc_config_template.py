@@ -22,10 +22,18 @@ remote_dirs = {
     'machine_b': '/path/to/AdaptiveComputing/examples/hero_HPC_managers/'
 }
 
-# SLURM batch scripts to run for each machine, indexed by fidelity level.
+# Job scheduler type for each machine: 'slurm' or 'pbs'.
+# Defaults to 'slurm' if a machine is not listed here.
+scheduler = {
+    'machine_a': 'slurm',
+    'machine_b': 'slurm',
+}
+
+# Batch scripts to run for each machine, indexed by fidelity level.
 # Each entry is a list where index 0 = lowest fidelity, index 1 = next, etc.
 # script_generic.sh works on any SLURM system with mamba/conda and the AC
 # environment — edit its --partition and --account headers before use.
+# script_generic_pbs.sh is the equivalent for PBS systems (e.g. Aurora).
 # To add a higher-fidelity simulation, append a second script to each list.
 slurm_scripts = {
     'machine_a': ['simulation_files/script_generic.sh'],  # [fidelity_0, fidelity_1, ...]
@@ -50,6 +58,10 @@ env_activate_cmds = {
 #     'kestrel': '/home/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/',
 #     'vermilion': '/home/your_nlr_username/AdaptiveComputing/examples/hero_HPC_managers/'
 # }
+# scheduler = {
+#     'kestrel': 'slurm',
+#     'vermilion': 'slurm',
+# }
 # slurm_scripts = {
 #     'kestrel': ['simulation_files/script_kestrel.sh'],    # NLR Kestrel: LAMMPS molecular dynamics
 #     'vermilion': ['simulation_files/script_vermilion.sh'] # NLR Vermilion: LAMMPS molecular dynamics
@@ -58,3 +70,12 @@ env_activate_cmds = {
 #     'kestrel': 'module load mamba && mamba activate AC',
 #     'vermilion': 'module load mamba && mamba activate AC',
 # }
+
+# Example configuration for Aurora (PBS scheduler):
+# machine_names = ['aurora']
+# remote_usernames = {'aurora': 'your_alcf_username'}
+# remote_hosts = {'aurora': 'aurora-uan-0011.alcf.anl.gov'}
+# remote_dirs = {'aurora': '/home/your_alcf_username/AdaptiveComputing/examples/hero_HPC_managers/'}
+# scheduler = {'aurora': 'pbs'}
+# slurm_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}
+# env_activate_cmds = {'aurora': 'module load mamba && mamba activate AC'}

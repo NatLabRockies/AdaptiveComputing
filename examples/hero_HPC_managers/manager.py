@@ -11,11 +11,37 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
+def _get_pbs_status(stdout, returncode):
+    """Parse qstat -f -x output into a SLURM-equivalent status string."""
+    import re
+    if returncode != 0 or not stdout.strip():
+        # Job not found in scheduler — it has already left the queue; treat as finished.
+        return 'COMPLETED'
+    state_match = re.search(r'job_state\s*=\s*(\S+)', stdout)
+    if not state_match:
+        return 'UNKNOWN'
+    state = state_match.group(1)
+    if state in ('F', 'C'):  # Finished / Complete
+        exit_match = re.search(r'exit_status\s*=\s*(\S+)', stdout)
+        exit_status = int(exit_match.group(1)) if exit_match else 0
+        return 'COMPLETED' if exit_status == 0 else 'FAILED'
+    if state in ('R', 'E', 'Q', 'H', 'W', 'T', 'M', 'S', 'U'):
+        return 'RUNNING'
+    return 'UNKNOWN'
+
 # Import HPC configuration
 try:
     import hpc_config
-except ImportError:
+except ModuleNotFoundError:
     print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
+    exit(1)
+_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds', 'slurm_scripts']
+_missing = [f for f in _required if not hasattr(hpc_config, f)]
+if _missing:
+    _defined = [a for a in dir(hpc_config) if not a.startswith('_')]
+    print(f"ERROR: hpc_config.py is missing required field(s): {', '.join(_missing)}")
+    print(f"Fields currently defined in hpc_config.py: {', '.join(_defined)}")
+    print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
     exit(1)
 
 try:
@@ -55,7 +81,9 @@ def hero_manager():
         print(f'No active queue found, creating new queue: {queue_name}')
         queue_record = task_engine.add_queue(name=queue_name)
 
-    print('Continuously check the queue, claim a ready task, and launch a slurm process...')
+    scheduler_type = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
+    print(f'Scheduler type for {machine_name}: {scheduler_type}')
+    print('Continuously check the queue, claim a ready task, and launch a job...')
     os.chdir('simulation_files')
     
     while True:
@@ -84,16 +112,21 @@ def hero_manager():
                     # Use absolute path for the script
                     script_dir = os.path.dirname(os.path.abspath(__file__))
                     absolute_script_path = os.path.join(script_dir, script_name)
-                    command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name} {i_fidelity}"
+                    if scheduler_type == 'pbs':
+                        command = f"qsub -v \"temp={t},task_id={current_task['id']},machine_name={machine_name},i_fidelity={i_fidelity}\" {absolute_script_path}"
+                    else:
+                        command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name} {i_fidelity}"
                 else:
                     raise Exception(f"The machine name '{machine_name}' is not configured in hpc_config.slurm_scripts. Available machines: {list(hpc_config.slurm_scripts.keys())}")
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, capture_output=True, text=True)
                 if result.returncode != 0:
-                    # QOS job limit reached: don't mark as error, just stop submitting
+                    # Job limit reached: don't mark as error, just stop submitting
                     # this cycle and retry in the next polling iteration.
-                    if 'QOSMaxSubmitJobPerUserLimit' in result.stderr or 'MaxSubmitJobsPerUser' in result.stderr:
-                        print(f"SLURM job limit reached. Will retry task {current_task['id']} in next polling cycle.")
+                    slurm_limit = 'QOSMaxSubmitJobPerUserLimit' in result.stderr or 'MaxSubmitJobsPerUser' in result.stderr
+                    pbs_limit = 'Job exceeds queue' in result.stderr or 'PBS_MAXSELECTJOB' in result.stderr or 'would exceed' in result.stderr or 'violates queue' in result.stderr or result.returncode == 188
+                    if slurm_limit or pbs_limit:
+                        print(f"Job limit reached. Will retry task {current_task['id']} in next polling cycle.")
                         break
                     print("Error occurred during sbatch script.")
                     print("STDOUT:")
@@ -105,14 +138,18 @@ def hero_manager():
                     current_task['metadata']['running'][machine_name] = False
                     task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
                     continue
-                job_id = result.stdout.strip().split()[-1] # parse the job_id from the string returned
+                job_id = result.stdout.strip().split()[-1]  # parse the job_id from the string returned (works for both SLURM and PBS)
                 current_task['metadata']['slurm_job_id'][machine_name] = job_id
                 task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
                 print(f"Task {current_task['id']}: state = ready, metadata = {current_task['metadata']}")
             else: # if the job is queued on this machine, check for errors
                 job_id = current_task['metadata']['slurm_job_id'][machine_name]
-                status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
-                status = status_check.stdout.strip()
+                if scheduler_type == 'pbs':
+                    status_check = subprocess.run(f"qstat -f -x {job_id}", shell=True, capture_output=True, text=True)
+                    status = _get_pbs_status(status_check.stdout, status_check.returncode)
+                else:
+                    status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
+                    status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
                     # Job completed successfully - check if hero_finalize worked
                     # First re-read the task to get current state
@@ -121,13 +158,13 @@ def hero_manager():
                         print(f"Job {job_id} completed successfully for task {current_task['id']} - hero_finalize succeeded")
                     else:
                         print(f"WARNING: Job {job_id} completed successfully for task {current_task['id']}, but Hero task is still in '{updated_task['state']}' state")
-                        print(f"This likely indicates hero_finalize failed. Check SLURM output files for errors.")
+                        print(f"This likely indicates hero_finalize failed. Check output files for errors.")
                     
-                    # Reset the slurm job id since this job is done
+                    # Reset the job id since this job is done
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
                     current_task['metadata']['running'][machine_name] = False
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
-                    print("Slurm job error detected.")
+                    print("Job error detected.")
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
                     current_task['metadata']['running'][machine_name] = False
                     task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
@@ -139,7 +176,7 @@ def hero_manager():
             if not current_task['metadata']['running'][machine_name]:
                 if current_task['metadata']['slurm_job_id'][machine_name] != -1:
                     job_id = current_task['metadata']['slurm_job_id'][machine_name]
-                    command = f"scancel {job_id}"
+                    command = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
                     print(f"Running command: {command}")
                     subprocess.run(command, shell=True, check=True)
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
@@ -149,8 +186,12 @@ def hero_manager():
             # If its running on my machine, check if it should be in an error state
             if current_task['metadata']['running'][machine_name]:
                 job_id = current_task['metadata']['slurm_job_id'][machine_name]
-                status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
-                status = status_check.stdout.strip()
+                if scheduler_type == 'pbs':
+                    status_check = subprocess.run(f"qstat -f -x {job_id}", shell=True, capture_output=True, text=True)
+                    status = _get_pbs_status(status_check.stdout, status_check.returncode)
+                else:
+                    status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
+                    status = status_check.stdout.strip()
                 if 'COMPLETED' in status:
                     # Job completed successfully - check if hero_finalize worked
                     # First re-read the task to get current state
@@ -159,15 +200,13 @@ def hero_manager():
                         print(f"Job {job_id} completed successfully for task {current_task['id']} - hero_finalize succeeded")
                     else:
                         print(f"WARNING: Job {job_id} completed successfully for task {current_task['id']}, but Hero task is still in '{updated_task['state']}' state")
-                        print(f"This likely indicates hero_finalize failed. Check SLURM output files for errors.")
+                        print(f"This likely indicates hero_finalize failed. Check output files for errors.")
                     
-                    # Reset the slurm job id since this job is done  
+                    # Reset the job id since this job is done  
                     current_task['metadata']['slurm_job_id'][machine_name] = -1
                     current_task['metadata']['running'][machine_name] = False
                 if any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
-                    print("Slurm job error detected.")
-                    current_task['metadata']['slurm_job_id'][machine_name] = -1
-                    current_task['metadata']['running'][machine_name] = False
+                    print("Job error detected.")
                     task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
                     
         

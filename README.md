@@ -114,7 +114,7 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 
 **Scale up**: [examples/hero_HPC_managers/](examples/hero_HPC_managers/) demonstrates production HPC workflows:
 - **Adaptive Computing strategies**: Offline training, offline inference, and online inference
-- Automated HPC managers with SSH and SLURM integration
+- Automated HPC managers with SSH and SLURM/PBS integration
 - Real molecular dynamics simulations for conductivity calculation
 - Multi-cluster job distribution and error handling
 - Requires HPC access and SSH configuration
@@ -125,7 +125,7 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 - An interactive AI agent that proposes, approves, and executes multi-step research plans
 - Runs simulations, Bayesian optimization, and surrogate evaluations entirely through the AC MCP server
 - Reuses cached experiment results automatically via the experiment registry
-- Supports HPC-backed simulations on remote clusters via SSH/SLURM
+- Supports HPC-backed simulations on remote clusters via SSH/SLURM or PBS
 - Requires Hero, HPC access, and agentic AI dependencies (step 5b above)
 
 ### Other Examples

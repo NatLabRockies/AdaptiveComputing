@@ -11,7 +11,9 @@ export TERM=${TERM:-xterm-256color}
 LOG_FILE="$WORK_DIR/manager.output.$1"
 
 # $1 = machine_name, $2 = i_fidelity (default 0), $3 = env activation command
-ENV_ACTIVATE_CMD="${3:-module load mamba && mamba activate AC}"
+ENV_ACTIVATE_CMD="${3:-mamba activate AC}"
+
+command -v tmux &>/dev/null || module load tmux
 
 # kill existing session if exists
 tmux kill-session -t "$SESSION_NAME" 2>/dev/null || true

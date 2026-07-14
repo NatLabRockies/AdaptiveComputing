@@ -18,12 +18,25 @@ if __name__ == '__main__':
     # Import HPC configuration from separate file
     # Note: Copy hpc_config_template.py to hpc_config.py and edit with your values
     try:
-        from hpc_config import machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds
-        print("Using HPC configuration from hpc_config.py")
-    except ImportError:
+        import hpc_config as _hpc_cfg
+    except ModuleNotFoundError:
         print("ERROR: hpc_config.py not found!")
         print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
         sys.exit(1)
+    _required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds']
+    _missing = [f for f in _required if not hasattr(_hpc_cfg, f)]
+    if _missing:
+        _defined = [a for a in dir(_hpc_cfg) if not a.startswith('_')]
+        print(f"ERROR: hpc_config.py is missing required field(s): {', '.join(_missing)}")
+        print(f"Fields currently defined in hpc_config.py: {', '.join(_defined)}")
+        print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
+        sys.exit(1)
+    machine_names = _hpc_cfg.machine_names
+    remote_usernames = _hpc_cfg.remote_usernames
+    remote_hosts = _hpc_cfg.remote_hosts
+    remote_dirs = _hpc_cfg.remote_dirs
+    env_activate_cmds = _hpc_cfg.env_activate_cmds
+    print("Using HPC configuration from hpc_config.py")
 
     from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
     # register a signal handler and set up the variables it needs to operate

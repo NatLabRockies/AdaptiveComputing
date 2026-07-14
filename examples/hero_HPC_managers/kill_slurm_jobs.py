@@ -19,6 +19,20 @@ except EnvironmentError as e:
 
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
+try:
+    import hpc_config
+except ModuleNotFoundError:
+    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
+    exit(1)
+_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds', 'slurm_scripts']
+_missing = [f for f in _required if not hasattr(hpc_config, f)]
+if _missing:
+    _defined = [a for a in dir(hpc_config) if not a.startswith('_')]
+    print(f"ERROR: hpc_config.py is missing required field(s): {', '.join(_missing)}")
+    print(f"Fields currently defined in hpc_config.py: {', '.join(_defined)}")
+    print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
+    exit(1)
+
 def kill_slurm_jobs():
     import sys
     if len(sys.argv) > 1:
@@ -38,8 +52,11 @@ def kill_slurm_jobs():
     # Use the queue corresponding to fidelity level zero
     queue_record = task_engine.add_queue(name=HERO_QUEUE+'0')
 
-    print('Cancel all slurm jobs corresponding to queued or running Hero tasks...')
+    print('Cancel all scheduler jobs corresponding to queued or running Hero tasks...')
     os.chdir('simulation_files')
+    
+    scheduler_type = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
+    print(f'Scheduler type for {machine_name}: {scheduler_type}')
     
     # Print the state of the queue
     task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
@@ -57,21 +74,25 @@ def kill_slurm_jobs():
     error_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
     all_tasks = ready_tasks + running_tasks + error_tasks
     
-    # Also cancel all SLURM jobs for this user as a failsafe
-    print(f"Canceling all SLURM jobs for user")
+    # Also cancel all jobs for this user as a failsafe
+    print(f"Canceling all jobs for user")
     try:
-        result = subprocess.run(f"scancel -u $(whoami)", shell=True, capture_output=True, text=True)
+        if scheduler_type == 'pbs':
+            result = subprocess.run("qselect -u $(whoami) | xargs qdel 2>/dev/null || true", shell=True, capture_output=True, text=True)
+        else:
+            result = subprocess.run("scancel -u $(whoami)", shell=True, capture_output=True, text=True)
         if result.stdout.strip():
             print(f"Canceled jobs: {result.stdout.strip()}")
         if result.stderr.strip():
-            print(f"Scancel output: {result.stderr.strip()}")
+            print(f"Cancel output: {result.stderr.strip()}")
     except Exception as e:
-        print(f"Error running scancel: {e}")
+        print(f"Error canceling jobs: {e}")
     
     # Cancel specific jobs from Hero queue (for completeness)
     for current_task in all_tasks:
         if current_task['metadata']['slurm_job_id'][machine_name] != -1:
-            command = f"scancel {current_task['metadata']['slurm_job_id'][machine_name]}"
+            job_id = current_task['metadata']['slurm_job_id'][machine_name]
+            command = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
             print(f"Running command: {command}")
             try:
                 result = subprocess.run(command, shell=True, check=True)
