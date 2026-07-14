@@ -18,7 +18,7 @@ if __name__ == '__main__':
     # Import HPC configuration from separate file
     # Note: Copy hpc_config_template.py to hpc_config.py and edit with your values
     try:
-        from hpc_config import machine_names, remote_usernames, remote_hosts, remote_dirs
+        from hpc_config import machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds
         print("Using HPC configuration from hpc_config.py")
     except ImportError:
         print("ERROR: hpc_config.py not found!")
@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
     # register a signal handler and set up the variables it needs to operate
-    setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs)
+    setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds)
     run_remote_managers()
     
     # Give managers time to start, then verify they're running

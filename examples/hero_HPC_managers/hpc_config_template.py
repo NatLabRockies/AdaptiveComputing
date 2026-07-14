@@ -32,6 +32,16 @@ slurm_scripts = {
     'machine_b': ['simulation_files/script_generic.sh'],
 }
 
+# Command used to activate the Python environment on each remote machine.
+# Common examples:
+#   'module load mamba && mamba activate AC'     (HPC clusters)
+#   'conda activate myenv'                       (if conda is already in PATH)
+#   'source ~/miniconda3/bin/activate myenv'     (explicit conda path)
+env_activate_cmds = {
+    'machine_a': 'module load mamba && mamba activate AC',
+    'machine_b': 'module load mamba && mamba activate AC',
+}
+
 # Example configuration for NLR systems (commented out):
 # machine_names = ['kestrel', 'vermilion']
 # remote_usernames = {'kestrel': 'your_nlr_username', 'vermilion': 'your_nlr_username'}
@@ -43,4 +53,8 @@ slurm_scripts = {
 # slurm_scripts = {
 #     'kestrel': ['simulation_files/script_kestrel.sh'],    # NLR Kestrel: LAMMPS molecular dynamics
 #     'vermilion': ['simulation_files/script_vermilion.sh'] # NLR Vermilion: LAMMPS molecular dynamics
+# }
+# env_activate_cmds = {
+#     'kestrel': 'module load mamba && mamba activate AC',
+#     'vermilion': 'module load mamba && mamba activate AC',
 # }

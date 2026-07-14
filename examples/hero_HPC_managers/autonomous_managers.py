@@ -7,13 +7,15 @@ _machine_names = []
 _remote_usernames = {}
 _remote_hosts = {}
 _remote_dirs = {}
+_env_activate_cmds = {}
 
-def setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs):
-    global _machine_names, _remote_usernames, _remote_hosts, _remote_dirs
+def setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds):
+    global _machine_names, _remote_usernames, _remote_hosts, _remote_dirs, _env_activate_cmds
     _machine_names = machine_names
     _remote_usernames = remote_usernames
     _remote_hosts = remote_hosts
     _remote_dirs = remote_dirs
+    _env_activate_cmds = env_activate_cmds
     # Register signal handler
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -31,7 +33,7 @@ def run_remote_managers():
             "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
             "-o", "ConnectTimeout=30",  # Set connection timeout
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
-            f"cd {_remote_dirs[machine_name]} && nohup ./run_manager.sh {machine_name} > manager_{machine_name}.log 2>&1 &"
+            f"cd {_remote_dirs[machine_name]} && nohup ./run_manager.sh {machine_name} 0 '{_env_activate_cmds[machine_name]}' > manager_{machine_name}.log 2>&1 &"
         ]
         print(f"Launching manager on {machine_name}: {' '.join(ssh_command)}")
         try:
