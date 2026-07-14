@@ -164,3 +164,4 @@ adaptive_computing/hero_utils/set_hero_env_vars.py
 
 # HPC configuration files with personal machine/credential info
 **/hpc_config.py
+*.output.*
