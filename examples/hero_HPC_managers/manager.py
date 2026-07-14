@@ -90,6 +90,11 @@ def hero_manager():
                 print(f"Running command: {command}")
                 result = subprocess.run(command, shell=True, capture_output=True, text=True)
                 if result.returncode != 0:
+                    # QOS job limit reached: don't mark as error, just stop submitting
+                    # this cycle and retry in the next polling iteration.
+                    if 'QOSMaxSubmitJobPerUserLimit' in result.stderr or 'MaxSubmitJobsPerUser' in result.stderr:
+                        print(f"SLURM job limit reached. Will retry task {current_task['id']} in next polling cycle.")
+                        break
                     print("Error occurred during sbatch script.")
                     print("STDOUT:")
                     print(result.stdout)
