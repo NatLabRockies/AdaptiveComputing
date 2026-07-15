@@ -54,10 +54,10 @@ def hero_controller():
     # Add degrees tasks
     temp = np.linspace(0.7, 2.0, 5)
     for t in temp:
-        # Initialize slurm_job_id and running status for local processing
-        slurm_job_id = {machine: -1 for machine in machine_names}
+        # Initialize scheduler_job_id and running status for local processing
+        scheduler_job_id = {machine: -1 for machine in machine_names}
         running = {machine: False for machine in machine_names}
-        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': [t], 'y_data': None, 'slurm_job_id': slurm_job_id, 'running': running})
+        new_task = task_engine.add_task(queue_id=queue_record['id'], name='Test from Python', metatype='Task', metadata={'x_data': [t], 'y_data': None, 'scheduler_job_id': scheduler_job_id, 'running': running})
     print('All tasks submitted to Hero queue. Waiting for all tasks to be done...')
 
     while True:
@@ -70,7 +70,7 @@ def hero_controller():
         print(f'There are {len(ready_task_records)} tasks in the "ready" state.')
         if ready_task_records:
             for machine in machine_names:
-                queued_count = sum(1 for task in ready_task_records if task['metadata']['slurm_job_id'][machine] != -1)
+                queued_count = sum(1 for task in ready_task_records if task['metadata']['scheduler_job_id'][machine] != -1)
                 print(f'  {queued_count} queued on {machine}')
         
         # Analyze running tasks by machine
@@ -91,7 +91,7 @@ def hero_controller():
         # Check for done tasks still queued on machines (potential issue)
         if done_task_records:
             for task in done_task_records:
-                queued_machines = [m for m in machine_names if task['metadata']['slurm_job_id'][m] != -1]
+                queued_machines = [m for m in machine_names if task['metadata']['scheduler_job_id'][m] != -1]
                 if queued_machines:
                     print(f"WARNING: Task {task['id']} is done but still queued on: {queued_machines}")
                     print(f"  metadata: {task['metadata']}")

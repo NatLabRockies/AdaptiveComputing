@@ -20,7 +20,7 @@ def setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dir
     signal.signal(signal.SIGINT, signal_handler)
 
 def signal_handler(sig, frame):
-    print(f"\nReceived signal {sig}. Canceling all slurm jobs and then terminating the remote queue managers...")
+    print(f"\nReceived signal {sig}. Canceling all scheduler jobs and then terminating the remote queue managers...")
     cleanup_remote_managers()
     os._exit(0) # unlike sys.exit(0), os._exit(0) avoids sending SystemExit signal to Hero, which it doesn't know how to handle
 
@@ -108,7 +108,7 @@ def verify_remote_managers():
             print(f"{machine_name}: Connection failed - {e}")
 
 def cleanup_remote_managers():
-    print("\nCanceling all slurm jobs and then terminating the remote queue managers...")
+    print("\nCanceling all scheduler jobs and then terminating the remote queue managers...")
     for machine_name in _machine_names:
         ssh_command = [
             "ssh",
@@ -116,7 +116,7 @@ def cleanup_remote_managers():
             "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
             "-o", "ConnectTimeout=30",  # Set connection timeout
             f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
-            f"bash -l -c 'cd {_remote_dirs[machine_name]} && ./run_kill_slurm_jobs.sh {machine_name}'"
+            f"bash -l -c 'cd {_remote_dirs[machine_name]} && ./run_kill_scheduler_jobs.sh {machine_name}'"
         ]
         try:
             subprocess.run(ssh_command, check=True)

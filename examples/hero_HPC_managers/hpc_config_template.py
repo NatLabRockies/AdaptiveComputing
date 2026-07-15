@@ -35,7 +35,7 @@ scheduler = {
 # environment — edit its --partition and --account headers before use.
 # script_generic_pbs.sh is the equivalent for PBS systems (e.g. Aurora).
 # To add a higher-fidelity simulation, append a second script to each list.
-slurm_scripts = {
+batch_scripts = {
     'machine_a': ['simulation_files/script_generic.sh'],  # [fidelity_0, fidelity_1, ...]
     'machine_b': ['simulation_files/script_generic.sh'],
 }
@@ -62,7 +62,7 @@ env_activate_cmds = {
 #     'kestrel': 'slurm',
 #     'vermilion': 'slurm',
 # }
-# slurm_scripts = {
+# batch_scripts = {
 #     'kestrel': ['simulation_files/script_kestrel.sh'],    # NLR Kestrel: LAMMPS molecular dynamics
 #     'vermilion': ['simulation_files/script_vermilion.sh'] # NLR Vermilion: LAMMPS molecular dynamics
 # }
@@ -77,5 +77,5 @@ env_activate_cmds = {
 # remote_hosts = {'aurora': 'aurora-uan-0011.alcf.anl.gov'}
 # remote_dirs = {'aurora': '/home/your_alcf_username/AdaptiveComputing/examples/hero_HPC_managers/'}
 # scheduler = {'aurora': 'pbs'}
-# slurm_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}
+# batch_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}
 # env_activate_cmds = {'aurora': 'module load mamba && mamba activate AC'}

@@ -30,7 +30,7 @@ def create_task_formatter():
         return {
             'x_data': [temperature],  # Worker reads temperature from here
             'y_data': None,           # Worker will fill this in
-            'slurm_job_id': {'local': -1},  # Required by Hero queue monitoring
+            'scheduler_job_id': {'local': -1},  # Required by Hero queue monitoring
             'running': {'local': False}      # Required by Hero queue monitoring
         }
     

@@ -2,7 +2,8 @@
 #PBS -l select=1
 #PBS -l walltime=00:05:00
 #PBS -A SAFCombust
-#PBS -q capacity
+# #PBS -q capacity
+#PBS -q debug
 #PBS -l filesystems=home
 #PBS -N mock_simulation
 # Output/error files use PBS defaults: mock_simulation.oJOBID and mock_simulation.eJOBID
@@ -34,38 +35,18 @@ module load mamba
 eval "$(mamba shell hook --shell bash)"
 mamba activate AC
 
-echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name $i_fidelity"
-python -m adaptive_computing.hero_utils.hero_initialize \
-    "$task_id" "$machine_name" "$i_fidelity"
-
-return_code=$?
-
-if [ $return_code -eq 2 ]; then
-    echo "hero_initialize: task already running on another machine."
-    exit 0
-elif [ $return_code -ne 0 ]; then
-    echo "hero_initialize failed."
-    exit 1
-fi
-
 echo "Running mock simulation with temp=$temp"
-
 output=$(python mock_simulation.py "$temp")
-
 echo "$output"
 
+# Extract result from simulation output.
 result=$(echo "$output" | awk -F= '/^conductivity=/{print $2}' | tail -1)
-
 if [ -z "$result" ]; then
     result=-1
 fi
+echo "Result: conductivity=$result"
 
-echo "Conductivity passed to hero_finalize: $result"
-
-python -m adaptive_computing.hero_utils.hero_finalize \
-    "$result" "$task_id" "$machine_name" "$i_fidelity"
-
-if [ $? -ne 0 ]; then
-    echo "hero_finalize failed."
-    exit 1
-fi
+# Write result to a file for the manager to pick up and pass to hero_finalize.
+# hero_initialize and hero_finalize are called by the manager on the login node,
+# which has outbound internet access. Compute nodes may not.
+echo "$result" > "result_${task_id}.txt"

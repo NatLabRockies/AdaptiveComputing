@@ -44,40 +44,26 @@ if [ -z "$machine_name" ]; then
   exit 1
 fi
 
-# Load environment and claim the task in Hero before starting computation.
+# Load environment.
 # Note: some systems use 'module load conda' instead of 'module load mamba'.
 module load mamba
 mamba activate AC
-echo "Running command: python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name $i_fidelity"
-python -m adaptive_computing.hero_utils.hero_initialize $task_id $machine_name $i_fidelity
-return_code=$?
-if [ $return_code -eq 2 ]; then
-    echo "hero_initialize: task already running on another machine. Terminating this job successfully."
-    exit 0
-elif [ $return_code -ne 0 ]; then
-    echo "hero_initialize failed with code $return_code. Exiting."
-    exit 1
-fi
 
 # Run mock simulation (replace with your real simulation commands)
 cd $SLURM_SUBMIT_DIR
 echo "Running mock simulation with temp=$temp for task-id=$task_id"
-python mock_simulation.py $temp
+output=$(python mock_simulation.py "$temp")
+echo "$output"
 
-# Extract the conductivity result from the SLURM stdout file.
+# Extract result from simulation output.
 # mock_simulation.py prints a line of the form: conductivity=<value>
-JOBID=$SLURM_JOB_ID
-FILE="out_${JOBID}.out"
-result=$(grep "^conductivity=" "$FILE" | awk -F= '{print $2}' | tail -1)
+result=$(echo "$output" | grep "^conductivity=" | awk -F= '{print $2}' | tail -1)
 if [[ -z "$result" ]]; then
     result=-1
 fi
-echo "Conductivity passed to hero_finalize: $result"
+echo "Result: conductivity=$result"
 
-# Publish the result to Hero and mark the task as done.
-echo "Running command: python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name $i_fidelity"
-python -m adaptive_computing.hero_utils.hero_finalize $result $task_id $machine_name $i_fidelity
-if [ $? -ne 0 ]; then
-    echo "hero_finalize failed. Exiting."
-    exit 1
-fi
+# Write result to a file for the manager to pick up and pass to hero_finalize.
+# hero_initialize and hero_finalize are called by the manager on the login node,
+# which has outbound internet access. Compute nodes may not.
+echo "$result" > "result_${task_id}.txt"

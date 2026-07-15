@@ -60,12 +60,12 @@ def kill_slurm_jobs():
     running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
 
     for current_task in ready_tasks + running_tasks:
-        job_id = current_task['metadata']['slurm_job_id'].get(machine_name, -1)
+        job_id = current_task['metadata']['scheduler_job_id'].get(machine_name, -1)
         if job_id != -1:
             command = f"scancel {job_id}"
             print(f"Running: {command}")
             subprocess.run(command, shell=True, check=False)
-            current_task['metadata']['slurm_job_id'][machine_name] = -1
+            current_task['metadata']['scheduler_job_id'][machine_name] = -1
             task_engine.update_task(
                 task_id=current_task['id'], state='error',
                 name=current_task['name'], metadata=current_task['metadata'],

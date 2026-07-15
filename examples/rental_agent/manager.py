@@ -9,7 +9,7 @@ Each task's metadata carries:
     storage              str   "Grid" | "Storage-025" | ...
     number_of_daily_evs   int
     return_soc            int   25 | 35 | 45 | 55
-    slurm_job_id          dict  {machine_name: job_id | -1}
+    scheduler_job_id          dict  {machine_name: job_id | -1}
     running               dict  {machine_name: bool}
 """
 
@@ -81,7 +81,7 @@ def hero_manager():
             queue_id=queue_record["id"], metatype="Task", state="ready"
         )
         for current_task in ready_tasks:
-            if current_task["metadata"]["slurm_job_id"][machine_name] == -1:
+            if current_task["metadata"]["scheduler_job_id"][machine_name] == -1:
                 meta     = current_task["metadata"]
                 task_id  = current_task["id"]
 
@@ -147,7 +147,7 @@ def hero_manager():
                     print("sbatch error:")
                     print("  STDOUT:", result.stdout)
                     print("  STDERR:", result.stderr)
-                    current_task["metadata"]["slurm_job_id"][machine_name] = -1
+                    current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
                         task_id=current_task["id"], state="error",
@@ -156,7 +156,7 @@ def hero_manager():
                     continue
 
                 job_id = result.stdout.strip().split()[-1]
-                current_task["metadata"]["slurm_job_id"][machine_name] = job_id
+                current_task["metadata"]["scheduler_job_id"][machine_name] = job_id
                 task_engine.update_task(
                     task_id=current_task["id"], state="ready",
                     name=current_task["name"], metadata=current_task["metadata"],
@@ -165,7 +165,7 @@ def hero_manager():
 
             else:
                 # Already queued — check for Slurm errors
-                job_id       = current_task["metadata"]["slurm_job_id"][machine_name]
+                job_id       = current_task["metadata"]["scheduler_job_id"][machine_name]
                 status_check = subprocess.run(
                     f"sacct -j {job_id} --format=State --noheader",
                     shell=True, capture_output=True, text=True,
@@ -173,7 +173,7 @@ def hero_manager():
                 status = status_check.stdout.strip()
                 if any(s in status for s in ("FAILED", "CANCELLED", "TIMEOUT")):
                     print(f"Slurm job {job_id} in error state: {status}")
-                    current_task["metadata"]["slurm_job_id"][machine_name] = -1
+                    current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
                         task_id=current_task["id"], state="error",
@@ -188,17 +188,17 @@ def hero_manager():
         )
         for current_task in running_tasks:
             if not current_task["metadata"]["running"][machine_name]:
-                job_id = current_task["metadata"]["slurm_job_id"][machine_name]
+                job_id = current_task["metadata"]["scheduler_job_id"][machine_name]
                 if job_id != -1:
                     print(f"Cancelling Slurm job {job_id} (task claimed by another machine)")
                     subprocess.run(f"scancel {job_id}", shell=True)
-                    current_task["metadata"]["slurm_job_id"][machine_name] = -1
+                    current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     task_engine.update_task(
                         task_id=current_task["id"], state="running",
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
             else:
-                job_id       = current_task["metadata"]["slurm_job_id"][machine_name]
+                job_id       = current_task["metadata"]["scheduler_job_id"][machine_name]
                 status_check = subprocess.run(
                     f"sacct -j {job_id} --format=State --noheader",
                     shell=True, capture_output=True, text=True,
@@ -206,7 +206,7 @@ def hero_manager():
                 status = status_check.stdout.strip()
                 if any(s in status for s in ("FAILED", "CANCELLED", "TIMEOUT")):
                     print(f"Slurm job {job_id} failed: {status}")
-                    current_task["metadata"]["slurm_job_id"][machine_name] = -1
+                    current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
                         task_id=current_task["id"], state="error",

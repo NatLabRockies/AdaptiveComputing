@@ -24,7 +24,7 @@ try:
 except ModuleNotFoundError:
     print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
     exit(1)
-_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds', 'slurm_scripts']
+_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds', 'batch_scripts']
 _missing = [f for f in _required if not hasattr(hpc_config, f)]
 if _missing:
     _defined = [a for a in dir(hpc_config) if not a.startswith('_')]
@@ -33,12 +33,12 @@ if _missing:
     print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
     exit(1)
 
-def kill_slurm_jobs():
+def kill_scheduler_jobs():
     import sys
     if len(sys.argv) > 1:
         machine_name = sys.argv[1]
     else:
-        print("Missing the machine_name as a command line argument when kill_slurm_jobs.py is run.")
+        print("Missing the machine_name as a command line argument when kill_scheduler_jobs.py is run.")
     
     # Setup the HERO client and authenticate
     hero = HeroClient()
@@ -68,7 +68,7 @@ def kill_slurm_jobs():
     task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
     print(f'There are {len(task_records)} in the "done" state.')
 
-    # For all tasks, cancel any associated slurm job
+    # For all tasks, cancel any associated scheduler job
     ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
     running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
     error_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
@@ -90,16 +90,16 @@ def kill_slurm_jobs():
     
     # Cancel specific jobs from Hero queue (for completeness)
     for current_task in all_tasks:
-        if current_task['metadata']['slurm_job_id'][machine_name] != -1:
-            job_id = current_task['metadata']['slurm_job_id'][machine_name]
+        if current_task['metadata']['scheduler_job_id'][machine_name] != -1:
+            job_id = current_task['metadata']['scheduler_job_id'][machine_name]
             command = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
             print(f"Running command: {command}")
             try:
                 result = subprocess.run(command, shell=True, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Job may already be canceled: {e}")
-            current_task['metadata']['slurm_job_id'][machine_name] = -1
+            current_task['metadata']['scheduler_job_id'][machine_name] = -1
             task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
         
 if __name__ == "__main__":
-    kill_slurm_jobs()
+    kill_scheduler_jobs()

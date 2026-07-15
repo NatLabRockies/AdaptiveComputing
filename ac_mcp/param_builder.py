@@ -61,7 +61,7 @@ class _TaskFormatter:
             else:
                 meta[spec["name"]] = raw
         meta.update(self.fixed_context)
-        meta["slurm_job_id"] = {m: -1    for m in self.machine_names}
+        meta["scheduler_job_id"] = {m: -1    for m in self.machine_names}
         meta["running"]      = {m: False for m in self.machine_names}
         return meta
 
@@ -76,7 +76,7 @@ class _EvalFormatter:
         idx  = int(round(float(x_data_i[0])))
         meta = dict(self.jobs[idx])
         meta.setdefault("y_data", None)
-        meta["slurm_job_id"] = {m: -1    for m in self.machine_names}
+        meta["scheduler_job_id"] = {m: -1    for m in self.machine_names}
         meta["running"]      = {m: False for m in self.machine_names}
         return meta
 
@@ -88,7 +88,7 @@ def build_task_formatter(param_specs: list[dict], fixed_context: dict,
 
     The formatter maps x_data_i (1-D float array, one value per param_spec)
     to a metadata dict containing decoded param values, fixed_context fields,
-    and Hero bookkeeping keys (slurm_job_id, running).
+    and Hero bookkeeping keys (scheduler_job_id, running).
     """
     return _TaskFormatter(param_specs, fixed_context, machine_names)
 
