@@ -100,7 +100,7 @@ class ActiveLoopDriver:
         """
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
         y = self.evaluate_sample(x, i_fidelity=i_fidelity)
-        self.dataset.add_samples(x, y, i_fidelity=i_fidelity)
+        self.dataset.add_known_samples(x, y, i_fidelity=i_fidelity)
 
     def initialize(self, N_samples_init=3):
         """
@@ -135,7 +135,7 @@ class ActiveLoopDriver:
         """
         x, fi_eval = self.get_next_sample()
         y = self.evaluate_sample(x, fi_eval)
-        self.dataset.add_samples(x, y, i_fidelity=fi_eval)
+        self.dataset.add_known_samples(x, y, i_fidelity=fi_eval)
         if self.retrain:
             self.surrogate.train(self.dataset)
 
@@ -155,17 +155,20 @@ class ActiveLoopDriver:
         for i in range(N_steps):
             self.step()
 
-    def add_points(self, points, i_fidelity=0):
+    def add_samples(self, points, i_fidelity=0):
         """
-        Adds additional points to the dataset for evaluation.
+        Evaluates new input points (by calling the simulation function) and adds
+        them to the dataset. Blocking: waits for the evaluator to return y before
+        proceeding. For non-blocking Hero-based evaluation use the Hero driver.
 
         Args:
-            points (list or np.ndarray): Points to add to the dataset.
+            points (list or np.ndarray): Points to evaluate and add to the dataset.
+            i_fidelity (int): Fidelity level index.
         """
         for x in points:
             x = np.atleast_2d(x)
             y = self.evaluate_sample(x, i_fidelity)
-            self.dataset.add_samples(x, y, i_fidelity)
+            self.dataset.add_known_samples(x, y, i_fidelity)
 
     def evaluate_sample(self, points, i_fidelity):
         """
@@ -207,7 +210,7 @@ class ActiveLoopDriver:
         #     if not valid:
         #         print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
         #         y = self.evaluate_sample(points[[i]], i_fidelity=0)
-        #         self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+        #         self.dataset.add_known_samples(points[[i]], y, i_fidelity=0)
         #         if self.retrain:
         #             self.surrogate.train(self.dataset)
         #         # Note: do not return the simulation value. Instead, reevaluate the updated surrogate.
@@ -225,7 +228,7 @@ class ActiveLoopDriver:
             i = np.argmax(surrogate_variances)
             print(f"Variance exceeds threshold for x={points[i]}, running simulation and retraining.")
             y = self.evaluate_sample(points[[i]], i_fidelity=0)
-            self.dataset.add_samples(points[[i]], y, i_fidelity=0)
+            self.dataset.add_known_samples(points[[i]], y, i_fidelity=0)
             if self.retrain:
                 self.surrogate.train(self.dataset)
             # don't allow the same point to be evaluated again

@@ -175,21 +175,17 @@ class HeroDataset(DatasetBase):
 
         self.print_hero_queue()
 
-    def add_samples(self, x_data, y_data, i_fidelity):
+    def add_samples(self, x_data, i_fidelity):
         """
-        Adds a new sample to the hero queue.
-        The y_data is a placehold value (the surrogate's mean values or the argument can be set to None).
-        A Hero task is created and tracked.
-        hero_update_avail_data() is used to eventually overwrite the placeholder value with the hero result.
-        
+        Queues new samples in the Hero task system for asynchronous evaluation.
+        Placeholder y values (NaN) are stored until the manager returns real results.
+        Use add_known_samples() instead if you already have y values.
+
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
-            y_data (N Samples, N output dimensions): The output data placeholder value or None.
             i_fidelity (int): The fidelity level of the data.
         """
         x_data = np.asarray(x_data)
-        if y_data is not None:
-            y_data = np.asarray(y_data)
 
         self._validate_input(x_data, i_fidelity)
 
@@ -225,8 +221,7 @@ class HeroDataset(DatasetBase):
             print(f'Task submitted to Hero queue with x_data={x_data_i}')
 
         self._x_data[i_fidelity] = np.concatenate([self._x_data[i_fidelity], x_data])
-        if y_data is None:
-            y_data = np.full((len(x_data), self.n_out), np.nan)
+        y_data = np.full((len(x_data), self.n_out), np.nan)
         self._y_data[i_fidelity] = np.concatenate([self._y_data[i_fidelity], y_data])
         
         # For Hero tasks, all initial data is masked (unmasked=False) since it's placeholder data
@@ -240,15 +235,14 @@ class HeroDataset(DatasetBase):
         if self.blocking:
             self.hero_wait_for_data()
 
-    def add_samples_nohero(self, x_data, y_data, i_fidelity):
+    def add_known_samples(self, x_data, y_data, i_fidelity):
         """
-        Validates and adds new samples to the dataset.
-        The data including both input and output values are immediately added to the dataset.
-        No Hero task is created since the provided y_data values are treated as simulation results rather than placeholders.
-        
+        Validates and adds new samples with known output values to the dataset.
+        No Hero task is created — use this for pre-computed or experimental data.
+
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
-            y_data (N Samples, N output dimensions): The output data.
+            y_data (N Samples, N output dimensions): The known output data.
             i_fidelity (int): The fidelity level of the data.
         """
         self._validate_input(x_data, i_fidelity)

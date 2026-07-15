@@ -319,7 +319,7 @@ def predict(experiment_id: str, x_points: list[list]) -> dict:
         blocking=False,
         task_formatter=None,
     )
-    driver.dataset.add_samples_nohero(x_data, y_data, 0)
+    driver.dataset.add_known_samples(x_data, y_data, 0)
     driver.surrogate.train(driver.dataset)
 
     x_arr     = np.array(x_points, dtype=float)

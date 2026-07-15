@@ -14,7 +14,7 @@ class DatasetBase():
     Methods:
         x_data (property): Returns the input data.
         y_data (property): Returns the output data.
-        add_samples(x_data, y_data, i_fidelity): Adds new samples to the dataset after validation.
+        add_known_samples(x_data, y_data, i_fidelity): Adds new samples to the dataset after validation.
         N_samples (property): Returns the number of samples at each fidelity level.
         _sampler_ranges (property): Returns the ranges for sampling.
     """
@@ -264,10 +264,11 @@ class DatasetBase():
 
         return x_data, y_data, unmasked_data
             
-    def add_samples(self, x_data, y_data, i_fidelity=0):
+    def add_known_samples(self, x_data, y_data, i_fidelity=0):
         """
-        Validates and adds new samples to the dataset.
-        
+        Validates and adds new samples with known output values to the dataset.
+        Use this when you already have y values (e.g. pre-computed or experimental data).
+
         Args:
             x_data (N Samples, N input dimensions) array: The input data.
             y_data (N Samples, N output dimensions): The output data.

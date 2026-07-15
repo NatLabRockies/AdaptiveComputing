@@ -60,7 +60,7 @@ class TestSurrogateOutputSelection:
         else:
             raise ValueError(f"Unsupported n_out: {n_out}")
             
-        dataset.add_samples(self.x_train, y_data)
+        dataset.add_known_samples(self.x_train, y_data)
         return dataset
 
 
@@ -260,7 +260,7 @@ class TestOutputSelectionIntegration:
         y_data = np.array([[x[0], x[0]**2] for x in x_data])  # y0 = x, y1 = x^2
         
         dataset = DatasetBase(params=self.params, n_fidelity=1, n_out=2)
-        dataset.add_samples(x_data, y_data)
+        dataset.add_known_samples(x_data, y_data)
         
         # Train SMT and SOOGO on same outputs
         smt_gp0 = SMT_GP(dataset, i_output=0)

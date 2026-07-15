@@ -17,10 +17,10 @@ def test_oob_handling():
                      n_fidelity=1,
                      )
     assert ds.nan_behavior == 'fail'
-    ds.add_samples([[1.0]], [[1.0]],0)
+    ds.add_known_samples([[1.0]], [[1.0]],0)
 
     with pytest.raises(ValueError) as e_info:
-        ds.add_samples([[1.0]],[[np.nan]],0)
+        ds.add_known_samples([[1.0]],[[np.nan]],0)
 
     # Ignore and mask
     ds = DatasetBase([ContinuousVariable(min=0, max=10)],
@@ -29,8 +29,8 @@ def test_oob_handling():
                      )
 
     assert ds.nan_behavior == 'mask_ignore'
-    ds.add_samples([[1.0]], [[1.0]],0)
-    ds.add_samples([[1.0]],[[np.nan]],0)
+    ds.add_known_samples([[1.0]], [[1.0]],0)
+    ds.add_known_samples([[1.0]],[[np.nan]],0)
 
     # With new masking behavior, all data is kept but masked status is tracked
     assert (ds.x_data[0].shape == (2,1))  # Both data points are kept
@@ -54,9 +54,9 @@ def test_oob_handling():
                      y_bounds=(0,1)
                      )
 
-    ds.add_samples([[1.0]], [[1.0]],0)
+    ds.add_known_samples([[1.0]], [[1.0]],0)
     with pytest.raises(ValueError) as e_info:
-        ds.add_samples([[1.0]],[[5.0]],0)
+        ds.add_known_samples([[1.0]],[[5.0]],0)
     return
 
 if __name__ == "__main__":

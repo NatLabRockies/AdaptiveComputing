@@ -46,7 +46,7 @@ class TestInheritanceBasedMasking:
         )
         
         # Add the data
-        self.dataset.add_samples(self.x_train, self.y_train)
+        self.dataset.add_known_samples(self.x_train, self.y_train)
         
     def test_automatic_data_filtering(self):
         """Test that the base class automatically filters masked data."""
@@ -147,7 +147,7 @@ class TestInheritanceBasedMasking:
             n_fidelity=1,
             nan_behavior='mask_ignore'
         )
-        dataset_all_masked.add_samples(x_valid, y_all_nan)
+        dataset_all_masked.add_known_samples(x_valid, y_all_nan)
         
         surrogate = SMT_GP(dataset_all_masked)
         

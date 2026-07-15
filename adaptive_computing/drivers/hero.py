@@ -26,29 +26,38 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
         
     def _initialize_fidelity(self, i_fidelity, N_samples_init=3):
         """
-        Initializes a fidelity level with initial samples. No placeholder values for y_data are provided since these are random samples typically used to initialize the surrogate.
+        Initializes a fidelity level by queuing random LHS samples in the Hero task system.
 
         Args:
             i_fidelity (int): Fidelity level index.
             N_samples_init (int, optional): Number of initial samples to generate. Defaults to 3.
         """
         x = self.init_sampler.get_sample(N_samples=N_samples_init)
-        y = None
-        self.dataset.add_samples(x, y, i_fidelity=i_fidelity)
-    
-    def evaluate_sample(self, points, i_fidelity):
+        self.dataset.add_samples(x, i_fidelity=i_fidelity)
+
+    def add_samples(self, points, i_fidelity=0):
         """
-        return the surrogate's prediction value as a placeholder, since real output will be computed by a hero manager.
-        The task is created and the hero_todo list and masking list are updated by add_samples
+        Queues input points in the Hero task system for asynchronous evaluation.
+        Non-blocking: returns immediately after creating the Hero tasks.
+        Call hero_wait_for_data_and_train() to wait for results.
 
         Args:
-            points (N samples, N input dimension): Sample points to evaluate.
+            points (list or np.ndarray): Points to queue for evaluation.
             i_fidelity (int): Fidelity level index.
+        """
+        for x in points:
+            x = np.atleast_2d(x)
+            self.dataset.add_samples(x, i_fidelity)
 
-        Returns:
-            y (N samples, N Output dimension): Estimated values.
-        """     
-        return self.surrogate.predict_values(points)
+    def step(self):
+        """
+        Executes one step of the active learning loop: selects the next sample
+        using the acquisition function and queues it as a Hero task.
+        """
+        x, fi_eval = self.get_next_sample()
+        self.dataset.add_samples(x, i_fidelity=fi_eval)
+        if self.retrain:
+            self.surrogate.train(self.dataset)
     
     def hero_wait_for_data_and_train(self):
         self.dataset.hero_wait_for_data()

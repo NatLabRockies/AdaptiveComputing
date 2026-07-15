@@ -24,7 +24,7 @@ class TestDatasetMasking:
         x_test = np.array([[1.0], [2.0], [3.0], [4.0]])
         y_test = np.array([[10.0], [np.nan], [30.0], [40.0]])  # Second point has NaN
         
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify mask correctly identifies valid points (sample-level)
         expected_mask = np.array([True, False, True, True])  # Second point should be masked
@@ -47,7 +47,7 @@ class TestDatasetMasking:
         x_test = np.array([[1.0], [2.0], [3.0], [4.0]])
         y_test = np.array([[10.0], [100.0], [30.0], [-5.0]])  # Second and fourth points are OOB
         
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify that OOB points are masked (sample-level)
         expected_mask = np.array([True, False, True, False])  # Second and fourth points should be masked
@@ -63,7 +63,7 @@ class TestDatasetMasking:
         x_test = np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]])
         y_test = np.array([[10.0], [np.nan], [30.0], [40.0]])  # Second point has NaN
         
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify mask correctly identifies valid points (sample-level)
         expected_mask = np.array([True, False, True, True])
@@ -78,7 +78,7 @@ class TestDatasetMasking:
         # Add data with some masked points
         x_test = np.array([[1.0], [2.0], [3.0]])
         y_test = np.array([[10.0], [np.nan], [30.0]]) 
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Test that unmasked data excludes NaN points
         x_unmasked, y_unmasked = dataset.get_unmasked_data(0)
@@ -93,7 +93,7 @@ class TestDatasetMasking:
         # Add training data with some NaN points
         x_train = np.array([[1.0], [2.0], [3.0], [4.0], [5.0]])
         y_train = np.array([[10.0], [np.nan], [30.0], [np.nan], [50.0]])  # 2nd and 4th points are NaN
-        dataset.add_samples(x_train, y_train)
+        dataset.add_known_samples(x_train, y_train)
         
         # Get unmasked data
         x_valid, y_valid = dataset.get_unmasked_data(0)
@@ -113,7 +113,7 @@ class TestDatasetMasking:
         y_test = np.array([[10.0], [np.nan]])
         
         with pytest.raises(ValueError, match="NaN values detected"):
-            dataset.add_samples(x_test, y_test)
+            dataset.add_known_samples(x_test, y_test)
 
 
 class TestSurrogateMasking:
@@ -128,7 +128,7 @@ class TestSurrogateMasking:
         # Add training data with NaN points
         x_train = np.array([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0], [5.0, 5.0], [6.0, 6.0]])
         y_train = np.array([[1.0], [4.0], [9.0], [16.0], [25.0], [np.nan]])  # Last point has NaN
-        dataset.add_samples(x_train, y_train)
+        dataset.add_known_samples(x_train, y_train)
         
         # Verify masking worked
         # Verify that 5 out of 6 points are valid (1 masked)
@@ -156,7 +156,7 @@ class TestSurrogateMasking:
         # Add data with masked points
         x_train = np.array([[1.0], [2.0], [3.0], [4.0]])
         y_train = np.array([[1.0], [np.nan], [9.0], [16.0]])
-        dataset.add_samples(x_train, y_train)
+        dataset.add_known_samples(x_train, y_train)
         
         # Get unmasked data directly
         x_unmasked, y_unmasked = dataset.get_unmasked_data(0)
@@ -185,7 +185,7 @@ class TestMaskingEdgeCases:
         # Add data where all points are NaN
         x_test = np.array([[1.0], [2.0], [3.0]])
         y_test = np.array([[np.nan], [np.nan], [np.nan]])
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify all points are masked
         # All data should be masked since all have NaN
@@ -205,7 +205,7 @@ class TestMaskingEdgeCases:
         # Add data with no NaN values
         x_test = np.array([[1.0], [2.0], [3.0]])
         y_test = np.array([[10.0], [20.0], [30.0]])
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify no points are masked
         # All should be valid (no masking)
@@ -225,7 +225,7 @@ class TestMaskingEdgeCases:
         # Add data with both NaN and OOB values
         x_test = np.array([[1.0], [2.0], [3.0], [4.0]])
         y_test = np.array([[10.0], [np.nan], [100.0], [40.0]])  # NaN at index 1, OOB at index 2
-        dataset.add_samples(x_test, y_test)
+        dataset.add_known_samples(x_test, y_test)
         
         # Verify both points are masked
         expected_unmasked = np.array([[True], [False], [False], [True]])  # Only indices 0 and 3 are valid

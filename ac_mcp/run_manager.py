@@ -311,7 +311,7 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
 
             # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
             x_all = np.array([[i] for i in range(n)], dtype=float)
-            driver.dataset.add_samples(x_all, None, 0)
+            driver.dataset.add_samples(x_all, 0)
             _wait_with_watchdog(driver.dataset.hero_wait_for_data, hpc, rs,
                                 "evaluation")
 
@@ -417,7 +417,7 @@ def _opt_worker(run_id: str, entry: dict,
                       + (f" ({n_dupes} duplicates removed)" if n_dupes else ""))
                 _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]"
                         + (f" ({n_dupes} dupes removed)" if n_dupes else ""))
-                driver.dataset.add_samples_nohero(prior["x_valid"], prior["y_valid"], 0)
+                driver.dataset.add_known_samples(prior["x_valid"], prior["y_valid"], 0)
                 driver.surrogate.train(driver.dataset)
                 driver._bopt_initialized = True   # prevent run() from calling initialize() again
                 results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
