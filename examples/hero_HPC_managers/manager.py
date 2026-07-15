@@ -123,24 +123,27 @@ def hero_manager():
     for state in ('ready', 'error'):
         stale_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state=state)
         for task in stale_tasks:
-            job_id = task['metadata']['scheduler_job_id'][machine_name]
-            needs_reset = False
-            if state == 'error':
-                print(f"  Resetting error task {task['id']} to ready for retry")
-                needs_reset = True
-            elif job_id != -1:
-                # Check if the job still exists in the scheduler
-                if scheduler_type == 'pbs':
-                    check = subprocess.run(f"qstat {job_id}", shell=True, capture_output=True, text=True)
-                else:
-                    check = subprocess.run(f"squeue -j {job_id} --noheader", shell=True, capture_output=True, text=True)
-                if check.returncode != 0 or not check.stdout.strip():
-                    print(f"  Stale job ID {job_id} for task {task['id']} not found in scheduler — resetting")
+            try:
+                job_id = (task.get('metadata') or {}).get('scheduler_job_id', {}).get(machine_name, -1)
+                needs_reset = False
+                if state == 'error':
+                    print(f"  Resetting error task {task['id']} to ready for retry")
                     needs_reset = True
-            if needs_reset:
-                task['metadata']['scheduler_job_id'][machine_name] = -1
-                task['metadata']['running'][machine_name] = False
-                task_engine.update_task(task_id=task['id'], state='ready', name=task['name'], metadata=task['metadata'])
+                elif job_id != -1:
+                    # Check if the job still exists in the scheduler
+                    if scheduler_type == 'pbs':
+                        check = subprocess.run(f"qstat -x {job_id}", shell=True, capture_output=True, text=True)
+                    else:
+                        check = subprocess.run(f"squeue -j {job_id} --noheader", shell=True, capture_output=True, text=True)
+                    if check.returncode != 0 or not check.stdout.strip():
+                        print(f"  Stale job ID {job_id} for task {task['id']} not found in scheduler — resetting")
+                        needs_reset = True
+                if needs_reset:
+                    task['metadata']['scheduler_job_id'][machine_name] = -1
+                    task['metadata']['running'][machine_name] = False
+                    task_engine.update_task(task_id=task['id'], state='ready', name=task['name'], metadata=task['metadata'])
+            except Exception as e:
+                print(f"  WARNING: reconciliation failed for task {task['id']}: {e}")
     print('Startup reconciliation complete.')
     
     while True:
@@ -160,6 +163,9 @@ def hero_manager():
         # Pass 1: Check PBS/SLURM status for already-submitted tasks (job_id != -1).
         # This must run before Pass 2 so that a job-limit break in Pass 2 does not
         # skip status checks for jobs that are already running or completed.
+        # Tasks handled here are recorded in pass1_processed so Pass 2 does not
+        # resubmit them in the same poll cycle.
+        pass1_processed = set()
         for current_task in ready_tasks:
             if current_task['metadata']['scheduler_job_id'][machine_name] == -1:
                 continue  # not yet submitted — handled in Pass 2
@@ -170,6 +176,26 @@ def hero_manager():
             else:
                 status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                 status = status_check.stdout.strip()
+                if not status:
+                    # sacct has no record yet (job may still be pending). Check squeue before resetting.
+                    squeue_check = subprocess.run(f"squeue -j {job_id} --noheader", shell=True, capture_output=True, text=True)
+                    if squeue_check.stdout.strip():
+                        # Job is queued/pending (e.g. QOSMaxJobsPerUserLimit) — nothing to do this cycle.
+                        status = 'PENDING'
+                    else:
+                        # Not in sacct or squeue. Check result file before treating as stale —
+                        # sacct can lag minutes behind on some systems (e.g. debug partition).
+                        result_file = f"result_{current_task['id']}.txt"
+                        if os.path.exists(result_file):
+                            # Job finished and wrote result before sacct updated — treat as completed.
+                            status = 'COMPLETED'
+                        else:
+                            # Truly stale (no result file, not in any scheduler record). Reset so it gets resubmitted.
+                            print(f"Job {job_id} not found in sacct or squeue for task {current_task['id']} — stale, resetting to unsubmitted.")
+                            current_task['metadata']['scheduler_job_id'][machine_name] = -1
+                            current_task['metadata']['running'][machine_name] = False
+                            task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
+                            continue
             if 'RUNNING' in status and not current_task['metadata']['running'][machine_name]:
                 print(f"Job {job_id} is running for task {current_task['id']} — calling hero_initialize")
                 rc = _call_hero_initialize(current_task['id'], machine_name, i_fidelity)
@@ -183,12 +209,14 @@ def hero_manager():
                     subprocess.run(cancel_cmd, shell=True)
                     current_task['metadata']['scheduler_job_id'][machine_name] = -1
                     task_engine.update_task(task_id=current_task['id'], state='running', name=current_task['name'], metadata=current_task['metadata'])
+                    pass1_processed.add(current_task['id'])
                 else:
                     print(f"hero_initialize failed with code {rc} for task {current_task['id']}. Canceling job and marking error.")
                     cancel_cmd = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
                     subprocess.run(cancel_cmd, shell=True)
                     current_task['metadata']['scheduler_job_id'][machine_name] = -1
                     task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                    pass1_processed.add(current_task['id'])
             elif 'COMPLETED' in status:
                 result_file = f"result_{current_task['id']}.txt"
                 result_value = "-1"
@@ -204,24 +232,30 @@ def hero_manager():
                         print(f"Task {current_task['id']}: already claimed by another machine (job completed).")
                         current_task['metadata']['scheduler_job_id'][machine_name] = -1
                         task_engine.update_task(task_id=current_task['id'], state='running', name=current_task['name'], metadata=current_task['metadata'])
+                        pass1_processed.add(current_task['id'])
                         continue
                     elif rc != 0:
                         print(f"hero_initialize failed (code {rc}) on completed job {job_id}. Marking as error.")
                         current_task['metadata']['scheduler_job_id'][machine_name] = -1
                         task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                        pass1_processed.add(current_task['id'])
                         continue
                 print(f"Job {job_id} completed for task {current_task['id']}, result={result_value}. Calling hero_finalize.")
                 _call_hero_finalize(result_value, current_task['id'], machine_name, i_fidelity)
-                current_task['metadata']['scheduler_job_id'][machine_name] = -1
-                current_task['metadata']['running'][machine_name] = False
+                # Task is now 'done' in Hero. Do NOT reset scheduler_job_id locally —
+                # leaving it non-(-1) ensures Pass 2 skips this task this cycle.
+                pass1_processed.add(current_task['id'])
             elif any(x in status for x in ['FAILED', 'CANCELLED', 'TIMEOUT']):
                 print("Job error detected.")
                 current_task['metadata']['scheduler_job_id'][machine_name] = -1
                 current_task['metadata']['running'][machine_name] = False
                 task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                pass1_processed.add(current_task['id'])
 
         # Pass 2: Submit new jobs for tasks that don't have a job yet.
         for current_task in ready_tasks:
+            if current_task['id'] in pass1_processed:
+                continue  # already handled in Pass 1 this cycle
             if current_task['metadata']['scheduler_job_id'][machine_name] != -1:
                 continue  # already submitted — handled in Pass 1
             t = current_task['metadata']['x_data'][0]
@@ -296,6 +330,21 @@ def hero_manager():
                 else:
                     status_check = subprocess.run(f"sacct -j {job_id} --format=State --noheader", shell=True, capture_output=True, text=True)
                     status = status_check.stdout.strip()
+                    if not status:
+                        squeue_check = subprocess.run(f"squeue -j {job_id} --noheader", shell=True, capture_output=True, text=True)
+                        if squeue_check.stdout.strip():
+                            status = 'PENDING'  # still queued, nothing to do this cycle
+                        else:
+                            # Not in sacct or squeue. Check result file before marking as error.
+                            result_file = f"result_{current_task['id']}.txt"
+                            if os.path.exists(result_file):
+                                status = 'COMPLETED'
+                            else:
+                                print(f"Job {job_id} not found in sacct or squeue for running task {current_task['id']} — marking as error.")
+                                current_task['metadata']['scheduler_job_id'][machine_name] = -1
+                                current_task['metadata']['running'][machine_name] = False
+                                task_engine.update_task(task_id=current_task['id'], state='error', name=current_task['name'], metadata=current_task['metadata'])
+                                continue
                 if 'COMPLETED' in status:
                     # Job finished — read result file written by the batch script and call
                     # hero_finalize from the login node (internet access guaranteed here).

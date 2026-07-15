@@ -58,7 +58,7 @@ cp hpc_config_template.py hpc_config.py
 The configuration file contains SSH connection details, remote paths, scheduler type (`slurm` or `pbs`), and batch script names for your HPC systems.
 
 **Simulation scripts** (in `simulation_files/`):
-- **script_generic.sh** — portable SLURM script that runs `mock_simulation.py`. Works on any cluster with mamba/conda and the AC environment. **You must edit the `--partition` and `--account` directives before use** (see step 5 below).
+- **script_generic_slurm.sh** — portable SLURM script that runs `mock_simulation.py`. Works on any cluster with mamba/conda and the AC environment. **You must edit the `--partition` and `--account` directives before use** (see step 5 below).
 - **script_generic_pbs.sh** — equivalent PBS script for systems using `qsub` (e.g. Aurora). **You must edit the `#PBS -A` account directive before use** (see step 5 below).
 - **script_kestrel.sh** / **script_vermilion.sh** — NLR internal scripts that load LAMMPS and run real molecular dynamics simulations. For use on Kestrel and Vermilion only.
 
@@ -66,7 +66,7 @@ The configuration file contains SSH connection details, remote paths, scheduler 
 
 ## 5. Edit the Batch Script
 
-**For SLURM systems**, open `simulation_files/script_generic.sh` and update the two cluster-specific directives near the top:
+**For SLURM systems**, open `simulation_files/script_generic_slurm.sh` and update the two cluster-specific directives near the top:
 
 ```bash
 #SBATCH --partition=<YOUR_PARTITION>   # e.g. 'debug', 'standard', 'compute'

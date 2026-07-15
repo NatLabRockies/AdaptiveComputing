@@ -30,19 +30,21 @@ i_fidelity=${4:-0}
 
 if [ -z "$temp" ]; then
   echo "Error: No temperature value provided."
-  echo "Usage: sbatch script_generic.sh <temp> <task-id> <machine_name> [i_fidelity]"
+  echo "Usage: sbatch script_generic_slurm.sh <temp> <task-id> <machine_name> [i_fidelity]"
   exit 1
 fi
 if [ -z "$task_id" ]; then
   echo "Error: No task-id provided."
-  echo "Usage: sbatch script_generic.sh <temp> <task-id> <machine_name> [i_fidelity]"
+  echo "Usage: sbatch script_generic_slurm.sh <temp> <task-id> <machine_name> [i_fidelity]"
   exit 1
 fi
 if [ -z "$machine_name" ]; then
   echo "Error: No machine_name provided."
-  echo "Usage: sbatch script_generic.sh <temp> <task-id> <machine_name> [i_fidelity]"
+  echo "Usage: sbatch script_generic_slurm.sh <temp> <task-id> <machine_name> [i_fidelity]"
   exit 1
 fi
+
+cd "$SLURM_SUBMIT_DIR"
 
 # Load environment.
 # Note: some systems use 'module load conda' instead of 'module load mamba'.
@@ -50,15 +52,14 @@ module load mamba
 mamba activate AC
 
 # Run mock simulation (replace with your real simulation commands)
-cd $SLURM_SUBMIT_DIR
 echo "Running mock simulation with temp=$temp for task-id=$task_id"
 output=$(python mock_simulation.py "$temp")
 echo "$output"
 
 # Extract result from simulation output.
 # mock_simulation.py prints a line of the form: conductivity=<value>
-result=$(echo "$output" | grep "^conductivity=" | awk -F= '{print $2}' | tail -1)
-if [[ -z "$result" ]]; then
+result=$(echo "$output" | awk -F= '/^conductivity=/{print $2}' | tail -1)
+if [ -z "$result" ]; then
     result=-1
 fi
 echo "Result: conductivity=$result"

@@ -31,13 +31,13 @@ scheduler = {
 
 # Batch scripts to run for each machine, indexed by fidelity level.
 # Each entry is a list where index 0 = lowest fidelity, index 1 = next, etc.
-# script_generic.sh works on any SLURM system with mamba/conda and the AC
+# script_generic_slurm.sh works on any SLURM system with mamba/conda and the AC
 # environment — edit its --partition and --account headers before use.
 # script_generic_pbs.sh is the equivalent for PBS systems (e.g. Aurora).
 # To add a higher-fidelity simulation, append a second script to each list.
 batch_scripts = {
-    'machine_a': ['simulation_files/script_generic.sh'],  # [fidelity_0, fidelity_1, ...]
-    'machine_b': ['simulation_files/script_generic.sh'],
+    'machine_a': ['simulation_files/script_generic_slurm.sh'],  # [fidelity_0, fidelity_1, ...]
+    'machine_b': ['simulation_files/script_generic_slurm.sh'],
 }
 
 # Command used to activate the Python environment on each remote machine.

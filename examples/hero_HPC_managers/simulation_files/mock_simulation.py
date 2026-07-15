@@ -4,7 +4,7 @@ Mock simulation for the generic HPC tutorial.
 
 Computes conductivity = temperature^2 / 1000 to stand in for a real
 simulation (e.g., LAMMPS molecular dynamics). The result is printed
-in the format 'conductivity=<value>' so that script_generic.sh can
+in the format 'conductivity=<value>' so that script_generic_slurm.sh can
 parse it with grep/awk — mirroring how script_kestrel.sh parses the
 LAMMPS output file.
 
@@ -34,7 +34,7 @@ def main():
     # Compute result: same formula used in examples/hero/worker.py
     conductivity = temp * temp / 1000.0
 
-    # Print result in parseable format — script_generic.sh greps this line
+    # Print result in parseable format — script_generic_slurm.sh greps this line
     print(f"conductivity={conductivity}")
     print(f"Mock simulation complete: temp={temp:.4f} -> conductivity={conductivity:.6f}")
 
