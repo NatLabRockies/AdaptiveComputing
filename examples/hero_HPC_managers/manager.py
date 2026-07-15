@@ -270,9 +270,9 @@ def hero_manager():
                 script_dir = os.path.dirname(os.path.abspath(__file__))
                 absolute_script_path = os.path.join(script_dir, script_name)
                 if scheduler_type == 'pbs':
-                    command = f"qsub -v \"temp={t},task_id={current_task['id']},machine_name={machine_name},i_fidelity={i_fidelity}\" {absolute_script_path}"
+                    command = f"qsub -v \"temp={t},task_id={current_task['id']}\" {absolute_script_path}"
                 else:
-                    command = f"sbatch {absolute_script_path} {t} {current_task['id']} {machine_name} {i_fidelity}"
+                    command = f"sbatch {absolute_script_path} {t} {current_task['id']}"
             else:
                 raise Exception(f"The machine name '{machine_name}' is not configured in hpc_config.batch_scripts. Available machines: {list(hpc_config.batch_scripts.keys())}")
             print(f"Running command: {command}")

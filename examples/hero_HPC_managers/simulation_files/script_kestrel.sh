@@ -9,24 +9,16 @@
 
 temp=$1
 task_id=$2
-machine_name=$3
-i_fidelity=${4:-0}
 
 if [ -z "$temp" ]; then
   echo "Error: No temperature value provided."
-  echo "Usage: sbatch script_kestrel.sh <temp> <task-id> <machine_name> [i_fidelity]"
+  echo "Usage: sbatch script_kestrel.sh <temp> <task-id>"
   exit 1
 fi
 
 if [ -z "$task_id" ]; then
   echo "Error: No task-id provided."
-  echo "Usage: sbatch script_kestrel.sh <temp> <task-id> <machine_name> [i_fidelity]"
-  exit 1
-fi
-
-if [ -z "$machine_name" ]; then
-  echo "Error: No machine_name provided."
-  echo "Usage: sbatch script_kestrel.sh <temp> <task-id> <machine_name> [i_fidelity]"
+  echo "Usage: sbatch script_kestrel.sh <temp> <task-id>"
   exit 1
 fi
 

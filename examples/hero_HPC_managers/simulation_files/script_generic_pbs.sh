@@ -20,25 +20,15 @@
 # Args passed by manager.py via qsub -v:
 #   temp         temperature value
 #   task_id      Hero task ID
-#   machine_name machine name (as defined in hpc_config.py)
-#   i_fidelity   fidelity level (optional, defaults to 0)
-
-# Variables passed via qsub -v: temp, task_id, machine_name, i_fidelity
-i_fidelity=${i_fidelity:-0}
 
 if [ -z "$temp" ]; then
     echo "Error: No temperature value provided."
-    echo 'Usage: qsub -v "temp=<val>,task_id=<id>,machine_name=<name>[,i_fidelity=<n>]" script_generic_pbs.sh'
+    echo 'Usage: qsub -v "temp=<val>,task_id=<id>" script_generic_pbs.sh'
     exit 1
 fi
 
 if [ -z "$task_id" ]; then
     echo "Error: No task_id provided."
-    exit 1
-fi
-
-if [ -z "$machine_name" ]; then
-    echo "Error: No machine_name provided."
     exit 1
 fi
 

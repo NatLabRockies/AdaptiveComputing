@@ -83,9 +83,9 @@ if __name__ == '__main__':
     print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
     # 2) Bayesian optimization. Use an acquisition function to determine which x values to add. y_data placeholder values are computed using the surrogate.
     ac_driver._bopt_initialized = True # Skip additional initialization of the surrogate since already initialized it above
-    print(f'About to run(N_steps=5)...')
-    ac_driver.run(N_steps=5)
-    print(f'After run(N_steps=5):')
+    print(f'About to run(N_steps=2)...')
+    ac_driver.run(N_steps=2)
+    print(f'After run(N_steps=2):')
     print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
     # Print the data before and after a hero wait
