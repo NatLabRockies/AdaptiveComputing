@@ -397,8 +397,10 @@ class HeroDataset(DatasetBase):
             done_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='done')
 
             # Initialize dictionaries to track queued and running tasks for each machine
-            queued_machine = {machine: np.array([task['metadata']['scheduler_job_id'].get(machine, -1) != -1 for task in ready_task_records]) for machine in self.machine_names}
-            running_machine = {machine: np.array([task['metadata']['running'].get(machine, False) for task in running_task_records]) for machine in self.machine_names}
+            # Use .get() chains at every level so tasks created by a custom task_formatter
+            # that omits scheduler_job_id / running keys don't raise KeyError.
+            queued_machine = {machine: np.array([task.get('metadata', {}).get('scheduler_job_id', {}).get(machine, -1) != -1 for task in ready_task_records]) for machine in self.machine_names}
+            running_machine = {machine: np.array([task.get('metadata', {}).get('running', {}).get(machine, False) for task in running_task_records]) for machine in self.machine_names}
 
             # Ready jobs
             total_ready_jobs = len(ready_task_records)
@@ -438,7 +440,7 @@ class HeroDataset(DatasetBase):
 
             # Check for done tasks that are still queued on any other machine
             for task in done_task_records:
-                queued_on_machines = [machine for machine in self.machine_names if task['metadata']['scheduler_job_id'].get(machine, -1) != -1]
+                queued_on_machines = [machine for machine in self.machine_names if task.get('metadata', {}).get('scheduler_job_id', {}).get(machine, -1) != -1]
                 if len(queued_on_machines) > 1:
                     print(f"Task {task['id']} is done but still queued on: {', '.join(queued_on_machines)}.")
                     raise Exception(f"Error: Task {task['id']} is done but still queued on another machine.")
