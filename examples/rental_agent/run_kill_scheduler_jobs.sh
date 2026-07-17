@@ -4,7 +4,7 @@ SESSION_NAME="manager_session"
 # Get the directory of the currently executing script
 WORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-LOG_FILE="$WORK_DIR/kill_slurm_jobs.output.$1"
+LOG_FILE="$WORK_DIR/kill_scheduler_jobs.output.$1"
 
 # Stop manager.py and kill its tmux session synchronously so that this SSH
 # call (from cleanup_remote_managers) does not return until cleanup is done.

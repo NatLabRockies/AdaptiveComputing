@@ -29,6 +29,10 @@ PYTHON="/home/kgriffin/.conda-envs/AC/bin/python"
 tmux new-session -d -s "$SESSION" \
     "cd '$AC_ROOT' && '$PYTHON' -m ac_mcp.server --storage-dir '$STORAGE_DIR' --port $PORT 2>&1 | tee /tmp/ac_mcp_server.log"
 
+echo "AC MCP server started in tmux session '$SESSION' on $(hostname)."
+echo "  Logs:  tail -f /tmp/ac_mcp_server.log"
+echo "  Stop:  $(dirname "$0")/stop_server.sh    (or: tmux kill-session -t $SESSION)"
+
 echo "AC MCP server starting on $(hostname):$PORT"
 echo "Storage dir: $STORAGE_DIR"
 echo "Logs: tmux attach -t $SESSION   or   tail -f /tmp/ac_mcp_server.log"

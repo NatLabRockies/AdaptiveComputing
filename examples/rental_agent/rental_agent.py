@@ -1547,7 +1547,24 @@ def run_agent(user_request: str):
     return final
 
 
+def _stop_mcp_server() -> None:
+    """Kill the ac_mcp_server tmux session when this agent script exits."""
+    try:
+        if subprocess.run(
+            ["tmux", "has-session", "-t", "ac_mcp_server"],
+            capture_output=True,
+        ).returncode == 0:
+            print("\n[rental_agent] Stopping AC MCP server...")
+            subprocess.run(["tmux", "kill-session", "-t", "ac_mcp_server"],
+                           capture_output=True)
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
+    import atexit
+    atexit.register(_stop_mcp_server)
+
     examples = [
         "What storage percentage minimizes daily cost for a facility with 5000 EVs/day "
         "using an Aggressive utility rate?",

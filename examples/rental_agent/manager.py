@@ -41,6 +41,28 @@ except EnvironmentError as e:
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 
+def _call_hero_initialize(task_id, machine_name):
+    """Mark a task as running. Returns exit code: 0=success, 2=already claimed, other=error."""
+    result = subprocess.run(
+        f"{sys.executable} -m adaptive_computing.hero_utils.hero_initialize {task_id} {machine_name}",
+        shell=True, capture_output=True, text=True,
+    )
+    if result.returncode not in (0, 2):
+        print(f"hero_initialize failed (rc={result.returncode}): {result.stderr.strip()}")
+    return result.returncode
+
+
+def _call_hero_finalize(result_value, task_id, machine_name):
+    """Publish result back to Hero and mark task done."""
+    result = subprocess.run(
+        f"{sys.executable} -m adaptive_computing.hero_utils.hero_finalize {result_value} {task_id} {machine_name}",
+        shell=True, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"hero_finalize failed (rc={result.returncode}): {result.stderr.strip()}")
+    return result.returncode == 0
+
+
 def hero_manager():
     if len(sys.argv) > 1:
         machine_name = sys.argv[1]
@@ -81,9 +103,30 @@ def hero_manager():
             queue_id=queue_record["id"], metatype="Task", state="ready"
         )
         for current_task in ready_tasks:
-            if current_task["metadata"]["scheduler_job_id"][machine_name] == -1:
-                meta     = current_task["metadata"]
-                task_id  = current_task["id"]
+            # Ensure bookkeeping fields exist (tasks created externally may omit them)
+            meta    = current_task["metadata"]
+            task_id = current_task["id"]
+            needs_update = False
+            if "scheduler_job_id" not in meta:
+                meta["scheduler_job_id"] = {machine_name: -1}
+                needs_update = True
+            elif machine_name not in meta["scheduler_job_id"]:
+                meta["scheduler_job_id"][machine_name] = -1
+                needs_update = True
+            if "running" not in meta:
+                meta["running"] = {machine_name: False}
+                needs_update = True
+            elif machine_name not in meta["running"]:
+                meta["running"][machine_name] = False
+                needs_update = True
+            if needs_update:
+                print(f"Task {task_id}: initializing missing bookkeeping fields.")
+                task_engine.update_task(
+                    task_id=task_id, state="ready",
+                    name=current_task["name"], metadata=meta,
+                )
+
+            if meta["scheduler_job_id"][machine_name] == -1:
 
                 # Validate required fields — skip stale/incompatible tasks
                 required = {"utility_rate", "storage", "number_of_daily_evs", "return_soc"}
@@ -120,8 +163,9 @@ def hero_manager():
                     _json.dump(config_data, f, indent=4)
                 print(f"Wrote config.json: {config_path}")
 
-                if machine_name in hpc_config.slurm_scripts:
-                    script_name = hpc_config.slurm_scripts[machine_name]
+                if machine_name in hpc_config.batch_scripts:
+                    scripts = hpc_config.batch_scripts[machine_name]
+                    script_name = scripts[0] if isinstance(scripts, list) else scripts
                     slurm_out   = os.path.join(case_logs_dir, "slurm_%j.out")
                     slurm_err   = os.path.join(case_logs_dir, "slurm_%j.err")
 
@@ -131,11 +175,11 @@ def hero_manager():
                         partition = debug_parts.get(machine_name)
                         if partition:
                             sbatch_flags += f"--partition={partition} "
-                    command = f"sbatch {sbatch_flags}{script_name} {task_id} {machine_name}"
+                    command = f"sbatch {sbatch_flags}{script_name} {task_id}"
                 else:
                     raise RuntimeError(
-                        f"Machine '{machine_name}' not in hpc_config.slurm_scripts. "
-                        f"Available: {list(hpc_config.slurm_scripts.keys())}"
+                        f"Machine '{machine_name}' not in hpc_config.batch_scripts. "
+                        f"Available: {list(hpc_config.batch_scripts.keys())}"
                     )
 
                 print(f"Submitting: {command}")
@@ -164,52 +208,109 @@ def hero_manager():
                 print(f"Task {current_task['id']}: Slurm job {job_id} queued on {machine_name}")
 
             else:
-                # Already queued — check for Slurm errors
-                job_id       = current_task["metadata"]["scheduler_job_id"][machine_name]
-                status_check = subprocess.run(
+                # Already submitted — check Slurm status
+                task_id = current_task["id"]
+                job_id  = current_task["metadata"]["scheduler_job_id"][machine_name]
+                sacct   = subprocess.run(
                     f"sacct -j {job_id} --format=State --noheader",
                     shell=True, capture_output=True, text=True,
                 )
-                status = status_check.stdout.strip()
-                if any(s in status for s in ("FAILED", "CANCELLED", "TIMEOUT")):
-                    print(f"Slurm job {job_id} in error state: {status}")
+                sacct_out = sacct.stdout.strip()
+
+                if "COMPLETED" in sacct_out:
+                    status = "COMPLETED"
+                elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
+                    status = "FAILED"
+                elif not sacct_out:
+                    # sacct delay: job may still be running or just finished
+                    squeue = subprocess.run(
+                        f"squeue -j {job_id} --noheader",
+                        shell=True, capture_output=True, text=True,
+                    )
+                    if squeue.stdout.strip():
+                        status = "PENDING"  # still in SLURM
+                    else:
+                        # Not in squeue either — check for result file
+                        result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
+                        status = "COMPLETED" if os.path.exists(result_file) else "PENDING"
+                else:
+                    status = "PENDING"
+
+                if status == "COMPLETED":
+                    result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
+                    result_value = "-1"
+                    if os.path.exists(result_file):
+                        with open(result_file) as f:
+                            result_value = f.read().strip()
+                        os.remove(result_file)
+                    rc = _call_hero_initialize(task_id, machine_name)
+                    if rc == 2:
+                        print(f"Task {task_id} already claimed by another machine — skipping.")
+                        continue
+                    if rc != 0:
+                        print(f"hero_initialize failed for task {task_id}, marking error.")
+                        task_engine.update_task(
+                            task_id=task_id, state="error",
+                            name=current_task["name"], metadata=current_task["metadata"],
+                        )
+                        continue
+                    _call_hero_finalize(result_value, task_id, machine_name)
+                    print(f"Task {task_id}: finalized with result={result_value}")
+
+                elif status == "FAILED":
+                    print(f"Slurm job {job_id} in error state: {sacct_out}")
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
-                        task_id=current_task["id"], state="error",
+                        task_id=task_id, state="error",
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
 
         # ----------------------------------------------------------------
-        # Running tasks: cancel if another machine claimed them
+        # Running tasks: cancel if another machine claimed them; finalize
+        # if job completed but hero_finalize wasn't called yet
         # ----------------------------------------------------------------
         running_tasks = task_engine.read_tasks(
             queue_id=queue_record["id"], metatype="Task", state="running"
         )
         for current_task in running_tasks:
-            if not current_task["metadata"]["running"][machine_name]:
+            task_id = current_task["id"]
+            meta    = current_task["metadata"]
+            meta.setdefault("scheduler_job_id", {}).setdefault(machine_name, -1)
+            meta.setdefault("running", {}).setdefault(machine_name, False)
+            if not meta["running"][machine_name]:
                 job_id = current_task["metadata"]["scheduler_job_id"][machine_name]
                 if job_id != -1:
                     print(f"Cancelling Slurm job {job_id} (task claimed by another machine)")
                     subprocess.run(f"scancel {job_id}", shell=True)
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     task_engine.update_task(
-                        task_id=current_task["id"], state="running",
+                        task_id=task_id, state="running",
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
             else:
-                job_id       = current_task["metadata"]["scheduler_job_id"][machine_name]
-                status_check = subprocess.run(
+                job_id = current_task["metadata"]["scheduler_job_id"][machine_name]
+                sacct  = subprocess.run(
                     f"sacct -j {job_id} --format=State --noheader",
                     shell=True, capture_output=True, text=True,
                 )
-                status = status_check.stdout.strip()
-                if any(s in status for s in ("FAILED", "CANCELLED", "TIMEOUT")):
-                    print(f"Slurm job {job_id} failed: {status}")
+                sacct_out = sacct.stdout.strip()
+
+                if "COMPLETED" in sacct_out:
+                    result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
+                    result_value = "-1"
+                    if os.path.exists(result_file):
+                        with open(result_file) as f:
+                            result_value = f.read().strip()
+                        os.remove(result_file)
+                    _call_hero_finalize(result_value, task_id, machine_name)
+                    print(f"Task {task_id}: finalized with result={result_value}")
+                elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
+                    print(f"Slurm job {job_id} failed: {sacct_out}")
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
-                        task_id=current_task["id"], state="error",
+                        task_id=task_id, state="error",
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
 

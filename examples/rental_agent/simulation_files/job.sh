@@ -10,18 +10,14 @@
 # =============================================================================
 # Arguments passed by manager.py:
 #   $1 = task_id       (Hero task UUID)
-#   $2 = machine_name  (e.g. "kestrel")
 # =============================================================================
 task_id=$1
-machine_name=$2
 
-for var_name in task_id machine_name; do
-    if [ -z "${!var_name}" ]; then
-        echo "Error: Missing argument '$var_name'"
-        echo "Usage: sbatch job.sh <task_id> <machine_name>"
-        exit 1
-    fi
-done
+if [ -z "$task_id" ]; then
+    echo "Error: Missing argument 'task_id'"
+    echo "Usage: sbatch job.sh <task_id>"
+    exit 1
+fi
 
 echo "Job started at: $(date)"
 echo "Job ID: $SLURM_JOB_ID  Node: $SLURMD_NODENAME"
@@ -49,18 +45,6 @@ cat "$CASE_DIR/config.json"
 # =============================================================================
 module load mamba
 source activate AC
-
-echo "Running hero_initialize for task_id=$task_id on $machine_name"
-python -m adaptive_computing.hero_utils.hero_initialize "$task_id" "$machine_name"
-hero_init_code=$?
-
-if [ $hero_init_code -eq 2 ]; then
-    echo "hero_initialize: task already claimed by another machine. Exiting cleanly."
-    exit 0
-elif [ $hero_init_code -ne 0 ]; then
-    echo "hero_initialize failed with code $hero_init_code. Exiting."
-    exit 1
-fi
 
 # =============================================================================
 # Simulation: run the mock rental car model
@@ -94,13 +78,11 @@ fi
 echo "Negated cost result (stored as -cost for maximization): $cost"
 
 # =============================================================================
-# hero_finalize: publish cost back to the Hero queue
+# Write result file for the manager to pick up and pass to hero_finalize.
+# hero_initialize and hero_finalize are called by the manager on the login node,
+# which has outbound internet access. Compute nodes may not.
 # =============================================================================
-echo "Running hero_finalize: result=$cost, task_id=$task_id, machine=$machine_name"
-python -m adaptive_computing.hero_utils.hero_finalize "$cost" "$task_id" "$machine_name"
-if [ $? -ne 0 ]; then
-    echo "hero_finalize failed. Exiting."
-    exit 1
-fi
+echo "$cost" > "$SLURM_SUBMIT_DIR/result_${task_id}.txt"
+echo "Wrote result to result_${task_id}.txt"
 
 echo "Job completed at: $(date)"

@@ -60,6 +60,38 @@ _runs_lock = threading.Lock()
 # Only one thread may hold HPC resources at a time
 _hpc_lock = threading.Lock()
 
+# Emergency cleanup: called by atexit / signal handlers when the server is
+# killed before a worker thread's finally block can run.
+_active_cleanup_fn: Optional[callable] = None
+_atexit_registered: bool = False
+
+
+def _set_active_cleanup(fn: callable) -> None:
+    """Register fn as the cleanup to run if the process exits mid-run."""
+    import atexit
+    global _active_cleanup_fn, _atexit_registered
+    _active_cleanup_fn = fn
+    if not _atexit_registered:
+        atexit.register(_emergency_cleanup)
+        _atexit_registered = True
+
+
+def _clear_active_cleanup() -> None:
+    global _active_cleanup_fn
+    _active_cleanup_fn = None
+
+
+def _emergency_cleanup() -> None:
+    """Attempt cleanup of remote managers; safe to call more than once."""
+    fn = _active_cleanup_fn
+    if fn is not None:
+        print("[ac_mcp] Server exiting — cleaning up remote HPC managers...")
+        try:
+            fn()
+        except Exception as exc:
+            print(f"[ac_mcp] Cleanup error (ignored): {exc}")
+        _clear_active_cleanup()
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -107,22 +139,26 @@ def _setup_hpc(hpc_config_path: str):
     # from the main thread.  Worker threads must skip it.
     import signal
     import threading
+    env_activate_cmds = getattr(hpc, 'env_activate_cmds', {})
     if threading.current_thread() is not threading.main_thread():
         _orig_signal = signal.signal
         signal.signal = lambda *a, **kw: None   # no-op in thread
         try:
             setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                               hpc.remote_hosts, hpc.remote_dirs)
+                               hpc.remote_hosts, hpc.remote_dirs,
+                               env_activate_cmds)
         finally:
             signal.signal = _orig_signal
     else:
         setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                           hpc.remote_hosts, hpc.remote_dirs)
+                           hpc.remote_hosts, hpc.remote_dirs,
+                           env_activate_cmds)
 
     run_remote_managers()
     print("Waiting 10 s for remote managers to start...")
     time.sleep(10)
     verify_remote_managers()
+    _set_active_cleanup(cleanup_remote_managers)
     return hpc, cleanup_remote_managers
 
 
@@ -343,6 +379,7 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
                 cleanup()
             except Exception:
                 pass
+            _clear_active_cleanup()
 
 
 def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
@@ -474,6 +511,7 @@ def _opt_worker(run_id: str, entry: dict,
                 cleanup()
             except Exception:
                 pass
+            _clear_active_cleanup()
 
 
 def submit_optimization_run(entry: dict, n_init: int,

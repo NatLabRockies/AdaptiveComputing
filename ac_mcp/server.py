@@ -480,6 +480,21 @@ if __name__ == "__main__":
     # Set before any registry call so _storage_dir() picks it up
     os.environ["AC_MCP_DIR"] = os.path.abspath(args.storage_dir)
 
+    # Ensure remote managers are cleaned up when the server process exits,
+    # regardless of how it is killed (tmux kill-session → SIGHUP, systemd → SIGTERM,
+    # or Ctrl-C → SIGINT).
+    import signal as _signal
+    from ac_mcp.run_manager import _emergency_cleanup
+
+    def _sig_to_exit(sig, frame):
+        print(f"\n[ac_mcp] Received signal {sig} — shutting down...")
+        _emergency_cleanup()
+        os._exit(0)   # os._exit bypasses uvicorn's re-raise loop; atexit already ran
+
+    _signal.signal(_signal.SIGINT,  _sig_to_exit)
+    _signal.signal(_signal.SIGHUP,  _sig_to_exit)
+    _signal.signal(_signal.SIGTERM, _sig_to_exit)
+
     print(f"Starting AC MCP server on http://{args.host}:{args.port}")
     print(f"Storage dir: {os.environ['AC_MCP_DIR']}")
     mcp.run(transport="http", host=args.host, port=args.port)
