@@ -50,6 +50,11 @@ class HeroDataset(DatasetBase):
         # Setup the HERO client and authenticate
         self.hero_authenticate(machine_names)
 
+        # TODO: clear_hero_queue() wipes ALL existing tasks (ready, running, error, done)
+        # on every startup, making it impossible to resume a run after a crash.
+        # Once debugging is complete, replace this with selective cleanup (e.g. only
+        # clear 'ready' tasks, and optionally re-queue 'running' ones) or remove
+        # entirely and let the startup reconciliation in manager.py handle stale state.
         self.clear_hero_queue()
 
         # variables used to track hero data:
@@ -156,10 +161,10 @@ class HeroDataset(DatasetBase):
 
         self.machine_names = machine_names
     
+    # TODO: remove or replace with resume-friendly cleanup (see TODO above calling site).
     # Clear out any existing Hero tasks
     def clear_hero_queue(self):
         for i_fl in range(self.n_fidelity):
-            self.hero_objs[i_fl]
             ready_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='ready')
             running_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='running')
             error_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='error')

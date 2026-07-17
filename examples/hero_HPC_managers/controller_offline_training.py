@@ -38,16 +38,11 @@ if __name__ == '__main__':
     env_activate_cmds = _hpc_cfg.env_activate_cmds
     print("Using HPC configuration from hpc_config.py")
 
-    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
+    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, wait_for_managers
     # register a signal handler and set up the variables it needs to operate
     setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds)
     run_remote_managers()
-    
-    # Give managers time to start, then verify they're running
-    import time
-    print("Waiting 10 seconds for managers to start...")
-    time.sleep(10)
-    verify_remote_managers()
+    wait_for_managers()
 
     params = [ContinuousVariable(min=0.8, max=2.0)]
     ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, output_field_path='y_data', surrogate='SMT_GP', acq_func='maximum_variance', blocking=False)

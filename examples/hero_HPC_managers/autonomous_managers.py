@@ -1,6 +1,7 @@
 import signal
 import os
 import subprocess
+import time
 
 # Internal globals for the signal handler and remote functions
 _machine_names = []
@@ -16,8 +17,10 @@ def setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dir
     _remote_hosts = remote_hosts
     _remote_dirs = remote_dirs
     _env_activate_cmds = env_activate_cmds
-    # Register signal handler
-    signal.signal(signal.SIGINT, signal_handler)
+    # Register signal handler for clean shutdown on Ctrl-C (SIGINT),
+    # termination requests (SIGTERM), and terminal hangup (SIGHUP).
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, signal_handler)
 
 def signal_handler(sig, frame):
     print(f"\nReceived signal {sig}. Canceling all scheduler jobs and then terminating the remote queue managers...")
@@ -59,10 +62,34 @@ def _check_remote_hostname(machine_name):
         pass  # Hostname check is advisory; never block startup
 
 
+def _is_manager_running(machine_name):
+    """Return True if a manager_session tmux session is active on *machine_name*.
+
+    Uses a single SSH call with a short timeout so callers can poll cheaply.
+    Returns False on any connection or timeout error.
+    """
+    ssh_command = [
+        "ssh",
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "ConnectTimeout=15",
+        f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
+        f"bash -l -c 'command -v tmux &>/dev/null || module load tmux 2>/dev/null; tmux list-sessions 2>/dev/null | grep -q manager_session && echo ready || echo not_ready'"
+    ]
+    try:
+        result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=20)
+        return result.returncode == 0 and 'ready' in result.stdout
+    except Exception:
+        return False
+
+
 def run_remote_managers():
     print("Starting remote managers...")
     for machine_name in _machine_names:
         _check_remote_hostname(machine_name)
+        if _is_manager_running(machine_name):
+            print(f"⚠️  {machine_name}: manager session already running — skipping launch to avoid duplicates")
+            continue
         ssh_command = [
             "ssh",
             "-o", "BatchMode=yes",  # Disable interactive prompts
@@ -87,25 +114,40 @@ def run_remote_managers():
     
     print("Remote manager launch commands completed. Check logs to verify they're running.")
 
-def verify_remote_managers():
-    """Check if remote managers are actually running"""
-    print("\nVerifying remote managers...")
-    for machine_name in _machine_names:
-        ssh_command = [
-            "ssh",
-            "-o", "BatchMode=yes",  # Disable interactive prompts
-            "-o", "StrictHostKeyChecking=no",  # Don't prompt for host key verification
-            "-o", "ConnectTimeout=15",  # Set connection timeout
-            f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
-            f"bash -l -c 'cd {_remote_dirs[machine_name]} && command -v tmux &>/dev/null || module load tmux && tmux list-sessions | grep manager_session && echo Manager_session_found || echo No_manager_session'"
-        ]
-        try:
-            result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
-            print(f"{machine_name}: {result.stdout.strip()}")
-            if result.stderr:
-                print(f"  stderr: {result.stderr.strip()}")
-        except Exception as e:
-            print(f"{machine_name}: Connection failed - {e}")
+def wait_for_managers(timeout=60, poll_interval=3):
+    """
+    Block until every remote manager's tmux session is confirmed running,
+    or raise RuntimeError if *timeout* seconds elapse first.
+
+    Args:
+        timeout (int): Maximum seconds to wait before giving up. Default 60.
+        poll_interval (int): Seconds between polling attempts. Default 3.
+    """
+    print(f"Waiting for remote managers to start (timeout={timeout}s)...")
+    deadline = time.time() + timeout
+    pending = set(_machine_names)
+
+    while pending:
+        if time.time() >= deadline:
+            raise RuntimeError(
+                f"Timed out after {timeout}s waiting for managers to start on: "
+                + ", ".join(sorted(pending))
+                + "\nCheck the manager logs on each machine for details."
+            )
+        still_pending = set()
+        for machine_name in list(pending):
+            if _is_manager_running(machine_name):
+                print(f"\u2705 {machine_name}: manager session is running")
+            else:
+                still_pending.add(machine_name)
+        pending = still_pending
+        if pending:
+            remaining = max(0, int(deadline - time.time()))
+            print(f"  Still waiting for: {', '.join(sorted(pending))} ({remaining}s remaining)")
+            time.sleep(poll_interval)
+
+    print("All remote managers are running.")
+
 
 def cleanup_remote_managers():
     print("\nCanceling all scheduler jobs and then terminating the remote queue managers...")

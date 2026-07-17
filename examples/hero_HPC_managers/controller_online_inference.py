@@ -27,16 +27,11 @@ if __name__ == '__main__':
         print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
         sys.exit(1)
 
-    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, verify_remote_managers
+    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, wait_for_managers
     # register a signal handler and set up the variables it needs to operate
     setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds)
     run_remote_managers()
-    
-    # Give managers time to start, then verify they're running
-    import time
-    print("Waiting 10 seconds for managers to start...")
-    time.sleep(10)
-    verify_remote_managers()
+    wait_for_managers()
     
     # Unpickle the offline trained surrogate (created by controller_offline_training.py)                                                                               
     with open('offline_training.pkl', 'rb') as file:

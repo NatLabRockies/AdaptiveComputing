@@ -132,7 +132,7 @@ def _setup_hpc(hpc_config_path: str):
 
     from autonomous_managers import (
         run_remote_managers, cleanup_remote_managers,
-        setup_remote_state, verify_remote_managers,
+        setup_remote_state, wait_for_managers,
     )
 
     # setup_remote_state() registers a SIGINT handler, which Python only allows
@@ -155,9 +155,7 @@ def _setup_hpc(hpc_config_path: str):
                            env_activate_cmds)
 
     run_remote_managers()
-    print("Waiting 10 s for remote managers to start...")
-    time.sleep(10)
-    verify_remote_managers()
+    wait_for_managers()
     _set_active_cleanup(cleanup_remote_managers)
     return hpc, cleanup_remote_managers
 
