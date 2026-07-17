@@ -31,6 +31,56 @@ class SurrogateModelBase:
         self.mixed_type = dataset.mixed_type
         self.nan_behavior = dataset.nan_behavior
 
+    def _min_samples_for_init(self, dataset):
+        """
+        Return the minimum number of unmasked training samples required per
+        fidelity level before the surrogate can meaningfully be fitted.
+
+        The threshold is n_effective_dims + 1, where n_effective_dims counts
+        continuous and ordered variables as 1 each, and each categorical
+        variable contributes len(categories) (one degree of freedom per
+        category after one-hot / label encoding).
+
+        Args:
+            dataset (DatasetBase): Current dataset.
+
+        Returns:
+            int: Minimum sample count.
+        """
+        n_effective = 0
+        for param in dataset.params:
+            if param.type in ('continuous', 'ordered'):
+                n_effective += 1
+            elif param.type == 'categorical':
+                n_effective += len(param.categories)
+        return n_effective + 1
+
+    def _has_adequate_data(self, dataset):
+        """
+        Return True if every fidelity level in *dataset* has at least
+        _min_samples_for_init() unmasked training samples.
+
+        For single-output surrogates (those that carry an `i_output`
+        attribute) only samples valid for that output dimension are counted;
+        for multi-output surrogates all output dimensions must be valid.
+
+        Args:
+            dataset (DatasetBase): Current dataset.
+
+        Returns:
+            bool
+        """
+        min_samples = self._min_samples_for_init(dataset)
+        i_output = getattr(self, 'i_output', None)
+        for i_fl in range(dataset.n_fidelity):
+            if i_output is not None:
+                x, _ = dataset.get_unmasked_data(i_fidelity=i_fl, i_output=i_output)
+            else:
+                x, _ = dataset.get_unmasked_data(i_fidelity=i_fl)
+            if len(x) < min_samples:
+                return False
+        return True
+
     def _validate_data_i(self, x_data, y_data, fidelity_level=-1):
         """
         Validates and processes data for a specific fidelity level.

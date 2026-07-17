@@ -456,7 +456,6 @@ def _opt_worker(run_id: str, entry: dict,
                         + (f" ({n_dupes} dupes removed)" if n_dupes else ""))
                 driver.dataset.add_known_samples(prior["x_valid"], prior["y_valid"], 0)
                 driver.surrogate.train(driver.dataset)
-                driver._bopt_initialized = True   # prevent run() from calling initialize() again
                 results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
                 _update(rs, n_completed=n_prior, n_warmup=n_prior, results=results,
                         best_x=best_x, best_y=best_y,

@@ -147,7 +147,13 @@ class ActiveLoopDriver:
             N_steps (int, optional): Number of steps to run. Defaults to None (runs indefinitely).
         """
         if not self._bopt_initialized:
-            self.initialize()
+            # If the surrogate already has adequate data (e.g. trained externally
+            # via hero_wait_for_data_and_train() before run() is called), skip
+            # initialize() so we don't overwrite the user's data with new LHS samples.
+            if self.surrogate is not None and self.surrogate._has_adequate_data(self.dataset):
+                self._bopt_initialized = True
+            else:
+                self.initialize()
 
         if N_steps is None:
             N_steps = np.inf

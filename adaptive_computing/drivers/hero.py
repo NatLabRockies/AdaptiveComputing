@@ -64,7 +64,8 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
         self.surrogate.train(self.dataset)
     
     def hero_update_avail_data_and_train(self):
-        self.dataset.hero_update_avail_data()
+        for i_fl in range(self.dataset.n_fidelity):
+            self.dataset.hero_update_avail_data(i_fl)
         self.surrogate.train(self.dataset)
 
     
