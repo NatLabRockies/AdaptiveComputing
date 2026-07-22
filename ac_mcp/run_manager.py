@@ -20,6 +20,7 @@ import importlib.util
 import subprocess
 import sys
 import threading
+import time
 import traceback
 import uuid
 from dataclasses import dataclass, field
@@ -112,52 +113,49 @@ def _setup_hpc(hpc_config_path: str):
 
     The MCP server/agent can run anywhere (laptop, cloud, etc.).  The manager
     must run on the HPC login node(s) where sbatch is available.
-    autonomous_managers.py handles SSH to those nodes; hpc_config.py specifies
-    remote_hosts and remote_dirs.
+    adaptive_computing.hpc.autonomous handles SSH to those nodes; hpc_config.py
+    specifies remote_hosts and remote_dirs.
     """
     import os
-    import time
+    import signal
+    import threading
+
+    from adaptive_computing.hpc.autonomous import (
+        cleanup_remote_managers,
+        run_remote_managers,
+        setup_remote_state,
+        wait_for_managers,
+    )
 
     hpc     = _load_hpc_config(hpc_config_path)
-    hpc_dir = os.path.dirname(os.path.abspath(hpc_config_path))
-
-    # autonomous_managers.py lives in the AC examples directory, not in the
-    # application's hpc_config dir.  Locate it relative to this package.
-    ac_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    mgr_dirs = [
-        hpc_dir,
-        os.path.join(ac_root, "examples", "hero_HPC_managers"),
-    ]
-    for d in mgr_dirs:
-        if d not in sys.path:
-            sys.path.insert(0, d)
-
-    from autonomous_managers import (
-        run_remote_managers, cleanup_remote_managers,
-        setup_remote_state, wait_for_managers,
-    )
+    python_paths = getattr(hpc, 'python_paths', {})
 
     # setup_remote_state() registers a SIGINT handler, which Python only allows
     # from the main thread.  Worker threads must skip it.
-    import signal
-    import threading
-    env_activate_cmds = getattr(hpc, 'env_activate_cmds', {})
     if threading.current_thread() is not threading.main_thread():
         _orig_signal = signal.signal
         signal.signal = lambda *a, **kw: None   # no-op in thread
         try:
             setup_remote_state(hpc.machine_names, hpc.remote_usernames,
                                hpc.remote_hosts, hpc.remote_dirs,
-                               env_activate_cmds)
+                               python_paths)
         finally:
             signal.signal = _orig_signal
     else:
         setup_remote_state(hpc.machine_names, hpc.remote_usernames,
                            hpc.remote_hosts, hpc.remote_dirs,
-                           env_activate_cmds)
+                           python_paths)
 
-    run_remote_managers()
-    wait_for_managers()
+    # Infinite-retry startup: keep trying until every manager is confirmed up.
+    while True:
+        run_remote_managers()
+        try:
+            wait_for_managers()
+            break
+        except RuntimeError as exc:
+            print(f"[ac_mcp] Managers not ready yet ({exc}). Retrying in 15s...")
+            time.sleep(15)
+
     _set_active_cleanup(cleanup_remote_managers)
     return hpc, cleanup_remote_managers
 
@@ -174,11 +172,17 @@ def _update(rs: RunStatus, **kwargs):
 
 def _check_manager_alive(machine: str, username: str, host: str) -> bool | None:
     """SSH-ping the remote manager_session.  Returns True/False/None (unknown)."""
+    from adaptive_computing.hpc.remote_manager import SESSION_NAME
     try:
         r = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
              f"{username}@{host}",
-             "tmux has-session -t manager_session 2>/dev/null && echo ALIVE || echo DEAD"],
+             (
+                 "bash -l -c '"
+                 "command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
+                 f"tmux has-session -t {SESSION_NAME} 2>/dev/null "
+                 "&& echo ALIVE || echo DEAD'"
+             )],
             capture_output=True, text=True, timeout=20,
         )
         if "ALIVE" in r.stdout:
@@ -193,56 +197,84 @@ def _check_manager_alive(machine: str, username: str, host: str) -> bool | None:
 def _wait_with_watchdog(wait_fn, hpc, rs: RunStatus, phase: str,
                         check_interval: int = 30):
     """
-    Call wait_fn() while a background thread polls each remote manager every
-    `check_interval` seconds.  If a manager is found dead the run message is
-    updated with a warning, _abort_event is set so hero_wait_for_data() exits
-    its loop cleanly, and a RuntimeError is raised here to abort the run.
+    Call wait_fn() while a background watchdog polls each remote manager every
+    `check_interval` seconds.  If a manager is found dead the watchdog signals
+    hero_wait_for_data to exit cleanly, then the manager is restarted and
+    wait_fn is re-called.  This loop continues until wait_fn completes
+    normally, so transient manager crashes never abort a run.
     """
     from adaptive_computing.datasets import hero as _hero_ds
-    _hero_ds._abort_event.clear()          # ensure flag is unset before we start
+    from adaptive_computing.hpc.autonomous import run_remote_managers, wait_for_managers
 
-    done_event  = threading.Event()
-    abort_event = threading.Event()
+    restart_count = 0
 
-    def watchdog():
-        while not done_event.wait(timeout=check_interval):
-            for machine in hpc.machine_names:
-                alive = _check_manager_alive(
-                    machine,
-                    hpc.remote_usernames[machine],
-                    hpc.remote_hosts[machine],
-                )
-                if alive is False:
-                    msg = (f"Manager on {machine} has died during '{phase}'! "
-                           "Tasks are stuck — aborting run.")
-                    print(f"[run {rs.run_id[:8]}] WARNING: {msg}")
-                    _update(rs, message=f"WARNING: {msg}")
-                    abort_event.set()
-                    _hero_ds._abort_event.set()   # break hero_wait_for_data loop
-                    return
+    while True:
+        _hero_ds._abort_event.clear()
 
-    wt = threading.Thread(target=watchdog, daemon=True)
-    wt.start()
-    try:
-        wait_fn()
-    except RuntimeError as exc:
-        if abort_event.is_set():
-            raise RuntimeError(
-                f"Manager died during '{phase}': "
-                "run aborted. Restart the MCP server and re-run."
-            ) from exc
-        raise
-    finally:
-        done_event.set()
-        wt.join(timeout=5)
+        done_event   = threading.Event()
+        dead_machine = [None]   # filled by watchdog thread
 
-    # Raise even if wait_fn returned without exception but abort was signalled
-    # (race: manager died after the last successful iteration).
-    if abort_event.is_set():
-        raise RuntimeError(
-            f"Manager died during '{phase}': "
-            "run aborted. Restart the MCP server and re-run."
+        def _watchdog(done=done_event, dead=dead_machine):
+            while not done.wait(timeout=check_interval):
+                for machine in hpc.machine_names:
+                    alive = _check_manager_alive(
+                        machine,
+                        hpc.remote_usernames[machine],
+                        hpc.remote_hosts[machine],
+                    )
+                    if alive is False:
+                        dead[0] = machine
+                        _hero_ds._abort_event.set()   # break hero_wait_for_data loop
+                        return
+
+        wt = threading.Thread(target=_watchdog, daemon=True)
+        wt.start()
+        manager_died = False
+        try:
+            wait_fn()
+        except RuntimeError as exc:
+            # hero_wait_for_data raises RuntimeError when _abort_event fires
+            if dead_machine[0] is not None or "manager died" in str(exc).lower():
+                manager_died = True
+            else:
+                done_event.set()
+                wt.join(timeout=5)
+                raise
+        finally:
+            done_event.set()
+            wt.join(timeout=5)
+
+        if not manager_died:
+            return   # normal completion
+
+        # ── Manager died: notify, restart, loop ───────────────────────────
+        restart_count += 1
+        machine = dead_machine[0] or "unknown"
+        msg = (
+            f"Manager on {machine} has died during '{phase}' "
+            f"(restart attempt {restart_count}). Restarting..."
         )
+        print(f"[run {rs.run_id[:8]}] ⚠️  {msg}")
+        _update(rs, message=f"[{phase}] WARNING: {msg}")
+
+        _hero_ds._abort_event.clear()
+
+        # Restart loop: keep trying until the manager is back up.
+        while True:
+            try:
+                run_remote_managers()
+                wait_for_managers()
+                ok = (f"Manager restarted (attempt {restart_count}). "
+                      "Resuming wait for HPC results...")
+                print(f"[run {rs.run_id[:8]}] ✅ {ok}")
+                _update(rs, message=f"[{phase}] {ok}")
+                break
+            except RuntimeError as exc:
+                retry_msg = f"Manager restart failed ({exc}). Retrying in 15s..."
+                print(f"[run {rs.run_id[:8]}] ❌ {retry_msg}")
+                _update(rs, message=f"[{phase}] {retry_msg}")
+                time.sleep(15)
+        # outer while True: re-enter wait_fn with the restarted manager
 
 
 def _extract_results(ac_driver, param_specs: list[dict],

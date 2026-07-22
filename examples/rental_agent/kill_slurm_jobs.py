@@ -7,8 +7,8 @@ _AGENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _AGENT_DIR not in sys.path:
     sys.path.insert(0, _AGENT_DIR)
 
-from load_env import load_env_file
-load_env_file()
+from adaptive_computing.utils import load_env_file
+load_env_file(os.path.join(_AGENT_DIR, "env_vars.txt"))
 # --- end path / env setup ---
 
 from hero import HeroClient, get_env_variable

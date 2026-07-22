@@ -40,14 +40,12 @@ batch_scripts = {
     'machine_b': ['simulation_files/script_generic_slurm.sh'],
 }
 
-# Command used to activate the Python environment on each remote machine.
-# Common examples:
-#   'module load mamba && mamba activate AC'     (HPC clusters)
-#   'conda activate myenv'                       (if conda is already in PATH)
-#   'source ~/miniconda3/bin/activate myenv'     (explicit conda path)
-env_activate_cmds = {
-    'machine_a': 'module load mamba && mamba activate AC',
-    'machine_b': 'module load mamba && mamba activate AC',
+# Full path to the Python executable in the AC conda environment on each
+# remote machine.  The AC environment must be installed there in advance.
+# Using the direct path means no shell environment activation is needed.
+python_paths = {
+    'machine_a': '/home/your_username/.conda-envs/AC/bin/python',
+    'machine_b': '/home/your_username/.conda-envs/AC/bin/python',
 }
 
 # Example configuration for NLR systems (commented out):
@@ -66,9 +64,9 @@ env_activate_cmds = {
 #     'kestrel': ['simulation_files/script_kestrel.sh'],    # NLR Kestrel: LAMMPS molecular dynamics
 #     'vermilion': ['simulation_files/script_vermilion.sh'] # NLR Vermilion: LAMMPS molecular dynamics
 # }
-# env_activate_cmds = {
-#     'kestrel': 'module load mamba && mamba activate AC',
-#     'vermilion': 'module load mamba && mamba activate AC',
+# python_paths = {
+#     'kestrel': '/home/your_nlr_username/.conda-envs/AC/bin/python',
+#     'vermilion': '/home/your_nlr_username/.conda-envs/AC/bin/python',
 # }
 
 # Example configuration for Aurora (PBS scheduler):
@@ -78,4 +76,4 @@ env_activate_cmds = {
 # remote_dirs = {'aurora': '/home/your_alcf_username/AdaptiveComputing/examples/hero_HPC_managers/'}
 # scheduler = {'aurora': 'pbs'}
 # batch_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}
-# env_activate_cmds = {'aurora': 'module load mamba && mamba activate AC'}
+# python_paths = {'aurora': '/home/your_alcf_username/.conda-envs/AC/bin/python'}

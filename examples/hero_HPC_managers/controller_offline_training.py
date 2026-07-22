@@ -23,7 +23,7 @@ if __name__ == '__main__':
         print("ERROR: hpc_config.py not found!")
         print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
         sys.exit(1)
-    _required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds']
+    _required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'python_paths']
     _missing = [f for f in _required if not hasattr(_hpc_cfg, f)]
     if _missing:
         _defined = [a for a in dir(_hpc_cfg) if not a.startswith('_')]
@@ -35,12 +35,12 @@ if __name__ == '__main__':
     remote_usernames = _hpc_cfg.remote_usernames
     remote_hosts = _hpc_cfg.remote_hosts
     remote_dirs = _hpc_cfg.remote_dirs
-    env_activate_cmds = _hpc_cfg.env_activate_cmds
+    python_paths = _hpc_cfg.python_paths
     print("Using HPC configuration from hpc_config.py")
 
-    from autonomous_managers import run_remote_managers, cleanup_remote_managers, setup_remote_state, wait_for_managers
+    from adaptive_computing.hpc import run_remote_managers, cleanup_remote_managers, setup_remote_state, wait_for_managers
     # register a signal handler and set up the variables it needs to operate
-    setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, env_activate_cmds)
+    setup_remote_state(machine_names, remote_usernames, remote_hosts, remote_dirs, python_paths)
     run_remote_managers()
     wait_for_managers()
 

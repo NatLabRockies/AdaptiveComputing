@@ -13,4 +13,4 @@ tmux send-keys -t $SESSION_NAME C-c
 sleep 1
 # For all tasks in the Hero queue that have a scheduler job id, cancel the job
 # Terminate the current tmux session
-tmux send-keys -t $SESSION_NAME "cd $WORK_DIR && python -u kill_scheduler_jobs.py $1 > \"$LOG_FILE\" 2>&1 && tmux kill-session -t $SESSION_NAME" C-m
+tmux send-keys -t $SESSION_NAME "cd $WORK_DIR && python -u -m adaptive_computing.hpc.kill_scheduler_jobs $1 > \"$LOG_FILE\" 2>&1 && tmux kill-session -t $SESSION_NAME" C-m

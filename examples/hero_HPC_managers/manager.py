@@ -65,7 +65,7 @@ try:
 except ModuleNotFoundError:
     print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
     exit(1)
-_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'env_activate_cmds', 'batch_scripts']
+_required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'batch_scripts']
 _missing = [f for f in _required if not hasattr(hpc_config, f)]
 if _missing:
     _defined = [a for a in dir(hpc_config) if not a.startswith('_')]

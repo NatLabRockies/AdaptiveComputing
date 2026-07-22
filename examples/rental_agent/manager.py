@@ -17,9 +17,11 @@ from hero import HeroClient, get_env_variable
 import json as _json
 import numpy as np
 import os
+import signal
 import subprocess
 import sys
 import time
+import traceback
 
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
@@ -70,6 +72,15 @@ def hero_manager():
         print("Missing machine_name as a command-line argument.")
         sys.exit(1)
 
+    print(f"Manager PID: {os.getpid()}")
+
+    def _handle_signal(signum, frame):
+        sig_name = signal.Signals(signum).name
+        print(f"Manager received signal {sig_name} ({signum}) — shutting down.", flush=True)
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGHUP, _handle_signal)
+
     hero = HeroClient()
     task_engine = hero.TaskEngine(APPLICATION_ID)
     try:
@@ -89,7 +100,9 @@ def hero_manager():
     agent_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(os.path.join(agent_dir, "simulation_files"))
 
+    _consecutive_errors = 0
     while True:
+      try:
         for state in ("ready", "running", "error", "done"):
             n = len(task_engine.read_tasks(
                 queue_id=queue_record["id"], metatype="Task", state=state
@@ -314,7 +327,15 @@ def hero_manager():
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
 
-        time.sleep(5)
+        _consecutive_errors = 0
+      except Exception:
+        _consecutive_errors += 1
+        print(f"ERROR in manager loop (consecutive error #{_consecutive_errors}):", flush=True)
+        traceback.print_exc()
+        if _consecutive_errors >= 5:
+            print("Too many consecutive errors — exiting.", flush=True)
+            sys.exit(1)
+      time.sleep(5)
 
 
 if __name__ == "__main__":
