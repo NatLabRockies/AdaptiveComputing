@@ -34,20 +34,22 @@ import numpy as np
 
 @dataclass
 class RunStatus:
-    run_id:        str
-    experiment_id: str
-    run_type:      str          # "evaluation" | "optimization"
-    status:        str = "running"   # "running" | "completed" | "error"
-    n_completed:   int = 0
-    n_total:       int = 0
-    n_warmup:      int = 0           # LHS init or prior seed points (before BO)
-    message:       str = ""          # human-readable phase description
-    results:       list = field(default_factory=list)
-    best_x:        Optional[dict] = None
-    best_y:        Optional[float] = None
-    error:         Optional[str] = None
-    _lock:         threading.Lock = field(default_factory=threading.Lock,
-                                         repr=False)
+    run_id:          str
+    experiment_id:   str
+    run_type:        str             # "evaluation" | "optimization"
+    experiment_name: str = ""        # human-readable name for display
+    status:          str = "running" # "running" | "completed" | "error"
+    hero_state:      str = "active"  # "active" | "waiting" | "completed" | "error"
+    n_completed:     int = 0
+    n_total:         int = 0
+    n_warmup:        int = 0         # LHS init or prior seed points (before BO)
+    message:         str = ""        # human-readable phase description
+    results:         list = field(default_factory=list)
+    best_x:          Optional[dict] = None
+    best_y:          Optional[float] = None
+    error:           Optional[str] = None
+    _lock:           threading.Lock = field(default_factory=threading.Lock,
+                                           repr=False)
 
 
 # ---------------------------------------------------------------------------
@@ -279,10 +281,12 @@ def _extract_results(ac_driver, param_specs: list[dict],
 # Public API
 # ---------------------------------------------------------------------------
 
-def create_run(experiment_id: str, run_type: str, n_total: int) -> str:
+def create_run(experiment_id: str, run_type: str, n_total: int,
+               experiment_name: str = "") -> str:
     run_id = str(uuid.uuid4())
     status = RunStatus(run_id=run_id, experiment_id=experiment_id,
-                       run_type=run_type, n_total=n_total)
+                       run_type=run_type, experiment_name=experiment_name,
+                       n_total=n_total)
     with _runs_lock:
         _runs[run_id] = status
     return run_id
@@ -295,16 +299,20 @@ def get_status(run_id: str) -> dict:
         raise KeyError(f"Unknown run_id: {run_id!r}")
     with status._lock:
         return {
-            "run_id":        status.run_id,
-            "experiment_id": status.experiment_id,
-            "run_type":      status.run_type,
-            "status":        status.status,
-            "n_completed":   status.n_completed,
-            "n_total":       status.n_total,            "n_warmup":       status.n_warmup,            "message":       status.message,
-            "results":       list(status.results),
-            "best_x":        status.best_x,
-            "best_y":        status.best_y,
-            "error":         status.error,
+            "run_id":          status.run_id,
+            "experiment_id":   status.experiment_id,
+            "experiment_name": status.experiment_name,
+            "run_type":        status.run_type,
+            "status":          status.status,
+            "hero_state":      status.hero_state,
+            "n_completed":     status.n_completed,
+            "n_total":         status.n_total,
+            "n_warmup":        status.n_warmup,
+            "message":         status.message,
+            "results":         list(status.results),
+            "best_x":          status.best_x,
+            "best_y":          status.best_y,
+            "error":           status.error,
         }
 
 
@@ -346,8 +354,10 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
             # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
             x_all = np.array([[i] for i in range(n)], dtype=float)
             driver.dataset.add_samples(x_all, 0)
+            _update(rs, hero_state="waiting")
             _wait_with_watchdog(driver.dataset.hero_wait_for_data, hpc, rs,
                                 "evaluation")
+            _update(rs, hero_state="active")
 
             # Collect results
             y_data = driver.dataset.y_data[0]
@@ -366,7 +376,7 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
             registry.save_dataset(entry["id"], x_arr, y_data)   # also sets run_status="completed"
             registry.update_entry(entry["id"], best_x=best_x, best_y=best_y,
                                    n_samples=n_successful)
-            _update(rs, status="completed", n_completed=n,
+            _update(rs, status="completed", n_completed=n, hero_state="completed",
                     results=results, best_x=best_x, best_y=best_y)
 
         except Exception as exc:
@@ -381,7 +391,8 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
 
 
 def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
-    run_id = create_run(entry["id"], "evaluation", len(jobs))
+    run_id = create_run(entry["id"], "evaluation", len(jobs),
+                        experiment_name=entry.get("name", ""))
     t = threading.Thread(target=_eval_worker, args=(run_id, entry, jobs),
                          daemon=True)
     t.start()
@@ -467,8 +478,10 @@ def _opt_worker(run_id: str, entry: dict,
                 print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
                 _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
                 driver.initialize(N_samples_init=n_init)
+                _update(rs, hero_state="waiting")
                 _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
                                     "LHS warmup")
+                _update(rs, hero_state="active")
                 results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
                 _update(rs, n_completed=n_init, n_warmup=n_init, results=results,
                         best_x=best_x, best_y=best_y,
@@ -483,9 +496,10 @@ def _opt_worker(run_id: str, entry: dict,
             _update(rs, message=f"BO: running {n_steps} steps ({mode_str})")
             driver.run(N_steps=n_steps)
 
-            _update(rs, message=f"BO: waiting for {n_steps} jobs")
+            _update(rs, message=f"BO: waiting for {n_steps} jobs", hero_state="waiting")
             _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
                                 "BO")
+            _update(rs, hero_state="active")
 
             results, best_x, best_y = _extract_results(driver, param_specs,
                                                         fixed_context)
@@ -498,7 +512,8 @@ def _opt_worker(run_id: str, entry: dict,
                                    driver.dataset.y_data[0])
             print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
 
-            _update(rs, status="completed", message="optimization complete")
+            _update(rs, status="completed", hero_state="completed",
+                    message="optimization complete")
 
         except Exception as exc:
             _update(rs, status="error",
@@ -515,7 +530,8 @@ def submit_optimization_run(entry: dict, n_init: int,
                              n_steps: int, acq_func: str,
                              blocking: bool = False,
                              skip_warmstart: bool = False) -> str:
-    run_id = create_run(entry["id"], "optimization", n_init + n_steps)
+    run_id = create_run(entry["id"], "optimization", n_init + n_steps,
+                        experiment_name=entry.get("name", ""))
     t = threading.Thread(target=_opt_worker,
                          args=(run_id, entry, n_init, n_steps, acq_func, blocking,
                                skip_warmstart),

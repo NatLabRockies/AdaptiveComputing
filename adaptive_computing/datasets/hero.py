@@ -161,9 +161,20 @@ class HeroDataset(DatasetBase):
 
         self.machine_names = machine_names
     
-    # TODO: remove or replace with resume-friendly cleanup (see TODO above calling site).
-    # Clear out any existing Hero tasks
     def clear_hero_queue(self):
+        """
+        Delete every task (ready, running, error, done) from this dataset's
+        Hero queues.
+
+        Use with caution: this wipes tasks for ALL experiments sharing the same
+        queue, not just this dataset instance.  Never call this while another
+        HeroDataset (e.g. a parallel co-scientist chat) has outstanding tasks,
+        or those tasks will be silently discarded.
+
+        Intended for single-experiment workflows that want a clean slate before
+        a fresh run (e.g. controller_online_inference.py).  It is NOT called
+        automatically at startup.
+        """
         for i_fl in range(self.n_fidelity):
             ready_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='ready')
             running_task_records = self.task_engine.read_tasks(queue_id=self.hero_objs[i_fl]['id'], metatype='Task', state='running')

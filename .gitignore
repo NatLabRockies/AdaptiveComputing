@@ -162,7 +162,7 @@ adaptive_computing/hero_utils/set_hero_env_vars.py
 
 # Agent workflows
 **/cases_agent/
-**/datasets/
+examples/**/datasets/
 **/registry.json
 
 # HPC configuration files with personal machine/credential info

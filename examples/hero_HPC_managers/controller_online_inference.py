@@ -39,7 +39,10 @@ if __name__ == '__main__':
 
     ac_driver.dataset.hero_authenticate(machine_names=machine_names)
 
-    # clear all tasks in the Hero queue since we saved the pickle with an empty Hero queue
+    # Clear any stale tasks left over from a previous run.
+    # WARNING: this deletes ALL tasks on the shared Hero queue — do not call
+    # this when other experiments (e.g. parallel co-scientist chats) have
+    # outstanding tasks on the same queue.
     ac_driver.dataset.clear_hero_queue()
 
     # threshold for trusting surrogate or running a simulation

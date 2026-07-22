@@ -43,11 +43,14 @@ Usage
     python rental_agent.py "Compare Moderate vs Aggressive utility rates across all storage options."
 """
 
+import argparse
 import asyncio
+import json
 import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from typing import List, Literal, Optional
 
 # ---------------------------------------------------------------------------
@@ -139,8 +142,30 @@ def _call_tool(tool_name: str, **kwargs) -> dict:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Checkpoint context (populated when running under co_scientist.py)
+# ---------------------------------------------------------------------------
+
+_CHAT_ID: Optional[str] = None
+_CHECKPOINT_FILE: Optional[str] = None
+_CHECKPOINT_STATE: dict = {}
+
+
+def _write_checkpoint(**updates) -> None:
+    """Update and persist the checkpoint if running under co_scientist."""
+    if not _CHAT_ID or not _CHECKPOINT_FILE:
+        return
+    _CHECKPOINT_STATE.update(updates)
+    try:
+        import chat_registry
+        chat_registry.write_checkpoint(_CHECKPOINT_FILE, dict(_CHECKPOINT_STATE))
+    except Exception as exc:
+        print("[checkpoint] Warning: {}".format(exc))
+
+
 def _poll_run(run_id: str, poll_interval: float = 15.0) -> dict:
     """Block until the run is completed or errored, printing progress."""
+    _write_checkpoint(status="waiting", latest_run_id=run_id)
     while True:
         status  = _call_tool("get_run_status", run_id=run_id)
         n_done  = status.get("n_completed", 0)
@@ -151,7 +176,15 @@ def _poll_run(run_id: str, poll_interval: float = 15.0) -> dict:
         best_str  = " best=${:.2f}".format(-best_y) if best_y is not None else ""
         phase_str = " [{}]".format(msg) if msg else ""
         print("  [{}/{}]{}{} ({})".format(n_done, n_total, best_str, phase_str, state))
+        n_pending = (n_total - n_done) if isinstance(n_total, int) else 0
+        _write_checkpoint(
+            status="waiting",
+            n_pending=max(0, n_pending),
+            best_y=best_y,
+            latest_run_id=run_id,
+        )
         if state in ("completed", "error"):
+            _write_checkpoint(status="active", n_pending=0, best_y=best_y)
             return status
         time.sleep(poll_interval)
 
@@ -1519,15 +1552,49 @@ def build_graph():
 # 8. Public API
 # ---------------------------------------------------------------------------
 
-def run_agent(user_request: str):
+def run_agent(
+    user_request: str,
+    chat_id: Optional[str] = None,
+    checkpoint_file: Optional[str] = None,
+    prior_history: Optional[list] = None,
+):
     """
     Start an interactive co-scientist session for rental car electrification.
+
+    Parameters
+    ----------
+    user_request     : The user's goal / research question.
+    chat_id          : If set, checkpoint writes are enabled.  Supplied by
+                       co_scientist.py when launching a managed session.
+    checkpoint_file  : Path to write checkpoint JSON.  Required when chat_id
+                       is provided.
+    prior_history    : conversation_history from a previous run (for follow-up
+                       sessions).
     """
+    global _CHAT_ID, _CHECKPOINT_FILE, _CHECKPOINT_STATE
+
+    if chat_id:
+        _CHAT_ID = chat_id
+        _CHECKPOINT_FILE = checkpoint_file
+        _CHECKPOINT_STATE = {
+            "chat_id": chat_id,
+            "name": user_request[:80],
+            "status": "active",
+            "user_request": user_request,
+            "n_pending": 0,
+            "best_y": None,
+            "best_x": None,
+            "latest_run_id": None,
+            "experiment_ids": [],
+            "conversation_history": prior_history or [],
+        }
+        _write_checkpoint()  # initial write so the entry exists immediately
+
     _ensure_server_running()
     graph = build_graph()
     initial_state = {
         "user_request":          user_request,
-        "conversation_history":  [],
+        "conversation_history":  list(prior_history or []),
         "clarification_context": None,
         "plan_feedback":         None,
         "plan_steps":            [],
@@ -1541,9 +1608,28 @@ def run_agent(user_request: str):
         "response":              None,
     }
     print("Request: {}\n".format(user_request))
-    final = graph.invoke(initial_state)
+    try:
+        final = graph.invoke(initial_state)
+    except Exception as exc:
+        _write_checkpoint(status="error", error=str(exc))
+        raise
+
+    conv_hist = final.get("conversation_history", [])
     if final.get("status") == "error":
+        _write_checkpoint(status="error", conversation_history=conv_hist)
         print("\n[ERROR] {}".format(final.get("error")))
+    else:
+        best_y = None
+        for r in reversed(final.get("accumulated_results", [])):
+            if r.get("best_y") is not None:
+                best_y = r["best_y"]
+                break
+        _write_checkpoint(
+            status="completed",
+            n_pending=0,
+            best_y=best_y,
+            conversation_history=conv_hist,
+        )
     return final
 
 
@@ -1581,14 +1667,69 @@ if __name__ == "__main__":
 
         "Conduct a parallel Bayesian optimization (4 initial samples + 1 batch of 4 parallel BO samples) to find the cost-minimizing demand and state of charge (2 variable optimization) with fixed storage =20 percent and fixed utility rate=moderate.",
     ]
-    if len(sys.argv) > 1:
-        arg = " ".join(sys.argv[1:]).strip()
-        # Allow passing a digit to select an example prompt by number
-        if arg.isdigit() and 1 <= int(arg) <= len(examples):
-            req = examples[int(arg) - 1]
-            print("Using example {}: {}\n".format(arg, req))
+
+    parser = argparse.ArgumentParser(
+        description="Rental-car electrification co-scientist agent",
+        add_help=False,
+    )
+    parser.add_argument(
+        "--chat-id",
+        default=None,
+        metavar="UUID",
+        help="Unique ID for this chat session (set by co_scientist.py).",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        default=None,
+        metavar="PATH",
+        help="Path to the checkpoint JSON for this session.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Load prior_history from the checkpoint file before starting.",
+    )
+    parser.add_argument(
+        "goal",
+        nargs="?",
+        default=None,
+        help="Research goal.  Pass a single digit to pick an example.",
+    )
+    # Accept any remaining positional tokens as part of the goal
+    parser.add_argument("extra", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+
+    # Build the request string from positional args
+    parts = []
+    if args.goal:
+        parts.append(args.goal)
+    if args.extra:
+        parts.extend(args.extra)
+    arg_goal = " ".join(parts).strip()
+
+    # Load prior conversation history when resuming
+    prior_hist = []
+    if args.resume and args.checkpoint:
+        try:
+            import chat_registry
+            ckpt = chat_registry.read_checkpoint(args.checkpoint)
+            prior_hist = ckpt.get("conversation_history", [])
+            if not arg_goal:
+                arg_goal = ckpt.get("user_request", "")
+            if prior_hist:
+                print("[Resuming with {} prior conversation turn(s)]".format(
+                    len(prior_hist)
+                ))
+        except Exception as exc:
+            print("[checkpoint] Warning: could not load prior history: {}".format(exc))
+
+    if arg_goal:
+        # Allow passing a single digit to select an example prompt
+        if arg_goal.isdigit() and 1 <= int(arg_goal) <= len(examples):
+            req = examples[int(arg_goal) - 1]
+            print("Using example {}: {}\n".format(arg_goal, req))
         else:
-            req = arg
+            req = arg_goal
     else:
         print("Example prompts:")
         for i, ex in enumerate(examples, 1):
@@ -1604,4 +1745,10 @@ if __name__ == "__main__":
         else:
             req = examples[0]
         print("Using: {}\n".format(req))
-    run_agent(req)
+
+    run_agent(
+        req,
+        chat_id=args.chat_id,
+        checkpoint_file=args.checkpoint,
+        prior_history=prior_hist or None,
+    )
