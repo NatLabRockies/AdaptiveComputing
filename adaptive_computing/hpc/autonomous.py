@@ -148,7 +148,7 @@ def _check_remote_hostname(machine_name: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _is_manager_running(machine_name: str) -> bool:
-    """Return True if the manager tmux session exists on *machine_name*."""
+    """Return True if the manager tmux session exists AND manager.py is running in it."""
     ssh_command = [
         "ssh",
         "-o", "BatchMode=yes",
@@ -157,8 +157,8 @@ def _is_manager_running(machine_name: str) -> bool:
         f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
         (
             "bash -l -c 'command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
-            f"tmux list-sessions 2>/dev/null | grep -q {SESSION_NAME} "
-            "&& echo ready || echo not_ready'"
+            f"tmux list-panes -t {SESSION_NAME} -F \"#{{pane_current_command}}\" 2>/dev/null "
+            "| grep -q python && echo ready || echo not_ready'"
         ),
     ]
     try:
