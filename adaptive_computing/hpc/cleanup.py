@@ -11,8 +11,6 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from .scheduler import cancel_all_user_jobs
-
 
 def kill_all_scheduler_jobs(hpc_config, machine_name: str, hero_queue: str | None = None) -> None:
     """Cancel all scheduler jobs tracked by the Hero queue on *machine_name*.
@@ -72,6 +70,4 @@ def kill_all_scheduler_jobs(hpc_config, machine_name: str, hero_queue: str | Non
             print(f"  Canceling job {job_id} for task {task['id']}: {cmd}")
             subprocess.run(cmd, shell=True, check=False)
 
-    print("Canceling all scheduler jobs for current user as failsafe...")
-    cancel_all_user_jobs(scheduler_type)
     print("Done.")

@@ -39,13 +39,20 @@ def _ensure_tmux(env: dict) -> None:
     """Load tmux via the module system if it is not already in PATH.
 
     Uses ``bash -l`` so that the HPC module system (sourced in login profile)
-    is available for ``module load tmux``.
+    is available for ``module load tmux``.  Updates *env* in-place so that
+    subsequent subprocess calls using ``env=env`` can find the tmux binary.
     """
-    if shutil.which("tmux") is None:
-        subprocess.run(
-            "bash -l -c 'module load tmux 2>/dev/null'",
-            shell=True, env=env, check=False,
-        )
+    if shutil.which("tmux"):
+        return  # already in PATH — nothing to do
+
+    # Ask a login shell to load tmux and report the resulting PATH.
+    # We capture the new PATH so we can inject it into env for all later calls.
+    result = subprocess.run(
+        "bash -l -c 'module load tmux 2>/dev/null && echo \"$PATH\"'",
+        shell=True, capture_output=True, text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        env["PATH"] = result.stdout.strip()
 
 
 def _tmux(*args: str, env: dict) -> subprocess.CompletedProcess:

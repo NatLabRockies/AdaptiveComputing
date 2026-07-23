@@ -5,7 +5,6 @@ Run from the application directory (where hpc_config.py lives)::
 
     python -m adaptive_computing.hpc.kill_scheduler_jobs <machine_name>
 
-This replaces the old per-application kill scripts (e.g. ``kill_slurm_jobs.py``)
 """
 
 import sys
