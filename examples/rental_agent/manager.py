@@ -103,18 +103,28 @@ def hero_manager():
     _consecutive_errors = 0
     while True:
       try:
-        for state in ("ready", "running", "error", "done"):
+        ready_tasks = task_engine.read_tasks(
+            queue_id=queue_record["id"], metatype="Task", state="ready"
+        )
+
+        # Split 'ready' into unsubmitted vs submitted-but-pending in the scheduler.
+        # Hero has no separate "queued" state, so both live under 'ready'.
+        n_queued = sum(
+            1 for t in ready_tasks
+            if t.get("metadata", {}).get("scheduler_job_id", {}).get(machine_name, -1) != -1
+        )
+        n_unsubmitted = len(ready_tasks) - n_queued
+        print(f"  {n_unsubmitted} task(s) in 'ready' state (not yet submitted to scheduler).")
+        print(f"  {n_queued} task(s) in 'queued' state (submitted to scheduler, awaiting execution).")
+        for state in ("running", "error", "done"):
             n = len(task_engine.read_tasks(
                 queue_id=queue_record["id"], metatype="Task", state=state
             ))
-            print(f"  {n} task(s) in \"{state}\" state.")
+            print(f"  {n} task(s) in '{state}' state.")
 
         # ----------------------------------------------------------------
         # Ready tasks: submit to Slurm if not yet queued on this machine
         # ----------------------------------------------------------------
-        ready_tasks = task_engine.read_tasks(
-            queue_id=queue_record["id"], metatype="Task", state="ready"
-        )
         for current_task in ready_tasks:
             # Ensure bookkeeping fields exist (tasks created externally may omit them)
             meta    = current_task["metadata"]

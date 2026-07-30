@@ -147,18 +147,20 @@ def hero_manager():
     print('Startup reconciliation complete.')
     
     while True:
-        # Print the state of the queue
-        task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
-        print(f'There are {len(task_records)} in the "ready" state.')
-        task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
-        print(f'There are {len(task_records)} in the "running" state.')
-        task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
-        print(f'There are {len(task_records)} in the "error" state.')
-        task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
-        print(f'There are {len(task_records)} in the "done" state.')
-
-        # For all ready tasks, if it's not queued on my machine, queue it
         ready_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
+
+        # Split 'ready' into unsubmitted vs submitted-but-pending in the scheduler.
+        # Hero has no separate "queued" state, so both live under 'ready'.
+        n_queued = sum(
+            1 for t in ready_tasks
+            if t.get('metadata', {}).get('scheduler_job_id', {}).get(machine_name, -1) != -1
+        )
+        n_unsubmitted = len(ready_tasks) - n_queued
+        print(f"  {n_unsubmitted} task(s) in 'ready' state (not yet submitted to scheduler).")
+        print(f"  {n_queued} task(s) in 'queued' state (submitted to scheduler, awaiting execution).")
+        for state in ('running', 'error', 'done'):
+            n = len(task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state=state))
+            print(f"  {n} task(s) in '{state}' state.")
 
         # Pass 1: Check PBS/SLURM status for already-submitted tasks (job_id != -1).
         # This must run before Pass 2 so that a job-limit break in Pass 2 does not
