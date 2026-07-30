@@ -94,35 +94,32 @@ class TaskError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# Hero subprocess helpers (login-node → Hero API)
+# Hero helpers — called in-process using the manager's existing task_engine
 # ---------------------------------------------------------------------------
 
-def _call_hero_initialize(task_id: str, machine_name: str, i_fidelity: int) -> int:
-    """Mark a task as running in Hero.  Returns exit code (0=success, 2=already claimed)."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_initialize "
-        f"{task_id} {machine_name} {i_fidelity}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.stdout.strip():
-        print(f"  hero_initialize: {result.stdout.strip()}")
-    if result.stderr.strip():
-        print(f"  hero_initialize stderr: {result.stderr.strip()}")
-    return result.returncode
+def _call_hero_initialize(task_id: str, machine_name: str, i_fidelity: int, task_engine) -> int:
+    """Mark a task as running in Hero.  Returns 0 on success, 2 if already claimed, 1 on error."""
+    from adaptive_computing.hero_utils.hero_initialize import hero_initialize, TaskAlreadyClaimed
+    try:
+        hero_initialize(task_id, machine_name, i_fidelity, task_engine=task_engine)
+        return 0
+    except TaskAlreadyClaimed:
+        print(f"  hero_initialize: task {task_id} already claimed by another machine.")
+        return 2
+    except Exception as e:
+        print(f"  hero_initialize failed for task {task_id}: {e}")
+        return 1
 
 
-def _call_hero_finalize(result_value: str, task_id: str, machine_name: str, i_fidelity: int) -> bool:
+def _call_hero_finalize(result_value: str, task_id: str, machine_name: str, i_fidelity: int, task_engine) -> bool:
     """Publish result to Hero and mark task done.  Returns True on success."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_finalize "
-        f"{result_value} {task_id} {machine_name} {i_fidelity}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.stdout.strip():
-        print(f"  hero_finalize: {result.stdout.strip()}")
-    if result.stderr.strip():
-        print(f"  hero_finalize stderr: {result.stderr.strip()}")
-    return result.returncode == 0
+    from adaptive_computing.hero_utils.hero_finalize import hero_finalize
+    try:
+        hero_finalize(result_value, task_id, machine_name, i_fidelity, task_engine=task_engine)
+        return True
+    except Exception as e:
+        print(f"  hero_finalize failed for task {task_id}: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +386,7 @@ class HeroHPCManager(ABC):
             status = get_job_status(job_id, scheduler_type, result_file=result_file_path)
 
             if status == "RUNNING" and not meta.get("running", {}).get(machine_name, False):
-                rc = _call_hero_initialize(task["id"], machine_name, i_fidelity)
+                rc = _call_hero_initialize(task["id"], machine_name, i_fidelity, task_engine)
                 if rc == 0:
                     meta["running"][machine_name] = True
                     task_engine.update_task(
@@ -419,7 +416,7 @@ class HeroHPCManager(ABC):
             elif status == "COMPLETED":
                 result_value = self.read_result(task["id"])
                 if not meta.get("running", {}).get(machine_name, False):
-                    rc = _call_hero_initialize(task["id"], machine_name, i_fidelity)
+                    rc = _call_hero_initialize(task["id"], machine_name, i_fidelity, task_engine)
                     if rc == 2:
                         print(f"Task {task['id']}: already claimed by another machine (job completed).")
                         meta["scheduler_job_id"][machine_name] = -1
@@ -442,7 +439,7 @@ class HeroHPCManager(ABC):
                     f"Job {job_id} completed for task {task['id']}, "
                     f"result={result_value}. Calling hero_finalize."
                 )
-                _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity)
+                _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity, task_engine)
                 pass1_processed.add(task["id"])
 
             elif status == "UNKNOWN":
@@ -567,7 +564,7 @@ class HeroHPCManager(ABC):
                     f"Job {job_id} completed for task {task['id']}, "
                     f"result={result_value}. Calling hero_finalize."
                 )
-                if not _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity):
+                if not _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity, task_engine):
                     print(f"WARNING: hero_finalize failed for task {task['id']}")
                 meta["scheduler_job_id"][machine_name] = -1
                 meta["running"][machine_name] = False

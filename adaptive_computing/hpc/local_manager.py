@@ -372,7 +372,7 @@ class LocalHPCManager(ABC):
             status = get_job_status(job_id, scheduler_type, result_file=result_file_path)
 
             if status == "RUNNING" and not meta.get("running", {}).get(machine_name, False):
-                rc = _call_hero_initialize(task["id"], machine_name, i_fidelity)
+                rc = _call_hero_initialize(task["id"], machine_name, i_fidelity, task_engine)
                 if rc == 0:
                     meta["running"][machine_name] = True
                     task_engine.update_task(
@@ -405,7 +405,7 @@ class LocalHPCManager(ABC):
             elif status == "COMPLETED":
                 result_value = self.read_result(task["id"])
                 if not meta.get("running", {}).get(machine_name, False):
-                    rc = _call_hero_initialize(task["id"], machine_name, i_fidelity)
+                    rc = _call_hero_initialize(task["id"], machine_name, i_fidelity, task_engine)
                     if rc == 2:
                         print(f"Task {task['id']}: already claimed by another machine (job completed).")
                         meta["scheduler_job_id"][machine_name] = -1
@@ -431,7 +431,7 @@ class LocalHPCManager(ABC):
                     f"Job {job_id} completed for task {task['id']}, "
                     f"result={result_value}. Calling hero_finalize."
                 )
-                _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity)
+                _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity, task_engine)
                 pass1_processed.add(task["id"])
 
             elif status == "UNKNOWN":
@@ -557,7 +557,7 @@ class LocalHPCManager(ABC):
                     f"Job {job_id} completed for task {task['id']}, "
                     f"result={result_value}. Calling hero_finalize."
                 )
-                if not _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity):
+                if not _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity, task_engine):
                     print(f"WARNING: hero_finalize failed for task {task['id']}")
                 meta["scheduler_job_id"][machine_name] = -1
                 meta["running"][machine_name] = False

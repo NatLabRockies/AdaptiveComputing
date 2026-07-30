@@ -43,26 +43,29 @@ except EnvironmentError as e:
 APPLICATION_ID = f'{HERO_ENV}-{HERO_PROJECT}'
 
 
-def _call_hero_initialize(task_id, machine_name):
-    """Mark a task as running. Returns exit code: 0=success, 2=already claimed, other=error."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_initialize {task_id} {machine_name}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.returncode not in (0, 2):
-        print(f"hero_initialize failed (rc={result.returncode}): {result.stderr.strip()}")
-    return result.returncode
+def _call_hero_initialize(task_id, machine_name, task_engine):
+    """Mark a task as running. Returns 0 on success, 2 if already claimed, 1 on error."""
+    from adaptive_computing.hero_utils.hero_initialize import hero_initialize, TaskAlreadyClaimed
+    try:
+        hero_initialize(task_id, machine_name, task_engine=task_engine)
+        return 0
+    except TaskAlreadyClaimed:
+        print(f"  hero_initialize: task {task_id} already claimed by another machine.")
+        return 2
+    except Exception as e:
+        print(f"  hero_initialize failed for task {task_id}: {e}")
+        return 1
 
 
-def _call_hero_finalize(result_value, task_id, machine_name):
-    """Publish result back to Hero and mark task done."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_finalize {result_value} {task_id} {machine_name}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        print(f"hero_finalize failed (rc={result.returncode}): {result.stderr.strip()}")
-    return result.returncode == 0
+def _call_hero_finalize(result_value, task_id, machine_name, task_engine):
+    """Publish result back to Hero and mark task done. Returns True on success."""
+    from adaptive_computing.hero_utils.hero_finalize import hero_finalize
+    try:
+        hero_finalize(result_value, task_id, machine_name, task_engine=task_engine)
+        return True
+    except Exception as e:
+        print(f"  hero_finalize failed for task {task_id}: {e}")
+        return False
 
 
 def hero_manager():
@@ -266,7 +269,7 @@ def hero_manager():
                         with open(result_file) as f:
                             result_value = f.read().strip()
                         os.remove(result_file)
-                    rc = _call_hero_initialize(task_id, machine_name)
+                    rc = _call_hero_initialize(task_id, machine_name, task_engine)
                     if rc == 2:
                         print(f"Task {task_id} already claimed by another machine — skipping.")
                         continue
@@ -277,7 +280,7 @@ def hero_manager():
                             name=current_task["name"], metadata=current_task["metadata"],
                         )
                         continue
-                    _call_hero_finalize(result_value, task_id, machine_name)
+                    _call_hero_finalize(result_value, task_id, machine_name, task_engine)
                     print(f"Task {task_id}: finalized with result={result_value}")
 
                 elif status == "FAILED":
@@ -326,7 +329,7 @@ def hero_manager():
                         with open(result_file) as f:
                             result_value = f.read().strip()
                         os.remove(result_file)
-                    _call_hero_finalize(result_value, task_id, machine_name)
+                    _call_hero_finalize(result_value, task_id, machine_name, task_engine)
                     print(f"Task {task_id}: finalized with result={result_value}")
                 elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
                     print(f"Slurm job {job_id} failed: {sacct_out}")

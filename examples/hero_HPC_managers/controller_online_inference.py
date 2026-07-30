@@ -1,6 +1,5 @@
 # This script loads a pre-trained surrogate and refines it with live HPC jobs
 # when prediction variance exceeds a threshold.
-import numpy as np
 import pickle
 import sys
 import os
