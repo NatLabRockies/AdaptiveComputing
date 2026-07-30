@@ -1,37 +1,30 @@
 """
-manager_base.py — Abstract base class for Hero/HPC manager daemons.
+local_manager.py — In-process HPC manager for same-node execution.
 
 Overview
 --------
-``HeroHPCManager`` implements the full event loop for a manager daemon that
-runs on an HPC login node:
+``LocalHPCManager`` implements the Hero/HPC manager event loop as an
+in-process call rather than a persistent daemon.  Use this when the
+controller runs on a node that has both scheduler access (``sbatch``/``qsub``)
+and outbound internet access to the Hero API — no SSH or tmux required.
+This is typically an HPC login node, but a compute node with internet access
+works equally well.
 
-1. Authenticates with Hero.
-2. Finds or creates the Hero task queue.
-3. Runs startup reconciliation (resets stale job IDs, retries error tasks).
-4. Enters the main polling loop:
-   - **Pass 1**: For tasks that already have a scheduler job ID, check job
-     status and call ``hero_initialize`` / ``hero_finalize`` as appropriate.
-   - **Pass 2**: For tasks without a job ID, call :meth:`submit_job` to
-     submit them to the scheduler.
-   - **Running tasks**: Cancel duplicates; finalize jobs that completed while
-     their task was in the ``running`` state.
+The key method is :meth:`run_until_done`, which submits and monitors
+scheduler jobs until all Hero tasks in the queue reach a terminal state
+(``done`` or ``error``).
 
 Subclassing
 -----------
 Override two abstract methods::
 
-    class MyAppManager(HeroHPCManager):
+    class MyAppManager(LocalHPCManager):
 
         def submit_job(self, task, machine_name, i_fidelity):
-            # Extract parameters from task['metadata'], set up working dirs,
-            # run sbatch/qsub, and return the scheduler job ID string.
-            params = task['metadata']
-            case_dir = Path(f"cases/{task['id']}")
-            case_dir.mkdir(parents=True, exist_ok=True)
-            (case_dir / "config.json").write_text(json.dumps(params))
-            cmd = f"sbatch run_sim.sh {task['id']}"
-            return self._run_submit(cmd, self.get_scheduler_type(machine_name))
+            t = task['metadata']['x_data'][0]
+            script = self.batch_scripts[i_fidelity]
+            cmd = f"sbatch {script} {t} {task['id']}"
+            return self._run_submit(cmd)
 
         def read_result(self, task_id):
             result_file = f"result_{task_id}.txt"
@@ -41,20 +34,21 @@ Override two abstract methods::
                 return value
             return "-1"
 
-    if __name__ == "__main__":
-        import sys, hpc_config
-        manager = MyAppManager(hpc_config)
-        manager.run(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 0)
+Usage
+-----
+Instantiate in the controller and call :meth:`run_until_done` after queueing
+tasks::
 
-Scheduler helpers
------------------
-:meth:`_run_submit` runs an ``sbatch`` / ``qsub`` command, parses the job ID,
-and raises the appropriate exception on failure.
+    manager = MyAppManager(
+        machine_name='local',
+        batch_scripts=['/abs/path/to/simulation_files/script.sh'],
+        scheduler_type='slurm',
+        simulation_dir='/abs/path/to/simulation_files',
+    )
 
-- :class:`JobLimitError` — raised when the per-user job limit is reached;
-  the event loop catches this, skips the rest of Pass 2, and retries next cycle.
-- :class:`TaskError` — raised for all other submission failures; the event
-  loop marks the task as ``error``.
+    ac_driver.add_samples(x_data, i_fidelity=0)
+    manager.run_until_done(i_fidelity=0)       # blocks until all tasks done/error
+    ac_driver.hero_wait_for_data_and_train()   # collects results, retrains surrogate
 """
 
 from __future__ import annotations
@@ -65,8 +59,13 @@ import sys
 import time
 from abc import ABC, abstractmethod
 
+from .manager_base import (
+    JobLimitError,
+    TaskError,
+    _call_hero_initialize,
+    _call_hero_finalize,
+)
 from .scheduler import (
-    cancel_all_user_jobs,
     cancel_job,
     get_job_status,
     is_job_limit_error,
@@ -74,80 +73,53 @@ from .scheduler import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Exceptions
-# ---------------------------------------------------------------------------
+class LocalHPCManager(ABC):
+    """In-process Hero/HPC manager for controllers with local scheduler access.
 
-class JobLimitError(RuntimeError):
-    """Raised by :meth:`HeroHPCManager._run_submit` when the scheduler's
-    per-user job-submission limit has been reached.  The event loop catches
-    this and stops Pass 2 for the current cycle; the task is *not* marked as
-    error and will be retried in the next polling iteration.
-    """
+    Unlike :class:`~adaptive_computing.hpc.manager_base.HeroHPCManager` (which
+    runs as a daemon in a tmux session started via SSH), ``LocalHPCManager``
+    integrates directly into the controller process.  Call
+    :meth:`run_until_done` after queuing tasks; it processes them through the
+    local scheduler and returns only when all tasks are complete.
 
+    Requires the controller to run on a node that has both scheduler access
+    (``sbatch``/``qsub``/``squeue``) and outbound internet access to the Hero
+    API.  In practice this is usually an HPC login node, but a compute node
+    with internet access works equally well.
 
-class TaskError(RuntimeError):
-    """Raised by :meth:`HeroHPCManager.submit_job` when a task cannot be
-    submitted due to invalid metadata or other task-specific issues.  The
-    event loop marks the task as ``error``.
-    """
-
-
-# ---------------------------------------------------------------------------
-# Hero subprocess helpers (login-node → Hero API)
-# ---------------------------------------------------------------------------
-
-def _call_hero_initialize(task_id: str, machine_name: str, i_fidelity: int) -> int:
-    """Mark a task as running in Hero.  Returns exit code (0=success, 2=already claimed)."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_initialize "
-        f"{task_id} {machine_name} {i_fidelity}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.stdout.strip():
-        print(f"  hero_initialize: {result.stdout.strip()}")
-    if result.stderr.strip():
-        print(f"  hero_initialize stderr: {result.stderr.strip()}")
-    return result.returncode
-
-
-def _call_hero_finalize(result_value: str, task_id: str, machine_name: str, i_fidelity: int) -> bool:
-    """Publish result to Hero and mark task done.  Returns True on success."""
-    result = subprocess.run(
-        f"{sys.executable} -m adaptive_computing.hero_utils.hero_finalize "
-        f"{result_value} {task_id} {machine_name} {i_fidelity}",
-        shell=True, capture_output=True, text=True,
-    )
-    if result.stdout.strip():
-        print(f"  hero_finalize: {result.stdout.strip()}")
-    if result.stderr.strip():
-        print(f"  hero_finalize stderr: {result.stderr.strip()}")
-    return result.returncode == 0
-
-
-# ---------------------------------------------------------------------------
-# Abstract base class
-# ---------------------------------------------------------------------------
-
-class HeroHPCManager(ABC):
-    """Abstract manager daemon for Hero + HPC scheduler workflows.
+    No ``hpc_config.py`` is needed: since the controller runs on the same node
+    as the scheduler, there are no remote credentials, remote paths, or Python
+    interpreter paths to configure.
 
     Attributes:
-        hpc_config:      The imported ``hpc_config`` module (must have
-                         ``machine_names``, ``remote_usernames``,
-                         ``remote_hosts``, ``remote_dirs``,
-                         ``python_paths``, ``batch_scripts``).
-        poll_interval:   Seconds to sleep between polling cycles (default 5).
-        simulation_dir:  Directory to ``chdir`` into before the event loop
-                         (relative to the directory containing manager.py).
-                         Set to ``None`` to skip the ``chdir``.
+        machine_name:   Logical name for this machine stored in Hero task
+                        metadata (e.g. ``'local'`` or the cluster hostname).
+        batch_scripts:  List of batch script *absolute* paths indexed by
+                        fidelity level.  ``batch_scripts[0]`` is used for
+                        ``i_fidelity=0``.
+        scheduler_type: ``'slurm'`` or ``'pbs'`` (default: ``'slurm'``).
+        simulation_dir: Absolute path to the directory containing batch
+                        scripts and result files.  :meth:`run_until_done`
+                        temporarily ``chdir``\s there so that
+                        ``SLURM_SUBMIT_DIR`` and result file paths are
+                        consistent with the batch script.  Set to ``None``
+                        to leave the working directory unchanged.
+        poll_interval:  Seconds to sleep between polling cycles (default 5).
     """
 
-    poll_interval: int = 5
-    simulation_dir: str | None = "simulation_files"
-
-    def __init__(self, hpc_config) -> None:
-        self.hpc_config = hpc_config
+    def __init__(
+        self,
+        machine_name: str,
+        batch_scripts: list[str],
+        scheduler_type: str = "slurm",
+        simulation_dir: str | None = None,
+        poll_interval: int = 5,
+    ) -> None:
+        self.machine_name = machine_name
+        self.batch_scripts = batch_scripts
+        self.scheduler_type = scheduler_type
+        self.simulation_dir = simulation_dir
+        self.poll_interval = poll_interval
 
     # ------------------------------------------------------------------
     # Abstract interface — implement these two methods in your subclass
@@ -155,38 +127,38 @@ class HeroHPCManager(ABC):
 
     @abstractmethod
     def submit_job(self, task: dict, machine_name: str, i_fidelity: int) -> str:
-        """Submit *task* to the scheduler and return the scheduler job ID.
+        """Submit *task* to the local scheduler and return the job ID.
 
         Implementations should:
 
         1. Extract simulation parameters from ``task['metadata']``.
-        2. Validate them; raise :class:`TaskError` if invalid.
-        3. Prepare any required case directories or config files.
-        4. Build the ``sbatch`` / ``qsub`` command and call
-           :meth:`_run_submit` to execute it.
-        5. Return the scheduler job ID string returned by :meth:`_run_submit`.
+        2. Build the ``sbatch``/``qsub`` command (use absolute script path).
+        3. Call :meth:`_run_submit` to execute it and return the job ID.
 
         Args:
-            task:         Hero task dict (keys: ``'id'``, ``'name'``,
-                          ``'metadata'``, …).
-            machine_name: Logical machine name from ``hpc_config``.
+            task:         Hero task dict (keys: ``'id'``, ``'name'``, ``'metadata'``).
+            machine_name: Same as ``self.machine_name``.
             i_fidelity:   Fidelity level index (0 for single-fidelity).
 
         Returns:
             Scheduler job ID string (e.g. ``"12345"``).
 
         Raises:
-            :class:`JobLimitError`: Per-user job limit reached; retry next cycle.
-            :class:`TaskError`:     Task-specific failure; mark task as error.
+            :class:`~adaptive_computing.hpc.manager_base.JobLimitError`
+            :class:`~adaptive_computing.hpc.manager_base.TaskError`
         """
 
     @abstractmethod
     def read_result(self, task_id: str) -> str:
-        """Read the simulation output file for *task_id* and return its value.
+        """Read the simulation result for *task_id* and return it as a string.
 
-        Return the result as a string (e.g. ``"3.14"``), or ``"-1"`` if the
-        file is missing or unreadable.  Implementations should also delete the
-        result file after reading to avoid stale data in future cycles.
+        Return ``"-1"`` if the result file is missing or unreadable.
+        Implementations should delete the result file after reading to prevent
+        stale data from appearing in subsequent polling cycles.
+
+        When :attr:`simulation_dir` is set, the working directory is
+        ``simulation_dir`` during :meth:`run_until_done`, so plain relative
+        paths (``f"result_{task_id}.txt"``) resolve there.
 
         Args:
             task_id: Hero task ID string.
@@ -196,29 +168,21 @@ class HeroHPCManager(ABC):
         """
 
     # ------------------------------------------------------------------
-    # Scheduler helpers available to subclasses
+    # Scheduler helper available to subclasses
     # ------------------------------------------------------------------
 
-    def get_scheduler_type(self, machine_name: str) -> str:
-        """Return ``'slurm'`` or ``'pbs'`` for *machine_name*.
-
-        Reads ``hpc_config.scheduler`` if present; defaults to ``'slurm'``.
-        """
-        return getattr(self.hpc_config, "scheduler", {}).get(machine_name, "slurm")
-
-    def _run_submit(self, command: str, scheduler_type: str = "slurm") -> str:
-        """Run an ``sbatch`` / ``qsub`` command and return the job ID.
+    def _run_submit(self, command: str) -> str:
+        """Run an ``sbatch``/``qsub`` command and return the job ID.
 
         Args:
-            command:        Full submission command string.
-            scheduler_type: ``'slurm'`` or ``'pbs'``.
+            command: Full submission command string.
 
         Returns:
             Scheduler job ID string.
 
         Raises:
-            :class:`JobLimitError`: Per-user job limit reached.
-            :class:`TaskError`:     Any other non-zero exit code.
+            :class:`~adaptive_computing.hpc.manager_base.JobLimitError`
+            :class:`~adaptive_computing.hpc.manager_base.TaskError`
         """
         print(f"Running: {command}")
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -236,21 +200,26 @@ class HeroHPCManager(ABC):
         return parse_job_id(result.stdout)
 
     # ------------------------------------------------------------------
-    # Main event loop
+    # Main entry point
     # ------------------------------------------------------------------
 
-    def run(self, machine_name: str, i_fidelity: int = 0) -> None:
-        """Start the manager event loop.
+    def run_until_done(self, i_fidelity: int = 0) -> None:
+        """Process all Hero tasks in the queue until none remain active.
 
-        Authenticates with Hero, reconciles stale tasks, then polls
-        indefinitely until interrupted.
+        Authenticates with Hero, runs startup reconciliation to reset any
+        stale job IDs from a previous run, then polls the queue in a loop.
+        Exits when the count of ``ready`` + ``running`` tasks drops to zero
+        (all tasks are ``done`` or ``error``).
+
+        If :attr:`simulation_dir` is set, the working directory is temporarily
+        changed there for the duration of this call so that ``SLURM_SUBMIT_DIR``
+        equals ``simulation_dir`` and result files land in the expected location.
+        The original working directory is restored on return (even on error).
 
         Args:
-            machine_name: Logical machine name matching ``hpc_config``.
-            i_fidelity:   Fidelity level index (0 for single-fidelity).
+            i_fidelity: Fidelity level index (0 for single-fidelity).
         """
         from hero import HeroClient, get_env_variable
-
         from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
         set_hero_env_vars()
 
@@ -264,9 +233,9 @@ class HeroHPCManager(ABC):
 
         application_id = f"{hero_env}-{hero_project}"
         queue_name = hero_queue if i_fidelity == 0 else hero_queue + str(i_fidelity)
-        scheduler_type = self.get_scheduler_type(machine_name)
+        machine_name = self.machine_name
+        scheduler_type = self.scheduler_type
 
-        # ---- Authenticate -----------------------------------------------
         hero = HeroClient()
         task_engine = hero.TaskEngine(application_id)
         try:
@@ -275,7 +244,6 @@ class HeroHPCManager(ABC):
             print(f"ERROR: Hero authentication failed: {e}")
             sys.exit(1)
 
-        # ---- Find / create queue ----------------------------------------
         try:
             queue_record = task_engine.read_queue_by_name(name=queue_name, state="active")
             print(f"Found existing active queue: {queue_name}")
@@ -283,21 +251,50 @@ class HeroHPCManager(ABC):
             print(f"No active queue found, creating new queue: {queue_name}")
             queue_record = task_engine.add_queue(name=queue_name)
 
-        print(f"Scheduler type for {machine_name}: {scheduler_type}")
+        print(f"Scheduler type: {scheduler_type}")
 
-        # ---- Optional chdir ---------------------------------------------
-        if self.simulation_dir is not None:
-            manager_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-            target = os.path.join(manager_dir, self.simulation_dir)
-            if os.path.isdir(target):
-                os.chdir(target)
-            else:
-                print(
-                    f"WARNING: simulation_dir '{self.simulation_dir}' not found "
-                    f"at {target}; skipping chdir."
+        # Temporarily chdir into simulation_dir so SLURM_SUBMIT_DIR matches
+        # the location of mock_simulation.py and result files.
+        original_cwd = os.getcwd()
+        try:
+            if self.simulation_dir is not None:
+                if os.path.isdir(self.simulation_dir):
+                    os.chdir(self.simulation_dir)
+                else:
+                    print(
+                        f"WARNING: simulation_dir '{self.simulation_dir}' not found; "
+                        "skipping chdir."
+                    )
+
+            self._reconcile(task_engine, queue_record, machine_name, scheduler_type)
+
+            print(f"Processing queue — polling every {self.poll_interval}s...")
+            while True:
+                self._poll_cycle(
+                    task_engine, queue_record, machine_name, i_fidelity, scheduler_type
                 )
 
-        # ---- Startup reconciliation -------------------------------------
+                n_ready = len(task_engine.read_tasks(
+                    queue_id=queue_record["id"], metatype="Task", state="ready"
+                ))
+                n_running = len(task_engine.read_tasks(
+                    queue_id=queue_record["id"], metatype="Task", state="running"
+                ))
+                if n_ready + n_running == 0:
+                    print("All tasks complete (done or error). Exiting manager loop.")
+                    break
+
+                time.sleep(self.poll_interval)
+
+        finally:
+            os.chdir(original_cwd)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _reconcile(self, task_engine, queue_record, machine_name, scheduler_type):
+        """Reset stale scheduler job IDs and requeue error tasks."""
         print("Running startup reconciliation...")
         for state in ("ready", "error"):
             stale_tasks = task_engine.read_tasks(
@@ -313,7 +310,6 @@ class HeroHPCManager(ABC):
                         print(f"  Resetting error task {task['id']} to ready for retry")
                         needs_reset = True
                     elif job_id != -1:
-                        # Check if the job still exists in the scheduler
                         check_cmd = (
                             f"qstat -x {job_id}"
                             if scheduler_type == "pbs"
@@ -340,20 +336,8 @@ class HeroHPCManager(ABC):
                     print(f"  WARNING: reconciliation failed for task {task['id']}: {e}")
         print("Startup reconciliation complete.")
 
-        # ---- Main event loop --------------------------------------------
-        print("Continuously checking queue — polling every {self.poll_interval}s...")
-        while True:
-            self._poll_cycle(
-                task_engine, queue_record, machine_name, i_fidelity, scheduler_type
-            )
-            time.sleep(self.poll_interval)
-
-    # ------------------------------------------------------------------
-    # Single poll cycle (split out for testability)
-    # ------------------------------------------------------------------
-
     def _poll_cycle(self, task_engine, queue_record, machine_name, i_fidelity, scheduler_type):
-        """Execute one pass of the event loop."""
+        """Execute one pass of the event loop (Pass 1, Pass 2, running tasks)."""
         ready_tasks = task_engine.read_tasks(
             queue_id=queue_record["id"], metatype="Task", state="ready"
         )
@@ -384,7 +368,6 @@ class HeroHPCManager(ABC):
             if job_id == -1:
                 continue  # not yet submitted — Pass 2 handles this
 
-            result_file = self.read_result.__func__.__doc__ and None  # peek-only; don't call yet
             result_file_path = f"result_{task['id']}.txt"
             status = get_job_status(job_id, scheduler_type, result_file=result_file_path)
 
@@ -398,7 +381,10 @@ class HeroHPCManager(ABC):
                     )
                     print(f"Task {task['id']}: claimed, state = running")
                 elif rc == 2:
-                    print(f"Task {task['id']}: already claimed by another machine. Canceling job {job_id}.")
+                    print(
+                        f"Task {task['id']}: already claimed by another machine. "
+                        f"Canceling job {job_id}."
+                    )
                     cancel_job(job_id, scheduler_type)
                     meta["scheduler_job_id"][machine_name] = -1
                     task_engine.update_task(
@@ -430,7 +416,10 @@ class HeroHPCManager(ABC):
                         pass1_processed.add(task["id"])
                         continue
                     if rc != 0:
-                        print(f"hero_initialize failed (rc={rc}) for completed job {job_id}. Marking error.")
+                        print(
+                            f"hero_initialize failed (rc={rc}) for completed job "
+                            f"{job_id}. Marking error."
+                        )
                         meta["scheduler_job_id"][machine_name] = -1
                         task_engine.update_task(
                             task_id=task["id"], state="error",
@@ -457,7 +446,7 @@ class HeroHPCManager(ABC):
                     name=task["name"], metadata=meta,
                 )
 
-            elif status in ("FAILED",):
+            elif status == "FAILED":
                 print(f"Job {job_id} failed for task {task['id']}.")
                 meta["scheduler_job_id"][machine_name] = -1
                 meta["running"][machine_name] = False
@@ -478,7 +467,7 @@ class HeroHPCManager(ABC):
             if job_id != -1:
                 continue  # already submitted
 
-            # Ensure bookkeeping fields exist
+            # Ensure bookkeeping fields exist in task metadata
             needs_update = False
             if "scheduler_job_id" not in meta:
                 meta["scheduler_job_id"] = {machine_name: -1}
@@ -529,7 +518,7 @@ class HeroHPCManager(ABC):
                 cancel_job(new_job_id, scheduler_type)
                 continue
 
-            print(f"Task {task['id']}: Slurm/PBS job {new_job_id} queued on {machine_name}")
+            print(f"Task {task['id']}: job {new_job_id} queued on {machine_name}")
 
         # ----------------------------------------------------------
         # Running tasks: cancel duplicates; finalize completed jobs
@@ -544,6 +533,7 @@ class HeroHPCManager(ABC):
             meta.setdefault("running", {}).setdefault(machine_name, False)
 
             if not meta["running"][machine_name]:
+                # Task claimed by another machine — cancel our pending job if any
                 if job_id != -1:
                     print(
                         f"Canceling job {job_id} for task {task['id']} "
@@ -572,7 +562,7 @@ class HeroHPCManager(ABC):
                 meta["scheduler_job_id"][machine_name] = -1
                 meta["running"][machine_name] = False
 
-            elif status in ("FAILED",):
+            elif status == "FAILED":
                 print(f"Job {job_id} failed for running task {task['id']}.")
                 meta["scheduler_job_id"][machine_name] = -1
                 meta["running"][machine_name] = False

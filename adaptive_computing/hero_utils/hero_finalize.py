@@ -27,21 +27,6 @@ def hero_finalize(cond, task_id, machine_name, i_fidelity=0):
         print(f"ERROR: HERO authentication failed: {e}")
         sys.exit(1)
 
-    queue_name = HERO_QUEUE if i_fidelity == 0 else HERO_QUEUE + str(i_fidelity)
-    try:
-        queue_record = task_engine.read_queue_by_name(name=queue_name, state="active")
-    except Exception:
-        queue_record = task_engine.add_queue(name=queue_name)
-
-    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')
-    print(f'There are {len(task_records)} in the "ready" state.')
-    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
-    print(f'There are {len(task_records)} in the "running" state.')
-    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='error')
-    print(f'There are {len(task_records)} in the "error" state.')
-    task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='done')
-    print(f'There are {len(task_records)} in the "done" state.')
-
     cond = float(cond)
     
     # Update the task's metatdata and mark it as done
