@@ -38,7 +38,7 @@ import signal
 import subprocess
 import time
 
-from .remote_manager import SESSION_NAME
+SESSION_NAME = "manager_session"
 
 # ---------------------------------------------------------------------------
 # Module-level state (populated by setup_remote_state)

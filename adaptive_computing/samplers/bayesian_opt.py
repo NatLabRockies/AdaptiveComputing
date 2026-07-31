@@ -1,4 +1,5 @@
 from adaptive_computing.samplers import SamplerBase
+from adaptive_computing.datasets.base import _KBDataset
 from smt.sampling_methods import LHS
 from smt.applications.mixed_integer import MixedIntegerSamplingMethod
 
@@ -85,40 +86,35 @@ class BayesianSampler(SamplerBase):
             )
         # Train the surrogate on all unmasked data first
         surrogate.train(dataset)
-        # Create temporary dataset and surrogate for Bayesian optimization
-        # We need to see the full design space (unmask all data) to avoid resampling failed points
-        tmp_dataset = deepcopy(dataset)
-        
-        # For all masked data points, populate with surrogate predictions as placeholder values
-        # This helps the acquisition function avoid resampling masked regions
+
+        # Collect masked data points per fidelity; treat surrogate mean as placeholder (KB approach).
+        # Using _KBDataset avoids deepcopying the whole dataset.
+        phantom_x = [np.empty((0, dataset.n_in)) for _ in range(dataset.n_fidelity)]
+        phantom_y = [np.empty((0, dataset.n_out)) for _ in range(dataset.n_fidelity)]
         has_masked_data = False
-        for i_fid in range(tmp_dataset.n_fidelity):
-            if tmp_dataset._unmasked_data[i_fid].shape[0] > 0:
-                # Find samples where any output dimension is masked (sample-level masking)
-                sample_mask = np.all(tmp_dataset._unmasked_data[i_fid], axis=1)
-                masked_points = ~sample_mask  # Invert to get masked samples
-                if np.any(masked_points):
+        for i_fid in range(dataset.n_fidelity):
+            if dataset._unmasked_data[i_fid].shape[0] > 0:
+                sample_mask = np.all(dataset._unmasked_data[i_fid], axis=1)
+                masked_idx = np.where(~sample_mask)[0]
+                if len(masked_idx) > 0:
                     has_masked_data = True
-                    # Get surrogate predictions for masked X locations
-                    x_masked = tmp_dataset._x_data[i_fid][masked_points]
-                    if len(x_masked) > 0:
-                        y_pred = surrogate.predict_values(x_masked)  # Get predictions
-                        # Replace Y values at masked locations with predictions  
-                        if y_pred.ndim == 1:
-                            y_pred = y_pred.reshape(-1, 1)
-                        tmp_dataset._y_data[i_fid][masked_points] = y_pred
-                    # Set all output dimensions to unmasked=True for Bayesian optimization
-                    tmp_dataset._unmasked_data[i_fid] = np.ones_like(tmp_dataset._unmasked_data[i_fid])
+                    x_masked = dataset._x_data[i_fid][masked_idx]
+                    y_pred = surrogate.predict_values(x_masked)
+                    if y_pred.ndim == 1:
+                        y_pred = y_pred.reshape(-1, 1)
+                    phantom_x[i_fid] = x_masked
+                    phantom_y[i_fid] = y_pred
 
         if has_masked_data:
             print("Populated masked data points with surrogate predictions for Bayesian optimization")
-        
-        tmp_surrogate = deepcopy(surrogate)
+            train_dataset = _KBDataset(dataset, phantom_x, phantom_y)
+        else:
+            train_dataset = dataset
 
-        # Train on the temporary dataset (with placeholders for masked data)
-        tmp_surrogate.train(tmp_dataset)
-        
-        x_est = self.minimize_acq_func(tmp_surrogate, tmp_dataset, i_fidelity=i_fidelity)
+        tmp_surrogate = deepcopy(surrogate)
+        tmp_surrogate.train(train_dataset)
+
+        x_est = self.minimize_acq_func(tmp_surrogate, train_dataset, i_fidelity=i_fidelity)
         
         # Post-process mixed-type samples to ensure proper data types
         if self.mixed_type:

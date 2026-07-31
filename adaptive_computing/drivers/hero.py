@@ -1,8 +1,11 @@
+from copy import deepcopy
+
 from adaptive_computing.drivers import ActiveLoopDriver
-from adaptive_computing.datasets import HeroDataset
+from adaptive_computing.datasets import HeroDataset, _KBDataset
 from time import sleep
 
 import numpy as np
+
 
 class ActiveLoopDriverHero(ActiveLoopDriver):
     def __init__(self, simulations, params, machine_names, output_field_path, surrogate=None, dataset=None,
@@ -70,16 +73,79 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
         if self.retrain:
             self.surrogate.train(self.dataset)
 
+    def _kb_select(self, x, threshold):
+        """Return a boolean mask of which points in x need a real Hero simulation.
+
+        Implements the Kriging Believer batch strategy: iteratively selects the
+        highest-variance pending point, assumes it will return the surrogate mean
+        (the 'belief'), retrains the surrogate with that phantom value, then
+        re-evaluates variance for the remaining points.  Points that drop below
+        the threshold after retraining are handled by the surrogate alone.
+
+        The real dataset is never modified.  The surrogate is retrained with
+        phantom data during the loop; hero_wait_for_data_and_train() will retrain
+        it on real data once simulation results arrive.
+
+        Args:
+            x:         Query points, shape (N, n_in).
+            threshold: Variance threshold.
+
+        Returns:
+            np.ndarray: Boolean mask of length N; True where a real simulation is needed.
+        """
+        tmp_surrogate = deepcopy(self.surrogate)
+        pending = list(range(len(x)))
+        to_simulate = []
+        phantom_x = []
+        phantom_y = []
+
+        while pending:
+            vars_pending = np.array([
+                float(tmp_surrogate.predict_variances(x[[i]]))
+                for i in pending
+            ])
+
+            if vars_pending.max() <= threshold:
+                break
+
+            # Select the highest-variance pending point
+            best_local = int(np.argmax(vars_pending))
+            best_global = pending[best_local]
+
+            to_simulate.append(best_global)
+            pending.pop(best_local)
+
+            # Kriging Believer: treat the predicted mean as the placeholder response
+            y_phantom = tmp_surrogate.predict_values(x[[best_global]])
+            phantom_x.append(x[best_global])
+            phantom_y.append(y_phantom[0])
+
+            if pending:
+                kb_dataset = _KBDataset(
+                    self.dataset,
+                    [np.array(phantom_x)],  # list of one array for fidelity 0
+                    [np.array(phantom_y)],
+                )
+                tmp_surrogate.train(kb_dataset)
+
+        mask = np.zeros(len(x), dtype=bool)
+        mask[to_simulate] = True
+        return mask
+
     def query(self, points, error_criterion, threshold):
-        """Query the surrogate; submit Hero tasks in parallel for all high-variance points.
+        """Query the surrogate; use Kriging Believer to select simulations, then run in parallel.
 
         Overrides ActiveLoopDriver.query() to use Hero task submission instead of
         local evaluators (self.evaluators is None for Hero drivers).
 
-        Computes surrogate variance at every query point, then submits all points
-        above the threshold as a single batch of Hero tasks.  The scheduler runs
-        those jobs in parallel (wall time = slowest single job), the surrogate is
-        retrained once on all new results, and final predictions are returned.
+        Uses the Kriging Believer (KB) batch strategy to decide which points need
+        real simulations before submitting anything.  KB iteratively selects the
+        highest-variance point, assumes it returns the surrogate mean, retrains the
+        surrogate, and checks whether remaining points have dropped below the
+        threshold.  Only the points still above threshold after KB planning are
+        submitted as a parallel Hero batch (wall time = slowest single job).
+        This can reduce the number of HPC jobs compared to submitting all
+        above-threshold points blindly.
 
         For the noSSH workflow, set self.inline_manager to a LocalHPCManager
         instance (or assign it after loading from pickle) so that run_until_done()
@@ -105,18 +171,23 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
             f"Hero driver query only supports 'absolute_variance', got '{error_criterion}'"
 
         x = np.asarray(points)
-        variances = np.zeros((x.shape[0], 1))
-        for i in range(x.shape[0]):
-            variances[i] = self.surrogate.predict_variances(x[[i]])
 
-        high_var_mask = variances[:, 0] > threshold
-        n_high = int(np.sum(high_var_mask))
+        variances = np.array([
+            float(self.surrogate.predict_variances(x[[i]]))
+            for i in range(len(x))
+        ])
 
-        if n_high > 0:
-            print(f"Queuing {n_high} Hero task(s) for points with variance above threshold:")
-            for i in np.where(high_var_mask)[0]:
-                print(f"  x={x[i]}, variance={variances[i, 0]:.2e}")
-            self.add_samples(x[high_var_mask], i_fidelity=0)
+        if np.any(variances > threshold):
+            n_naive = int(np.sum(variances > threshold))
+            sim_mask = self._kb_select(x, threshold)
+            n_sim = int(sim_mask.sum())
+            n_saved = n_naive - n_sim
+            print(f"Kriging Believer: {n_sim} simulation(s) needed "
+                  f"({n_saved} point(s) dropped below threshold after KB retraining, "
+                  f"down from {n_naive} naive):")
+            for i in np.where(sim_mask)[0]:
+                print(f"  x={x[i]}, initial variance={variances[i]:.2e}")
+            self.add_samples(x[sim_mask], i_fidelity=0)
             inline_manager = getattr(self, 'inline_manager', None)
             if inline_manager is not None:
                 inline_manager.run_until_done(i_fidelity=0)

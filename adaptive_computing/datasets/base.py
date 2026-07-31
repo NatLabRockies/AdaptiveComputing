@@ -303,3 +303,49 @@ class DatasetBase():
                 raise ValueError(f"Unknown parameter type: {param.type}")
         return ranges
 
+
+class _KBDataset:
+    """Dataset wrapper that appends phantom points to get_unmasked_data().
+
+    Used by the Kriging Believer (KB) query strategy and the Bayesian sampler
+    to present additional 'believed' data to the surrogate during training,
+    without modifying the real dataset.  Phantom data lives only in this
+    wrapper and disappears when the wrapper is discarded.
+
+    Args:
+        real_dataset: The underlying dataset to wrap.
+        phantom_x:    List of arrays, one per fidelity level, shape (n_i, n_in).
+                      Pass empty arrays for fidelity levels with no phantom points.
+        phantom_y:    List of arrays, one per fidelity level, shape (n_i, n_out).
+    """
+
+    def __init__(self, real_dataset, phantom_x, phantom_y):
+        self._real = real_dataset
+        self._phantom_x = phantom_x
+        self._phantom_y = phantom_y
+
+    def get_unmasked_data(self, i_fidelity=None, i_output=None):
+        x_data, y_data = self._real.get_unmasked_data(i_fidelity=i_fidelity, i_output=i_output)
+
+        def _append(x_arr, y_arr, i_fid):
+            if i_fid >= len(self._phantom_x) or len(self._phantom_x[i_fid]) == 0:
+                return x_arr, y_arr
+            ph_x = self._phantom_x[i_fid]
+            ph_y = self._phantom_y[i_fid]
+            if i_output is not None:
+                ph_y = ph_y[:, [i_output]]
+            return np.vstack([x_arr, ph_x]), np.vstack([y_arr, ph_y])
+
+        if i_fidelity is not None:
+            x_data, y_data = _append(x_data, y_data, i_fidelity)
+        else:
+            x_data = list(x_data)
+            y_data = list(y_data)
+            for i_fid in range(len(x_data)):
+                x_data[i_fid], y_data[i_fid] = _append(x_data[i_fid], y_data[i_fid], i_fid)
+
+        return x_data, y_data
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+

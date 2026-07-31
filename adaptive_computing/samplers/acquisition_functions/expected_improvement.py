@@ -4,7 +4,8 @@ from scipy.stats import norm
 def expected_improvement(x, surrogate, dataset, fidelity_level):
     pred = surrogate.predict_values(x,fidelity_level)
     var = surrogate.predict_variances(x,fidelity_level)
-    f_min = np.min(dataset.y_data[0])
+    _, y_unmasked = dataset.get_unmasked_data(i_fidelity=0)
+    f_min = np.min(y_unmasked)
     if var.size == 1 and var == 0.0:  
         #raise Exception('Must evaluate EI for more than one point.')
         return -(f_min - pred) # if variance is zero, expected improvement is difference of the current mean and the lowest mean of prior data
