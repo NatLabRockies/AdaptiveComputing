@@ -208,8 +208,10 @@ Instead of running the Python controllers, you can run the C++ counterpart using
 
 The basic Hero introduction provides:
 - Simple local workflows without HPC complexity
-- Clear controller/worker separation 
+- Clear controller/worker separation
 - Easy-to-verify calculations
 - Perfect for understanding Hero concepts before scaling to production
+
+**No Hero credentials yet, but already on the HPC cluster?** Try [examples/HPC_onsite/](../HPC_onsite/) — same Slurm integration, no external service or account required.  Easy to migrate to this example when you're ready for multi-cluster support.
 
 Once comfortable with Hero basics, return here for production HPC deployment.

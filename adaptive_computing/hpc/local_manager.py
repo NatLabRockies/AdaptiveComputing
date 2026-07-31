@@ -105,6 +105,10 @@ class LocalHPCManager(ABC):
                         consistent with the batch script.  Set to ``None``
                         to leave the working directory unchanged.
         poll_interval:  Seconds to sleep between polling cycles (default 5).
+        hero_client:    Optional Hero client instance.  Pass a
+                        :class:`~adaptive_computing.local_hero.LocalHeroClient`
+                        to use a local JSON file instead of the real Hero
+                        service.  When ``None`` the real ``HeroClient`` is used.
     """
 
     def __init__(
@@ -114,12 +118,14 @@ class LocalHPCManager(ABC):
         scheduler_type: str = "slurm",
         simulation_dir: str | None = None,
         poll_interval: int = 5,
+        hero_client=None,
     ) -> None:
         self.machine_name = machine_name
         self.batch_scripts = batch_scripts
         self.scheduler_type = scheduler_type
         self.simulation_dir = simulation_dir
         self.poll_interval = poll_interval
+        self.hero_client = hero_client
 
     # ------------------------------------------------------------------
     # Abstract interface — implement these two methods in your subclass
@@ -219,24 +225,28 @@ class LocalHPCManager(ABC):
         Args:
             i_fidelity: Fidelity level index (0 for single-fidelity).
         """
-        from hero import HeroClient, get_env_variable
-        from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
-        set_hero_env_vars()
+        if self.hero_client is not None:
+            hero           = self.hero_client
+            hero_queue     = getattr(self.hero_client, 'queue_name', 'local')
+            application_id = getattr(self.hero_client, 'application_id', 'local')
+        else:
+            from hero import HeroClient, get_env_variable
+            from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+            set_hero_env_vars()
+            try:
+                hero_env     = get_env_variable("HERO_ENV", "dev")
+                hero_project = get_env_variable("HERO_PROJECT")
+                hero_queue   = get_env_variable("HERO_QUEUE")
+            except EnvironmentError as e:
+                print(e)
+                sys.exit(1)
+            application_id = f"{hero_env}-{hero_project}"
+            hero = HeroClient()
 
-        try:
-            hero_env     = get_env_variable("HERO_ENV", "dev")
-            hero_project = get_env_variable("HERO_PROJECT")
-            hero_queue   = get_env_variable("HERO_QUEUE")
-        except EnvironmentError as e:
-            print(e)
-            sys.exit(1)
-
-        application_id = f"{hero_env}-{hero_project}"
         queue_name = hero_queue if i_fidelity == 0 else hero_queue + str(i_fidelity)
         machine_name = self.machine_name
         scheduler_type = self.scheduler_type
 
-        hero = HeroClient()
         task_engine = hero.TaskEngine(application_id)
         try:
             hero.authenticate()

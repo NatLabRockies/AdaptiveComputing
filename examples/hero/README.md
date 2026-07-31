@@ -80,7 +80,15 @@ Task temperature=[1.5], computed conductivity=[0.00225]
 
 ## Next Steps
 
-Once you're comfortable with these concepts, explore the [production HPC workflows](../hero_HPC_managers/) that use:
+Once you're comfortable with these concepts, choose your HPC path:
+
+**Already logged into the HPC cluster and want the simplest setup?** → [examples/HPC_onsite/](../HPC_onsite/)
+- No Hero credentials required — uses a local JSON task queue
+- Controller runs on the cluster itself (no SSH)
+- Single cluster, single process
+
+**Need to run the controller from your laptop or support multiple clusters?** → [examples/hero_HPC_managers/](../hero_HPC_managers/)
+- Requires Hero credentials and SSH access to your HPC cluster(s)
 - Automated SSH deployment to multiple HPC clusters
 - Real SLURM job submission and molecular dynamics simulations
 - Multi-machine task distribution and error handling

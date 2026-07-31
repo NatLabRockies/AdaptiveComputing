@@ -7,11 +7,12 @@ import numpy as np
 class ActiveLoopDriverHero(ActiveLoopDriver):
     def __init__(self, simulations, params, machine_names, output_field_path, surrogate=None, dataset=None,
                  nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', blocking=False,
-                 task_formatter=None, inline_manager=None):
+                 task_formatter=None, inline_manager=None, hero_client=None):
         self.use_hero = True
         if dataset is None:
             dataset = HeroDataset(params, machine_names, output_field_path, n_fidelity=1, blocking=blocking,
-                                task_formatter=task_formatter, nan_behavior=nan_behavior)
+                                task_formatter=task_formatter, nan_behavior=nan_behavior,
+                                hero_client=hero_client)
         self.dataset = dataset
         if blocking:
             retrain = True
@@ -28,7 +29,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
         # same node as the scheduler).  When set, query() calls
         # inline_manager.run_until_done() between task submission and waiting for
         # results.  Not needed when a background manager daemon is already running
-        # (e.g. the SSH+tmux approach in hero_HPC_managers).
+        # (e.g. the SSH+tmux approach in examples/hero_HPC_managers).
         # Not serialized to pickle — set this attribute after loading a saved driver:
         #   ac_driver = pickle.load(f)
         #   ac_driver.inline_manager = manager

@@ -101,25 +101,34 @@ python -m pytest
 
 The `examples/` directory contains practical demonstrations of AC functionality:
 
-### Getting Started - Hero Introduction
+### Getting Started — Hero Introduction
 
-**Start here**: [examples/hero/](examples/hero/) provides a simple introduction to Hero framework concepts:
+**Start here**: [examples/hero/](examples/hero/) provides a simple introduction to the controller/worker workflow:
 - **controller.py**: Demonstrates HeroDataset API with different sample addition methods
 - **controller_noAC.py**: Shows direct Hero API usage with detailed queue monitoring
 - **worker.py**: Simple local worker that processes tasks with basic calculations
-- No HPC access required - runs entirely on your local machine
-- Perfect for learning Hero concepts and testing your setup
+- No HPC access required — runs entirely on your local machine
+- Perfect for learning the concepts before adding HPC job submission
 
-### Advanced - HPC Production Workflows
+### HPC — Onsite (No Credentials Required)
 
-**Scale up**: [examples/hero_HPC_managers/](examples/hero_HPC_managers/) demonstrates production HPC workflows:
-- **Adaptive Computing strategies**: Offline training, offline inference, and online inference
-- Automated HPC managers with SSH and SLURM/PBS integration
-- Real molecular dynamics simulations for conductivity calculation
-- Multi-cluster job distribution and error handling
-- Requires HPC access and SSH configuration
+**Simplest HPC setup**: [examples/HPC_onsite/](examples/HPC_onsite/) runs the controller directly on the HPC cluster with no external services:
+- **No Hero credentials required** — uses a local JSON file as the task queue
+- Controller and manager run in the same process on the cluster (no SSH, no tmux)
+- Offline training, offline inference, and online inference workflows
+- SLURM and PBS batch job submission from the login node
+- Start here if you are already logged into the HPC and want the fastest path to running jobs
 
-### Agentic AI - MCP Co-Scientist
+### HPC — Remote Managers (Multi-Cluster with Hero)
+
+**Multi-cluster at scale**: [examples/hero_HPC_managers/](examples/hero_HPC_managers/) demonstrates production HPC workflows with the real Hero distributed queue service:
+- Requires Hero credentials and SSH access to your HPC cluster(s)
+- Automated SSH deployment of manager daemons to multiple HPC login nodes
+- SLURM and PBS integration with real molecular dynamics simulations
+- Multi-cluster task distribution and error handling
+- Migrate to this from HPC_onsite when you need multi-cluster support or a remote controller
+
+### Agentic AI — MCP Co-Scientist
 
 **LLM-driven research**: [examples/rental_agent/](examples/rental_agent/) demonstrates the full AC MCP workflow with a LangGraph co-scientist agent:
 - An interactive AI agent that proposes, approves, and executes multi-step research plans
@@ -131,7 +140,7 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 ### Other Examples
 
 - [examples/bayesian_1d_sf/](examples/bayesian_1d_sf/): Single-fidelity Bayesian optimization with 4 surrogate model options:
-  - **SMT_GP**: Surrogate Modeling Toolbox's implementation of Gaussian Process (recommended starting point). Also, supports multi-fidelity.
+  - **SMT_GP**: Surrogate Modeling Toolbox's implementation of Gaussian Process (recommended starting point). Also supports multi-fidelity.
   - **SOOGO_GP**: Alternative Gaussian Process implementation with different optimization algorithms
   - **TFMELT_BNN**: TensorFlow-based Bayesian Neural Network for uncertainty quantification
   - **TFMELT_MDN**: TensorFlow-based Mixture Density Network for multi-modal uncertainty
@@ -140,7 +149,7 @@ The `examples/` directory contains practical demonstrations of AC functionality:
 - [examples/cpp_embedding/](examples/cpp_embedding/): C++ integration
 - [examples/query_sf/](examples/query_sf/): Simple query examples
 
-**Recommended learning path**: Start with `examples/hero/` to understand the basics, then explore `examples/hero_HPC_managers/` for production deployment.
+**Recommended learning path**: `examples/hero/` → `examples/HPC_onsite/` (no credentials, simplest HPC) → `examples/hero_HPC_managers/` (multi-cluster, full Hero service).
 
 ## Developer instructions
 

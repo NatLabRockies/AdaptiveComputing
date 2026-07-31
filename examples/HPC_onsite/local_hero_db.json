@@ -1,0 +1,10 @@
+{
+  "queues": {
+    "995ba029-6fe3-40a9-8f49-6f8a151a6b80": {
+      "id": "995ba029-6fe3-40a9-8f49-6f8a151a6b80",
+      "name": "local",
+      "state": "active"
+    }
+  },
+  "tasks": {}
+}
