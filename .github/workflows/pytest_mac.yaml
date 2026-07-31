@@ -17,13 +17,13 @@ jobs:
         python-version: ["3.11"]
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Conda with Mamba
+      - name: Set up Conda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          mamba-version: "*"
           auto-activate-base: false
-          activate-environment: AC
+	  activate-environment: AC
           environment-file: environment.yml
+          use-mamba: false
       - name: Install AdaptiveComputing in development mode
         shell: bash -l {0}
         run: |
