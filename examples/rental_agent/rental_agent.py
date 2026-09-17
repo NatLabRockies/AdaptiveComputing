@@ -1514,6 +1514,42 @@ def build_graph(checkpointer=None):
 # 8. Public API
 # ---------------------------------------------------------------------------
 
+_STANDALONE_LOCK = os.path.join(_AGENT_DIR, ".rental_agent.lock")
+
+
+def _acquire_standalone_lock() -> None:
+    """Prevent two standalone rental_agent.py processes from running at once.
+
+    Not called when running under co_scientist (chat_id is provided) because
+    each co_scientist session is safe — it uses its own Hero queue tasks
+    tracked by task ID, and clear_hero_queue() is no longer called at startup.
+    """
+    lock_path = _STANDALONE_LOCK
+    if os.path.exists(lock_path):
+        try:
+            pid = int(open(lock_path).read().strip())
+            os.kill(pid, 0)   # signal 0 = existence check only
+            print(
+                "\nERROR: Another rental_agent session is already running (PID {}).\n"
+                "  Running two standalone agents at once shares the same Hero queue\n"
+                "  and can corrupt each other's results.\n"
+                "\n"
+                "  Use co_scientist.py to manage multiple parallel investigations:\n"
+                "      python co_scientist.py\n"
+                "\n"
+                "  Or stop the other session first, then retry.".format(pid)
+            )
+            sys.exit(1)
+        except (ProcessLookupError, ValueError, PermissionError):
+            pass  # stale lock — process is gone, safe to overwrite
+
+    with open(lock_path, "w") as f:
+        f.write(str(os.getpid()))
+
+    import atexit
+    atexit.register(lambda: os.path.exists(lock_path) and os.remove(lock_path))
+
+
 def run_agent(
     user_request: str,
     chat_id: Optional[str] = None,
@@ -1534,6 +1570,9 @@ def run_agent(
                        sessions).
     """
     global _CHAT_ID, _CHECKPOINT_FILE, _CHECKPOINT_STATE
+
+    if not chat_id:
+        _acquire_standalone_lock()
 
     if chat_id:
         _CHAT_ID = chat_id

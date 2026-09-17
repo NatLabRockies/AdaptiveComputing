@@ -49,12 +49,11 @@ class HeroDataset(DatasetBase):
 
         self.hero_authenticate(machine_names, hero_client=hero_client)
 
-        # TODO: clear_hero_queue() wipes ALL existing tasks (ready, running, error, done)
-        # on every startup, making it impossible to resume a run after a crash.
-        # Once debugging is complete, replace this with selective cleanup (e.g. only
-        # clear 'ready' tasks, and optionally re-queue 'running' ones) or remove
-        # entirely and let the startup reconciliation in manager.py handle stale state.
-        self.clear_hero_queue()
+        # clear_hero_queue() is NOT called automatically at startup.
+        # Multiple concurrent agents or co-scientist sessions sharing the same
+        # Hero queue would wipe each other's in-flight tasks if this ran at init.
+        # Call it explicitly when you need a clean slate for a fresh single-agent
+        # run, e.g. ac_driver.dataset.clear_hero_queue() before starting.
 
     def _extract_field_from_task_data(self, task_data):
         """
