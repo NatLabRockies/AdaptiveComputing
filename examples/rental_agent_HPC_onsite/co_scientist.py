@@ -202,6 +202,8 @@ def _print_menu(n_chats: int) -> None:
         print("  [D1..D{}]   Delete investigation (kill session + remove files)".format(
             n_chats
         ))
+    print("  [X]         Total reset — delete all chats and kill all daemons")
+    print("               (agent sessions). Does not delete the experiments registry.")
     print("  [R]         Refresh")
     print("  [Q]         Quit")
     print()
@@ -291,8 +293,50 @@ def _delete(chat: dict, chats_raw: list) -> list:
 # Main loop
 # ---------------------------------------------------------------------------
 
+def _print_kill_reference() -> None:
+    """Print startup note about session management.
+
+    HPC_onsite uses an inline manager — there is no persistent MCP server or
+    remote manager daemon.  The only things to restart for source-code changes
+    are the agent tmux sessions, which are managed via this portal.
+    """
+    print("=" * 72)
+    print("  HPC_onsite mode: all processing is inline (no background daemons).")
+    print("  To pick up source-code changes, use [D<N>] to delete and restart")
+    print("  individual sessions, or [X] Total reset to clear everything.")
+    print("=" * 72)
+    print()
+
+
+def _total_reset(chats_raw: list) -> list:
+    """Kill all agent sessions and clear the chat registry."""
+    confirm = input(
+        "\n  Total reset will DELETE ALL CHATS and kill all agent sessions.\n"
+        "  The experiments registry (registry.json + datasets/) is NOT deleted.\n"
+        "  Proceed? [y/N] "
+    ).strip().lower()
+    if confirm != "y":
+        print("  Cancelled.")
+        return chats_raw
+
+    killed = 0
+    for c in chats_raw:
+        session = c.get("tmux_session", "")
+        if session and _tmux_session_alive(session):
+            subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+            print("  Killed agent session: {}".format(session))
+            killed += 1
+        chat_registry.delete_checkpoint(c.get("checkpoint_file", ""))
+    chat_registry.save_chats([])
+
+    print("\n  Total reset complete — {} session(s) killed.".format(killed))
+    print("  Restart co_scientist.py to begin fresh.\n")
+    return []
+
+
 def main() -> None:
     chats_raw = chat_registry.load_chats()
+    _print_kill_reference()
 
     while True:
         chats = _enrich_chats(chats_raw)
@@ -323,6 +367,10 @@ def main() -> None:
 
         if upper == "N":
             chats_raw = _start_new(chats_raw)
+            continue
+
+        if upper == "X":
+            chats_raw = _total_reset(chats_raw)
             continue
 
         if upper.startswith("D") and upper[1:].isdigit():
