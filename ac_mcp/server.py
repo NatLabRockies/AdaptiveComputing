@@ -489,10 +489,27 @@ if __name__ == "__main__":
     )
     parser.add_argument("--host", default=os.environ.get("AC_MCP_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("AC_MCP_PORT", "8765")))
+    parser.add_argument(
+        "--hpc-config",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Absolute path to hpc_config.py.  When provided, remote managers are "
+            "started (or detected and reused) at server startup rather than on the "
+            "first run_evaluations / run_optimization call.  Recommended for "
+            "production deployments to surface connection errors early."
+        ),
+    )
     args = parser.parse_args()
 
     # Set before any registry call so _storage_dir() picks it up
     os.environ["AC_MCP_DIR"] = os.path.abspath(args.storage_dir)
+
+    if args.hpc_config:
+        from ac_mcp.run_manager import _ensure_hpc_running
+        print(f"[ac_mcp] Pre-warming HPC managers from {args.hpc_config} ...")
+        _ensure_hpc_running(os.path.abspath(args.hpc_config))
+        print("[ac_mcp] HPC managers ready.")
 
     # Ensure remote managers are cleaned up when the server process exits,
     # regardless of how it is killed (tmux kill-session → SIGHUP, systemd → SIGTERM,
@@ -511,4 +528,7 @@ if __name__ == "__main__":
 
     print(f"Starting AC MCP server on http://{args.host}:{args.port}")
     print(f"Storage dir: {os.environ['AC_MCP_DIR']}")
+    print(f"PID: {os.getpid()}")
+    print(f"To kill (tmux):   tmux kill-session -t ac_mcp_server")
+    print(f"To kill (direct): kill {os.getpid()}")
     mcp.run(transport="http", host=args.host, port=args.port)

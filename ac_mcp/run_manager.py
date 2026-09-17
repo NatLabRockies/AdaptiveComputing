@@ -60,11 +60,16 @@ class RunStatus:
 _runs: dict[str, RunStatus] = {}
 _runs_lock = threading.Lock()
 
-# Only one thread may hold HPC resources at a time
-_hpc_lock = threading.Lock()
+# Persistent HPC state — managers start once and live for the server lifetime.
+# _hpc_init_lock guards the one-time initialisation (double-checked locking).
+# _restart_lock serialises watchdog-triggered manager restarts across threads;
+# it is held only during the brief restart window, not during normal runs.
+_hpc_module: Optional[Any] = None
+_hpc_init_lock = threading.Lock()
+_restart_lock = threading.Lock()
 
 # Emergency cleanup: called by atexit / signal handlers when the server is
-# killed before a worker thread's finally block can run.
+# killed before the managers are torn down.
 _active_cleanup_fn: Optional[callable] = None
 _atexit_registered: bool = False
 
@@ -108,56 +113,87 @@ def _load_hpc_config(hpc_config_path: str) -> Any:
     return mod
 
 
-def _setup_hpc(hpc_config_path: str):
-    """Import HPC config, start remote managers via SSH, return (hpc, cleanup).
+def _ensure_hpc_running(hpc_config_path: str) -> Any:
+    """Return the hpc config module, starting remote managers if not already running.
 
-    The MCP server/agent can run anywhere (laptop, cloud, etc.).  The manager
-    must run on the HPC login node(s) where sbatch is available.
-    adaptive_computing.hpc.autonomous handles SSH to those nodes; hpc_config.py
-    specifies remote_hosts and remote_dirs.
+    Thread-safe via double-checked locking.  Managers are started once and
+    kept alive for the lifetime of the server — no per-run teardown.
+    On server restart, existing manager tmux sessions are detected and reused
+    rather than restarted, so in-flight SLURM jobs are never abandoned.
     """
-    import os
-    import signal
-    import threading
+    global _hpc_module
 
-    from adaptive_computing.hpc.autonomous import (
-        cleanup_remote_managers,
-        run_remote_managers,
-        setup_remote_state,
-        wait_for_managers,
-    )
+    if _hpc_module is not None:
+        return _hpc_module
 
-    hpc     = _load_hpc_config(hpc_config_path)
-    python_paths = getattr(hpc, 'python_paths', {})
+    with _hpc_init_lock:
+        if _hpc_module is not None:  # another thread won the race
+            return _hpc_module
 
-    # setup_remote_state() registers a SIGINT handler, which Python only allows
-    # from the main thread.  Worker threads must skip it.
-    if threading.current_thread() is not threading.main_thread():
-        _orig_signal = signal.signal
-        signal.signal = lambda *a, **kw: None   # no-op in thread
-        try:
+        import signal as _signal
+
+        from adaptive_computing.hpc.autonomous import (
+            cleanup_remote_managers,
+            run_remote_managers,
+            setup_remote_state,
+            wait_for_managers,
+        )
+
+        hpc          = _load_hpc_config(hpc_config_path)
+        python_paths = getattr(hpc, "python_paths", {})
+
+        # setup_remote_state registers a SIGINT handler; Python only allows
+        # that from the main thread, so worker threads temporarily no-op it.
+        if threading.current_thread() is not threading.main_thread():
+            _orig = _signal.signal
+            _signal.signal = lambda *a, **kw: None
+            try:
+                setup_remote_state(hpc.machine_names, hpc.remote_usernames,
+                                   hpc.remote_hosts, hpc.remote_dirs, python_paths)
+            finally:
+                _signal.signal = _orig
+        else:
             setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                               hpc.remote_hosts, hpc.remote_dirs,
-                               python_paths)
-        finally:
-            signal.signal = _orig_signal
-    else:
-        setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                           hpc.remote_hosts, hpc.remote_dirs,
-                           python_paths)
+                               hpc.remote_hosts, hpc.remote_dirs, python_paths)
 
-    # Infinite-retry startup: keep trying until every manager is confirmed up.
-    while True:
-        run_remote_managers()
-        try:
-            wait_for_managers()
-            break
-        except RuntimeError as exc:
-            print(f"[ac_mcp] Managers not ready yet ({exc}). Retrying in 15s...")
-            time.sleep(15)
+        # Detect existing managers (e.g. server restart with managers still alive).
+        all_alive = all(
+            _check_manager_alive(m, hpc.remote_usernames[m], hpc.remote_hosts[m])
+                is True
+            for m in hpc.machine_names
+        )
+        if all_alive:
+            try:
+                wait_for_managers()
+                print("[ac_mcp] Remote managers already running — reusing.")
+            except RuntimeError:
+                all_alive = False  # alive but unresponsive — restart below
 
-    _set_active_cleanup(cleanup_remote_managers)
-    return hpc, cleanup_remote_managers
+        if not all_alive:
+            print("[ac_mcp] Starting remote managers...")
+            while True:
+                run_remote_managers()
+                try:
+                    wait_for_managers()
+                    break
+                except RuntimeError as exc:
+                    print(f"[ac_mcp] Managers not ready ({exc}). Retrying in 15s...")
+                    time.sleep(15)
+
+        # Print kill commands for each remote manager so they're easy to find.
+        from adaptive_computing.hpc.remote_manager import SESSION_NAME as _MGR_SESSION
+        print("[ac_mcp] Remote manager kill commands:")
+        for machine in hpc.machine_names:
+            user = hpc.remote_usernames[machine]
+            host = hpc.remote_hosts[machine]
+            print(f"[ac_mcp]   {machine}: "
+                  f"ssh {user}@{host} "
+                  f"\"tmux kill-session -t {_MGR_SESSION}\"")
+
+        # Register cleanup once for the server's lifetime.
+        _set_active_cleanup(cleanup_remote_managers)
+        _hpc_module = hpc
+        return hpc
 
 
 def _update(rs: RunStatus, **kwargs):
@@ -259,21 +295,33 @@ def _wait_with_watchdog(wait_fn, hpc, rs: RunStatus, phase: str,
 
         _hero_ds._abort_event.clear()
 
-        # Restart loop: keep trying until the manager is back up.
-        while True:
-            try:
-                run_remote_managers()
-                wait_for_managers()
-                ok = (f"Manager restarted (attempt {restart_count}). "
+        # Restart loop — serialised by _restart_lock so concurrent runs don't
+        # each try to start a new manager.  The first thread through restarts;
+        # subsequent threads detect the manager is alive and skip restarting.
+        with _restart_lock:
+            already_up = _check_manager_alive(
+                machine, hpc.remote_usernames[machine], hpc.remote_hosts[machine]
+            )
+            if already_up:
+                ok = (f"Manager on {machine} already restarted by another thread. "
                       "Resuming wait for HPC results...")
                 print(f"[run {rs.run_id[:8]}] ✅ {ok}")
                 _update(rs, message=f"[{phase}] {ok}")
-                break
-            except RuntimeError as exc:
-                retry_msg = f"Manager restart failed ({exc}). Retrying in 15s..."
-                print(f"[run {rs.run_id[:8]}] ❌ {retry_msg}")
-                _update(rs, message=f"[{phase}] {retry_msg}")
-                time.sleep(15)
+            else:
+                while True:
+                    try:
+                        run_remote_managers()
+                        wait_for_managers()
+                        ok = (f"Manager restarted (attempt {restart_count}). "
+                              "Resuming wait for HPC results...")
+                        print(f"[run {rs.run_id[:8]}] ✅ {ok}")
+                        _update(rs, message=f"[{phase}] {ok}")
+                        break
+                    except RuntimeError as exc:
+                        retry_msg = f"Manager restart failed ({exc}). Retrying in 15s..."
+                        print(f"[run {rs.run_id[:8]}] ❌ {retry_msg}")
+                        _update(rs, message=f"[{phase}] {retry_msg}")
+                        time.sleep(15)
         # outer while True: re-enter wait_fn with the restarted manager
 
 
@@ -358,68 +406,60 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
     from ac_mcp.param_builder import build_evaluation_formatter
     from ac_mcp import registry
 
-    rs = _runs[run_id]   # RunStatus object (named 'rs' to avoid collision with status= kwarg)
-    n = len(jobs)
-    _update(rs, n_total=n, message="starting HPC managers...")
+    rs = _runs[run_id]
+    n  = len(jobs)
+    _update(rs, n_total=n, message="connecting to HPC managers...")
 
-    with _hpc_lock:
-        _update(rs, message="starting HPC managers...")
-        try:
-            hpc, cleanup = _setup_hpc(entry["hpc_config_path"])
-        except Exception as exc:
-            _update(rs, status="error",
-                    error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
-            return
+    try:
+        hpc = _ensure_hpc_running(entry["hpc_config_path"])
+    except Exception as exc:
+        _update(rs, status="error",
+                error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
+        return
 
-        try:
-            formatter = build_evaluation_formatter(jobs, hpc.machine_names)
-            driver = ActiveLoopDriverHero(
-                simulations=[None],
-                params=[OrderedVariable(min_val=0, max_val=max(n - 1, 1))],
-                machine_names=hpc.machine_names,
-                output_field_path=entry["output_field_path"],
-                surrogate=None,
-                blocking=False,
-                task_formatter=formatter,
-            )
+    try:
+        formatter = build_evaluation_formatter(jobs, hpc.machine_names)
+        driver = ActiveLoopDriverHero(
+            simulations=[None],
+            params=[OrderedVariable(min_val=0, max_val=max(n - 1, 1))],
+            machine_names=hpc.machine_names,
+            output_field_path=entry["output_field_path"],
+            surrogate=None,
+            blocking=False,
+            task_formatter=formatter,
+        )
 
-            # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
-            x_all = np.array([[i] for i in range(n)], dtype=float)
-            driver.dataset.add_samples(x_all, 0)
-            _update(rs, hero_state="waiting")
-            _wait_with_watchdog(driver.dataset.hero_wait_for_data, hpc, rs,
-                                "evaluation")
-            _update(rs, hero_state="active")
+        # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
+        x_all = np.array([[i] for i in range(n)], dtype=float)
+        driver.dataset.add_samples(x_all, 0)
+        _update(rs, hero_state="waiting")
+        _wait_with_watchdog(driver.dataset.hero_wait_for_data, hpc, rs,
+                            "evaluation")
+        _update(rs, hero_state="active")
 
-            # Collect results
-            y_data = driver.dataset.y_data[0]
-            results = []
-            best_y, best_x = None, None
-            for i, (job, y_row) in enumerate(zip(jobs, y_data)):
-                y_val = float(y_row[0])
-                acc   = None if np.isnan(y_val) else y_val
-                results.append({"x": dict(job), "y": acc})
-                if acc is not None and (best_y is None or acc > best_y):
-                    best_y = acc
-                    best_x = dict(job)
+        # Collect results
+        y_data = driver.dataset.y_data[0]
+        results = []
+        best_y, best_x = None, None
+        for i, (job, y_row) in enumerate(zip(jobs, y_data)):
+            y_val = float(y_row[0])
+            acc   = None if np.isnan(y_val) else y_val
+            results.append({"x": dict(job), "y": acc})
+            if acc is not None and (best_y is None or acc > best_y):
+                best_y = acc
+                best_x = dict(job)
 
-            n_successful = sum(1 for r in results if r["y"] is not None)
-            x_arr = np.array([[i] for i in range(n)], dtype=float)
-            registry.save_dataset(entry["id"], x_arr, y_data)   # also sets run_status="completed"
-            registry.update_entry(entry["id"], best_x=best_x, best_y=best_y,
-                                   n_samples=n_successful)
-            _update(rs, status="completed", n_completed=n, hero_state="completed",
-                    results=results, best_x=best_x, best_y=best_y)
+        n_successful = sum(1 for r in results if r["y"] is not None)
+        x_arr = np.array([[i] for i in range(n)], dtype=float)
+        registry.save_dataset(entry["id"], x_arr, y_data)
+        registry.update_entry(entry["id"], best_x=best_x, best_y=best_y,
+                               n_samples=n_successful)
+        _update(rs, status="completed", n_completed=n, hero_state="completed",
+                results=results, best_x=best_x, best_y=best_y)
 
-        except Exception as exc:
-            _update(rs, status="error",
-                    error=f"{exc}\n{traceback.format_exc()}")
-        finally:
-            try:
-                cleanup()
-            except Exception:
-                pass
-            _clear_active_cleanup()
+    except Exception as exc:
+        _update(rs, status="error",
+                error=f"{exc}\n{traceback.format_exc()}")
 
 
 def submit_evaluation_run(entry: dict, jobs: list[dict]) -> str:
@@ -460,102 +500,92 @@ def _opt_worker(run_id: str, entry: dict,
         print(f"[run {run_id[:8]}] skip_warmstart=True: ignoring {n_prior} prior pts, running LHS from scratch")
 
     n_total = (n_prior + n_steps) if use_prior else (n_init + n_steps)
-    _update(rs, n_total=n_total, message="starting HPC managers...")
+    _update(rs, n_total=n_total, message="connecting to HPC managers...")
 
-    with _hpc_lock:
-        _update(rs, message="starting HPC managers...")
-        try:
-            hpc, cleanup = _setup_hpc(entry["hpc_config_path"])
-        except Exception as exc:
-            _update(rs, status="error",
-                    error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
-            return
+    try:
+        hpc = _ensure_hpc_running(entry["hpc_config_path"])
+    except Exception as exc:
+        _update(rs, status="error",
+                error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
+        return
 
-        try:
-            ac_params = build_ac_params(param_specs)
-            formatter = build_task_formatter(param_specs, fixed_context,
-                                             hpc.machine_names)
-            mode_str = "sequential (blocking)" if blocking else "parallel (non-blocking)"
-            print(f"[run {run_id[:8]}] BO mode: {mode_str}")
-            driver = ActiveLoopDriverHero(
-                simulations=[None],
-                params=ac_params,
-                machine_names=hpc.machine_names,
-                output_field_path=entry["output_field_path"],
-                surrogate="SMT_GP",
-                acq_func=acq_func,
-                blocking=blocking,
-                task_formatter=formatter,
-            )
+    try:
+        ac_params = build_ac_params(param_specs)
+        formatter = build_task_formatter(param_specs, fixed_context,
+                                         hpc.machine_names)
+        mode_str = "sequential (blocking)" if blocking else "parallel (non-blocking)"
+        print(f"[run {run_id[:8]}] BO mode: {mode_str}")
+        driver = ActiveLoopDriverHero(
+            simulations=[None],
+            params=ac_params,
+            machine_names=hpc.machine_names,
+            output_field_path=entry["output_field_path"],
+            surrogate="SMT_GP",
+            acq_func=acq_func,
+            blocking=blocking,
+            task_formatter=formatter,
+        )
 
-            if use_prior:
-                # ── Auto warm-start: seed from prior in-bounds data, skip LHS ──
-                src = ", ".join(prior["source_ids"])
-                print(f"[run {run_id[:8]}] Auto warm-start: {n_prior} pts from [{src}], then {n_steps} BO steps"
-                      + (f" ({n_dupes} duplicates removed)" if n_dupes else ""))
-                _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]"
-                        + (f" ({n_dupes} dupes removed)" if n_dupes else ""))
-                driver.dataset.add_known_samples(prior["x_valid"], prior["y_valid"], 0)
-                driver.surrogate.train(driver.dataset)
-                results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
-                _update(rs, n_completed=n_prior, n_warmup=n_prior, results=results,
-                        best_x=best_x, best_y=best_y,
-                        message=f"seeded {n_prior} pts; starting {n_steps} BO steps")
-                registry.save_dataset(entry["id"],
-                                      driver.dataset.x_data[0],
-                                      driver.dataset.y_data[0],
-                                      set_completed=False)
-            else:
-                # ── Normal path: LHS warm-up ──────────────────────────────────
-                print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
-                _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
-                driver.initialize(N_samples_init=n_init)
-                _update(rs, hero_state="waiting")
-                _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
-                                    "LHS warmup")
-                _update(rs, hero_state="active")
-                results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
-                _update(rs, n_completed=n_init, n_warmup=n_init, results=results,
-                        best_x=best_x, best_y=best_y,
-                        message=f"warmup done; starting {n_steps} BO steps")
-                registry.save_dataset(entry["id"],
-                                      driver.dataset.x_data[0],
-                                      driver.dataset.y_data[0],
-                                      set_completed=False)
-
-            # ── BO phase (same for both paths) ────────────────────────────────
-            print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
-            _update(rs, message=f"BO: running {n_steps} steps ({mode_str})")
-            driver.run(N_steps=n_steps)
-
-            _update(rs, message=f"BO: waiting for {n_steps} jobs", hero_state="waiting")
-            _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
-                                "BO")
-            _update(rs, hero_state="active")
-
-            results, best_x, best_y = _extract_results(driver, param_specs,
-                                                        fixed_context)
-            n_done = (n_prior if use_prior else n_init) + n_steps
-            _update(rs, n_completed=n_done,
-                    results=results, best_x=best_x, best_y=best_y,
-                    message="BO complete")
+        if use_prior:
+            # ── Auto warm-start: seed from prior in-bounds data, skip LHS ──
+            src = ", ".join(prior["source_ids"])
+            print(f"[run {run_id[:8]}] Auto warm-start: {n_prior} pts from [{src}], then {n_steps} BO steps"
+                  + (f" ({n_dupes} duplicates removed)" if n_dupes else ""))
+            _update(rs, message=f"warm-start: seeding {n_prior} prior pts from [{src}]"
+                    + (f" ({n_dupes} dupes removed)" if n_dupes else ""))
+            driver.dataset.add_known_samples(prior["x_valid"], prior["y_valid"], 0)
+            driver.surrogate.train(driver.dataset)
+            results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
+            _update(rs, n_completed=n_prior, n_warmup=n_prior, results=results,
+                    best_x=best_x, best_y=best_y,
+                    message=f"seeded {n_prior} pts; starting {n_steps} BO steps")
             registry.save_dataset(entry["id"],
-                                   driver.dataset.x_data[0],
-                                   driver.dataset.y_data[0])
-            print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
+                                  driver.dataset.x_data[0],
+                                  driver.dataset.y_data[0],
+                                  set_completed=False)
+        else:
+            # ── Normal path: LHS warm-up ──────────────────────────────────
+            print(f"[run {run_id[:8]}] Warm-up ({n_init} LHS points)...")
+            _update(rs, message=f"warmup: waiting for {n_init} LHS jobs")
+            driver.initialize(N_samples_init=n_init)
+            _update(rs, hero_state="waiting")
+            _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs,
+                                "LHS warmup")
+            _update(rs, hero_state="active")
+            results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
+            _update(rs, n_completed=n_init, n_warmup=n_init, results=results,
+                    best_x=best_x, best_y=best_y,
+                    message=f"warmup done; starting {n_steps} BO steps")
+            registry.save_dataset(entry["id"],
+                                  driver.dataset.x_data[0],
+                                  driver.dataset.y_data[0],
+                                  set_completed=False)
 
-            _update(rs, status="completed", hero_state="completed",
-                    message="optimization complete")
+        # ── BO phase (same for both paths) ────────────────────────────────
+        print(f"[run {run_id[:8]}] BO: {n_steps} steps ({mode_str})...")
+        _update(rs, message=f"BO: running {n_steps} steps ({mode_str})")
+        driver.run(N_steps=n_steps)
 
-        except Exception as exc:
-            _update(rs, status="error",
-                    error=f"{exc}\n{traceback.format_exc()}")
-        finally:
-            try:
-                cleanup()
-            except Exception:
-                pass
-            _clear_active_cleanup()
+        _update(rs, message=f"BO: waiting for {n_steps} jobs", hero_state="waiting")
+        _wait_with_watchdog(driver.hero_wait_for_data_and_train, hpc, rs, "BO")
+        _update(rs, hero_state="active")
+
+        results, best_x, best_y = _extract_results(driver, param_specs, fixed_context)
+        n_done = (n_prior if use_prior else n_init) + n_steps
+        _update(rs, n_completed=n_done,
+                results=results, best_x=best_x, best_y=best_y,
+                message="BO complete")
+        registry.save_dataset(entry["id"],
+                               driver.dataset.x_data[0],
+                               driver.dataset.y_data[0])
+        print(f"[run {run_id[:8]}] BO done. best_y={best_y}")
+
+        _update(rs, status="completed", hero_state="completed",
+                message="optimization complete")
+
+    except Exception as exc:
+        _update(rs, status="error",
+                error=f"{exc}\n{traceback.format_exc()}")
 
 
 def submit_optimization_run(entry: dict, n_init: int,

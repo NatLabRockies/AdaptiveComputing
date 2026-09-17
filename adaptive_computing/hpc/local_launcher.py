@@ -128,6 +128,7 @@ def launch_manager_in_tmux(
     )
     _tmux("send-keys", "-t", session_name, inner_cmd, "Enter", env=env)
     print(f"[local_launcher] Started tmux session '{session_name}' → {manager_script}")
+    print(f"[local_launcher]   To kill: tmux kill-session -t {session_name}")
 
 
 def ensure_manager_running(
@@ -206,6 +207,7 @@ def ensure_command_running(
     full_cmd = command if log_file is None else f"{command} > {log_file!r} 2>&1"
     _tmux("send-keys", "-t", session_name, full_cmd, "Enter", env=env)
     print(f"[local_launcher] Started session '{session_name}'")
+    print(f"[local_launcher]   To kill: tmux kill-session -t {session_name}")
     return True
 
 

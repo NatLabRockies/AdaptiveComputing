@@ -1548,6 +1548,9 @@ def run_agent(
             "conversation_history": prior_history or [],
         }
         _write_checkpoint()
+        session_name = "co-sci-{}".format(chat_id[:8])
+        print("[agent] Session: {}  →  To kill: tmux kill-session -t {}".format(
+            session_name, session_name))
 
     # Initialize session-scoped LocalHero client and inline manager.
     run_uuid = chat_id or _uuid_module.uuid4().hex[:8]

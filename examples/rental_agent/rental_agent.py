@@ -1593,6 +1593,11 @@ def run_agent(
             "conversation_history": prior_history or [],
         }
         _write_checkpoint()  # initial write so the entry exists immediately
+        session_name = "co-sci-{}".format(chat_id[:8])
+        print("[agent] Session: {}  →  To kill: tmux kill-session -t {}".format(
+            session_name, session_name))
+        print("[agent] MCP server →  To kill: tmux kill-session -t {}".format(
+            _MCP_SESSION_NAME))
 
     _ensure_server_running()
     initial_state = {
