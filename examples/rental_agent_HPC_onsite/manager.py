@@ -1,24 +1,24 @@
 """
-manager.py — NEB-style LocalHPCManager for the rental_agent_HPC_onsite example.
+manager.py — LocalHPCManager for the rental_agent_HPC_onsite example.
 
-Demonstrates the pattern:
-  - LangGraph controller submits tasks to LocalHeroClient JSON queue
-  - This manager daemon reads the queue, submits SLURM jobs, polls sacct,
-    and marks tasks done/error — all independently of the controller process
-  - run_forever() keeps the daemon alive between controller restarts
+Submits one SLURM job per Hero task.  Each job receives the task ID as its
+only argument; the manager writes a ``config.json`` (utility_rate, storage,
+number_of_daily_evs, return_soc) into ``cases/<task_id>/`` before submission
+so the batch script can read it without parsing command-line arguments.
 
-Computation: y = x² (trivial mock, no GPU required).
+The batch script (job.sh) runs mock_simulation.py, then writes the negated
+cost to ``result_<task_id>.txt`` in ``$SLURM_SUBMIT_DIR`` (= this directory)
+for the manager to pick up via read_result().
 
-To adapt for a real application:
-  - Replace submit_job with your domain-specific sbatch command
-  - Replace read_result with logic that parses your output file
-  - Run this script in a tmux session via local_launcher.ensure_manager_running()
+run_forever() keeps the daemon alive between controller restarts when this
+script is run directly from the command line.  The controller calls
+run_until_done() inline instead.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -32,71 +32,77 @@ MANAGER_SCRIPT = Path(__file__).resolve()
 
 
 class RentalAgentManager(LocalHPCManager):
-    """Manager for the x² mock simulation.
+    """Manager for the rental car electrification simulation.
 
-    In real mode, submits ``job.sh`` via sbatch.
-    In mock mode, computes the result directly (no scheduler required).
+    Writes a per-task ``config.json`` to ``cases/<task_id>/`` before
+    submitting the SLURM job.  The batch script reads config.json, runs
+    ``simulation_files/mock_simulation.py``, and writes the negated cost
+    to ``result_<task_id>.txt``.
     """
 
-    def __init__(self, *args, mock_mode: bool = False, **kwargs):
+    def __init__(self, *args, work_dir: str | None = None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mock_mode = mock_mode
+        self._work_dir = Path(work_dir) if work_dir else SCRIPT_DIR
 
     def submit_job(self, task: dict, machine_name: str, i_fidelity: int) -> str:
-        x = task["metadata"]["x_value"]
         task_id = task["id"]
-        simulation_dir = str(self.simulation_dir or SCRIPT_DIR)
+        meta    = task["metadata"]
 
-        if self.mock_mode:
-            result = x ** 2
-            Path(simulation_dir, f"result_{task_id}.txt").write_text(str(result))
-            return f"mock_{task_id}"
+        # Write config.json so the batch script can read simulation parameters.
+        case_dir = self._work_dir / "cases" / task_id
+        case_dir.mkdir(parents=True, exist_ok=True)
+        config = {
+            "utility_rate":        meta.get("utility_rate",        "Moderate"),
+            "storage":             float(meta.get("storage",        0.0)),
+            "number_of_daily_evs": float(meta.get("number_of_daily_evs", 1000.0)),
+            "return_soc":          float(meta.get("return_soc",    40.0)),
+        }
+        (case_dir / "config.json").write_text(json.dumps(config, indent=2))
 
         script = self.batch_scripts[i_fidelity]
-        cmd = f"sbatch {script} {x} {task_id} {simulation_dir!r}"
+        cmd    = f"sbatch {script} {task_id}"
         return self._run_submit(cmd)
 
     def read_result(self, task_id: str) -> str:
-        result_file = Path(str(self.simulation_dir or ".")) / f"result_{task_id}.txt"
+        result_file = self._work_dir / f"result_{task_id}.txt"
         if result_file.exists():
             value = result_file.read_text().strip()
             result_file.unlink()
             return value
+        print(f"WARNING: result file not found for task {task_id}, using -1")
         return "-1"
 
 
 def create_manager(
-    machine_name: str,
-    work_dir: str,
-    hero_client: LocalHeroClient,
-    mock_mode: bool = False,
+    machine_name: str = "local",
+    hero_client: LocalHeroClient | None = None,
+    work_dir: str | None = None,
 ) -> RentalAgentManager:
-    """Return a configured :class:`RentalAgentManager`.
+    """Return a configured RentalAgentManager.
 
     Args:
-        machine_name: Logical machine name (e.g. ``"kestrel"``).
-        work_dir:     Absolute path to the working directory where result
-                      files and the Hero JSON db live.
-        hero_client:  Shared :class:`LocalHeroClient` instance.
-        mock_mode:    Skip sbatch and compute results directly for testing.
+        machine_name: Logical name for this machine stored in task metadata.
+        hero_client:  Shared LocalHeroClient instance (same DB as controller).
+        work_dir:     Absolute path to the working directory where result files
+                      and case directories live.  Defaults to this script's dir.
     """
+    work_dir = work_dir or str(SCRIPT_DIR)
     batch_script = str(SCRIPT_DIR / "job.sh")
-    poll_interval = 1 if mock_mode else 10
 
     return RentalAgentManager(
         machine_name=machine_name,
         batch_scripts=[batch_script],
         scheduler_type="slurm",
         simulation_dir=work_dir,
-        poll_interval=poll_interval,
+        poll_interval=10,
         hero_client=hero_client,
-        mock_mode=mock_mode,
+        work_dir=work_dir,
     )
 
 
 if __name__ == "__main__":
-    work_dir = sys.argv[1] if len(sys.argv) > 1 else str(SCRIPT_DIR)
-    machine_name = sys.argv[2] if len(sys.argv) > 2 else "kestrel"
+    work_dir     = sys.argv[1] if len(sys.argv) > 1 else str(SCRIPT_DIR)
+    machine_name = sys.argv[2] if len(sys.argv) > 2 else "local"
 
     hero_client = LocalHeroClient(
         db_path=str(Path(work_dir) / "hero_db.json"),
@@ -105,7 +111,7 @@ if __name__ == "__main__":
     )
     mgr = create_manager(
         machine_name=machine_name,
-        work_dir=work_dir,
         hero_client=hero_client,
+        work_dir=work_dir,
     )
     mgr.run_forever()
