@@ -207,6 +207,8 @@ def _print_menu(n_chats: int) -> None:
         print("  [D1..D{}]   Delete investigation (kill session + remove files)".format(
             n_chats
         ))
+    print("  [X]         Total reset — delete all chats and kill all daemons")
+    print("               (agents, MCP server, manager). Does not delete the experiments registry.")
     print("  [R]         Refresh")
     print("  [Q]         Quit")
     print()
@@ -313,8 +315,105 @@ def _delete(chat: dict, chats_raw: list) -> list:
 # Main loop
 # ---------------------------------------------------------------------------
 
+def _print_kill_reference() -> None:
+    """Print background-daemon kill commands at startup."""
+    print("=" * 72)
+    print("  Background daemons (kill to pick up source-code changes):")
+    print()
+    print("  MCP server:  tmux kill-session -t ac_mcp_server")
+    try:
+        import importlib.util as _ilu, os as _os
+        _hpc_path = str(Path(__file__).parent / "hpc_config.py")
+        spec = _ilu.spec_from_file_location("_hpc_cfg", _hpc_path)
+        _hpc = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(_hpc)
+        from adaptive_computing.hpc.remote_manager import SESSION_NAME as _MGR_SESSION
+        for machine in _hpc.machine_names:
+            host = (_hpc.remote_hosts or {}).get(machine, "<login-node>")
+            user = (_hpc.remote_usernames or {}).get(machine, "<user>")
+            print("  Manager [{m}]:  ssh {u}@{h}  →  tmux kill-session -t {s}".format(
+                m=machine, u=user, h=host, s=_MGR_SESSION))
+    except Exception:
+        print("  Manager:     ssh <login-node>  →  tmux kill-session -t manager_session")
+        print("               (check hpc_config.py for the login node and username)")
+    print()
+    print("  Use [X] Total reset from the menu to kill everything at once.")
+    print("  Use [D<N>] to delete individual agent sessions.")
+    print("=" * 72)
+    print()
+
+
+def _total_reset(chats_raw: list) -> list:
+    """Kill every background daemon: all agent sessions, MCP server, remote manager."""
+    confirm = input(
+        "\n  Total reset will DELETE ALL CHATS and kill all daemons\n"
+        "  (agent sessions, MCP server, remote manager).\n"
+        "  The experiments registry (registry.json + datasets/) is NOT deleted.\n"
+        "  Proceed? [y/N] "
+    ).strip().lower()
+    if confirm != "y":
+        print("  Cancelled.")
+        return chats_raw
+
+    killed = 0
+
+    # Kill every registered agent session.
+    for c in chats_raw:
+        session = c.get("tmux_session", "")
+        if session and _tmux_session_alive(session):
+            subprocess.run(["tmux", "kill-session", "-t", session], capture_output=True)
+            print("  Killed agent session: {}".format(session))
+            killed += 1
+        chat_registry.delete_checkpoint(c.get("checkpoint_file", ""))
+    chat_registry.save_chats([])
+
+    # Kill MCP server.
+    if subprocess.run(
+        ["tmux", "has-session", "-t", "ac_mcp_server"], capture_output=True
+    ).returncode == 0:
+        subprocess.run(["tmux", "kill-session", "-t", "ac_mcp_server"], capture_output=True)
+        print("  Killed MCP server (ac_mcp_server).")
+        killed += 1
+    else:
+        print("  MCP server was not running.")
+
+    # Kill remote manager(s) via SSH.
+    try:
+        import importlib.util as _ilu
+        _hpc_path = str(Path(__file__).parent / "hpc_config.py")
+        spec = _ilu.spec_from_file_location("_hpc_cfg", _hpc_path)
+        _hpc = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(_hpc)
+        from adaptive_computing.hpc.remote_manager import SESSION_NAME as _MGR_SESSION
+        for machine in _hpc.machine_names:
+            host = (_hpc.remote_hosts or {}).get(machine)
+            user = (_hpc.remote_usernames or {}).get(machine)
+            if not host or not user:
+                continue
+            result = subprocess.run(
+                ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+                 "{}@{}".format(user, host),
+                 "tmux kill-session -t {} 2>/dev/null && echo KILLED || echo NOT_RUNNING".format(
+                     _MGR_SESSION)],
+                capture_output=True, text=True, timeout=20,
+            )
+            if "KILLED" in result.stdout:
+                print("  Killed manager on {} ({}).".format(machine, host))
+                killed += 1
+            else:
+                print("  Manager on {} was not running.".format(machine))
+    except Exception as exc:
+        print("  Could not reach remote manager: {}".format(exc))
+        print("  Kill it manually: ssh <login-node> \"tmux kill-session -t manager_session\"")
+
+    print("\n  Total reset complete — {} session(s) killed.".format(killed))
+    print("  Restart co_scientist.py to begin fresh.\n")
+    return []
+
+
 def main() -> None:
     chats_raw = chat_registry.load_chats()
+    _print_kill_reference()
 
     while True:
         chats = _enrich_chats(chats_raw)
@@ -345,6 +444,10 @@ def main() -> None:
 
         if upper == "N":
             chats_raw = _start_new(chats_raw)
+            continue
+
+        if upper == "X":
+            chats_raw = _total_reset(chats_raw)
             continue
 
         # Delete: D<number>

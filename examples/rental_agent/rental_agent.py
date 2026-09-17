@@ -1517,6 +1517,24 @@ def build_graph(checkpointer=None):
 _STANDALONE_LOCK = os.path.join(_AGENT_DIR, ".rental_agent.lock")
 
 
+def _print_daemon_kill_info() -> None:
+    """Print MCP server and remote manager kill commands."""
+    print("[agent] MCP server  →  To kill: tmux kill-session -t {}".format(_MCP_SESSION_NAME))
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location("_hpc_config", _HPC_CONFIG_PATH)
+        _hpc = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(_hpc)
+        from adaptive_computing.hpc.remote_manager import SESSION_NAME as _MGR_SESSION
+        for machine in _hpc.machine_names:
+            host = (_hpc.remote_hosts or {}).get(machine, "<login-node>")
+            user = (_hpc.remote_usernames or {}).get(machine, "<user>")
+            print("[agent] Manager [{m}]  →  ssh {u}@{h}  →  tmux kill-session -t {s}".format(
+                m=machine, u=user, h=host, s=_MGR_SESSION))
+    except Exception:
+        print("[agent] Manager      →  ssh <login-node>  →  tmux kill-session -t manager_session")
+
+
 def _acquire_standalone_lock() -> None:
     """Prevent two standalone rental_agent.py processes from running at once.
 
@@ -1573,6 +1591,8 @@ def run_agent(
 
     if not chat_id:
         _acquire_standalone_lock()
+        print("[agent] Running standalone (PID {}).".format(os.getpid()))
+        _print_daemon_kill_info()
 
     if chat_id:
         _CHAT_ID = chat_id
@@ -1593,8 +1613,7 @@ def run_agent(
         session_name = "co-sci-{}".format(chat_id[:8])
         print("[agent] Session: {}  →  To kill: tmux kill-session -t {}".format(
             session_name, session_name))
-        print("[agent] MCP server →  To kill: tmux kill-session -t {}".format(
-            _MCP_SESSION_NAME))
+        _print_daemon_kill_info()
 
     _ensure_server_running()
     initial_state = {
