@@ -104,7 +104,20 @@ def _ensure_server_running() -> None:
 
     print(f"Starting AC MCP server in tmux session '{_MCP_SESSION_NAME}'...")
     port = _AC_MCP_URL.split(":")[-1].split("/")[0]
-    cmd = f"bash {_AC_MCP_START_SCRIPT!r} {_AC_MCP_STORAGE_DIR!r} {port}"
+    # Run the Python server directly rather than via start_server.sh.
+    # start_server.sh creates its own tmux session named ac_mcp_server, which
+    # conflicts when ensure_command_running has already created that session —
+    # the script finds itself and exits "Session already running".
+    ac_root = os.path.dirname(os.path.dirname(os.path.abspath(_AC_MCP_START_SCRIPT)))
+    cmd = (
+        "cd {root!r} && {python!r} -m ac_mcp.server "
+        "--storage-dir {storage!r} --port {port}".format(
+            root=ac_root,
+            python=sys.executable,
+            storage=_AC_MCP_STORAGE_DIR,
+            port=port,
+        )
+    )
     ensure_command_running(
         session_name=_MCP_SESSION_NAME,
         command=cmd,
