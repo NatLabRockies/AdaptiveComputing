@@ -194,17 +194,17 @@ def _poll_run(run_id: str, poll_interval: float = 15.0) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Domain value sets (kept here for LLM prompt context)
+# Domain value sets
 # ---------------------------------------------------------------------------
 _UTILITY_RATES = ["Moderate", "Aggressive"]
 
-# Full parameter space for optimization — any subset can be optimized; the rest go to fixed_context.
-_ALL_OPT_PARAMS = {
-    "utility_rate":        {"name": "utility_rate",        "type": "categorical", "categories": ["Moderate", "Aggressive"]},
-    "storage":            {"name": "storage",             "type": "continuous",  "min": 0.0,   "max": 100.0},
-    "number_of_daily_evs": {"name": "number_of_daily_evs", "type": "continuous",  "min": 10.0,  "max": 10000.0},
-    "return_soc":          {"name": "return_soc",           "type": "continuous",  "min": 25.0,  "max": 55.0},
-}
+# Default exploration space — used by _run_exploration_step when param_specs is empty.
+_DEFAULT_EXPLORATION_SPECS = [
+    {"name": "utility_rate",        "type": "categorical", "categories": _UTILITY_RATES},
+    {"name": "storage",             "type": "continuous",  "min": 0.0,   "max": 100.0},
+    {"name": "number_of_daily_evs", "type": "continuous",  "min": 10.0,  "max": 10000.0},
+    {"name": "return_soc",          "type": "continuous",  "min": 25.0,  "max": 55.0},
+]
 
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -217,83 +217,71 @@ from typing_extensions import TypedDict
 # 1. Schemas
 # ---------------------------------------------------------------------------
 
+class ParamSpec(BaseModel):
+    """One parameter in a Bayesian optimisation search space."""
+    name:       str                                             = Field(..., description="Parameter name")
+    type:       Literal["continuous", "ordered", "categorical"] = Field(..., description="Variable type")
+    min:        Optional[float]      = Field(None, description="Lower bound (continuous / ordered)")
+    max:        Optional[float]      = Field(None, description="Upper bound (continuous / ordered)")
+    categories: Optional[List[str]] = Field(None, description="Allowed values (categorical)")
+
+
 class PlanStep(BaseModel):
     tool: Literal["run_simulation", "run_exploration", "run_optimization", "evaluate_surrogate"] = Field(
         description=(
             "run_simulation: evaluate one fixed configuration; "
-            "run_exploration: LHS sampling over the full discrete space to survey costs; "
+            "run_exploration: LHS sampling over parameter space to survey costs; "
             "run_optimization: Bayesian optimization to find the minimum-cost configuration; "
             "evaluate_surrogate: query the trained surrogate from a prior run_optimization "
             "to predict cost at a specific point — no simulation or HPC needed."
         )
     )
-    # --- run_simulation fields ---
-    utility_rate: Optional[str] = Field(
-        None,
-        description='Utility rate: "Moderate" or "Aggressive". Required for run_simulation.',
-    )
-    storage: Optional[float] = Field(
+    purpose: str = Field(description="One-sentence explanation of why this step is in the plan.")
+    label: Optional[str] = Field(None, description="Short human-readable label for this step.")
+    reasoning: Optional[str] = Field(None, description="Deeper scientific rationale (optional).")
+
+    # All parameter values for this step:
+    #   run_simulation / evaluate_surrogate: every parameter goes here.
+    #   run_optimization: parameters held FIXED go here; free ones go in param_specs.
+    #   run_exploration: empty {} or a subset to fix some params during the sweep.
+    fixed_context: Optional[dict] = Field(
         None,
         description=(
-            "Battery storage capacity as a percentage 0–100 (continuous float). "
-            "0 = grid-only (no storage), 100 = maximum storage. Required for run_simulation."
+            "Parameter values held constant for this step. "
+            "run_simulation/evaluate_surrogate: all 4 params. "
+            "run_optimization: only the parameters NOT being optimised. "
+            "run_exploration: empty or partially constrained."
         ),
     )
-    number_of_daily_evs: Optional[float] = Field(
+
+    # Free variables to optimise (run_optimization) or sweep (run_exploration).
+    # Each entry: {name, type, min/max or categories}.
+    param_specs: Optional[List[ParamSpec]] = Field(
         None,
-        description="Average daily EV demand 10–10000 (continuous float). Required for run_simulation.",
+        description=(
+            "Parameters to optimise (run_optimization) or explore (run_exploration). "
+            "Omit for run_simulation / evaluate_surrogate."
+        ),
     )
-    return_soc: Optional[float] = Field(
-        None,
-        description="Return state-of-charge 25–55 (continuous float). Required for run_simulation.",
-    )
-    # --- run_exploration fields ---
+
+    # Exploration
     n_exploration_samples: Optional[int] = Field(
-        None,
-        description="Number of LHS samples to draw from the continuous parameter space (run_exploration only).",
+        None, description="LHS samples for run_exploration (default 20)."
     )
-    # --- run_optimization fields ---
-    # Fix a parameter at a specific value by setting the corresponding opt_fixed_* field.
-    # Omit a field (leave it None) to include that parameter in the optimization.
-    # At least one field must be omitted (i.e. at least one parameter must be optimized).
-    opt_fixed_utility_rate: Optional[str] = Field(
-        None,
-        description='Fix utility_rate at "Moderate" or "Aggressive". Omit to optimize over utility_rate.',
-    )
-    opt_fixed_storage: Optional[float] = Field(
-        None,
-        description="Fix storage percentage 0–100. Omit to optimize over storage.",
-    )
-    opt_fixed_number_of_daily_evs: Optional[float] = Field(
-        None,
-        description="Fix daily EV demand 10–10000. Omit to optimize over number_of_daily_evs.",
-    )
-    opt_fixed_return_soc: Optional[float] = Field(
-        None,
-        description="Fix return SOC 25–55. Omit to optimize over return_soc.",
-    )
+
+    # BO knobs (run_optimization only)
     n_init_samples: Optional[int] = Field(
-        None,
-        description="Initial LHS samples before BO starts (run_optimization only, default 3).",
+        None, description="LHS warm-up samples before BO (default 3; auto-skipped on warm-start)."
     )
     n_bo_batches: Optional[int] = Field(
-        None,
-        description="Serial BO rounds (run_optimization only, default 1). Total BO evals = n_bo_batches × n_parallel_per_batch.",
+        None, description="Serial BO rounds (default 1). Total evals = n_bo_batches × n_parallel_per_batch."
     )
     n_parallel_per_batch: Optional[int] = Field(
         None,
         description=(
-            "Parallel evaluations per BO round (run_optimization only, default 1). "
-            "1 = sequential (most sample-efficient). "
-            ">1 = parallel batch (faster wall-clock, less sample-efficient). "
-            "Match exactly what the user specifies; ask when unspecified and the choice matters."
+            "Evaluations per BO round (default 1=sequential). "
+            ">1 = parallel batch (faster wall-clock, less sample-efficient)."
         ),
-    )
-    # --- shared fields ---
-    label: Optional[str] = Field(None, description="Short human-readable label for this step.")
-    purpose: str = Field(description="One-sentence explanation of why this step is in the plan.")
-    reasoning: Optional[str] = Field(
-        None, description="Deeper scientific rationale (optional, shown in plan approval)."
     )
 
 
@@ -355,19 +343,25 @@ The following properties are FIXED and cannot be changed:
 The model is a black box: the exact relationship between inputs and cost is
 unknown and must be discovered through simulation and optimization.
 
-The ONLY parameters the agent can control are:
+The ONLY parameters the agent can control, with their types and ranges:
 
-  utility_rate          "Moderate" | "Aggressive"
-                        Charging tariff structure.
-  storage              float  0 – 100  (continuous)
-                        Battery storage capacity as a percentage.
-                        0 = grid-only (no storage), 100 = maximum storage.
-  number_of_daily_evs   float  10 – 10000  (continuous)
-                        Average daily fleet throughput.
-  return_soc            float  25 – 55  (continuous)
-                        Average state-of-charge when vehicles return.
+  utility_rate          categorical   "Moderate" | "Aggressive"
+                                      Charging tariff structure.
+  storage              continuous    0 – 100  (percentage of max battery storage)
+                                      0 = grid-only (no storage), 100 = maximum storage.
+  number_of_daily_evs   continuous    10 – 10000
+                                      Average daily fleet throughput.
+  return_soc            continuous    25 – 55
+                                      Average state-of-charge when vehicles return.
 
-Total space: 2 (utility_rate) × continuous (demand 10–10000) × continuous (storage 0–100) × continuous (return_soc 25–55).
+For run_simulation and evaluate_surrogate: specify all parameters in fixed_context.
+For run_optimization: free parameters go in param_specs; fixed ones go in fixed_context.
+For run_exploration: specify parameters to sweep in param_specs (empty = sweep all 4).
+
+Variable types supported by the optimizer:
+  continuous  — real-valued float; specify min and max
+  ordered     — integer; specify min and max
+  categorical — discrete string set; specify categories list
 
 All questions and plans must be grounded in these four parameters and in
 the scientific goal of understanding and minimizing cost.
@@ -401,59 +395,52 @@ request using only the available tools and controllable parameters above.
 ## Available Tools
 
 ### run_simulation
-Evaluate one fixed configuration.  Set:
-  utility_rate, storage (float 0–100), number_of_daily_evs (float 10–10000),
-  return_soc (float 25–55), label, purpose.
+Evaluate one fixed configuration.  Set in the PlanStep:
+  fixed_context: dict with ALL parameter values, e.g.
+    {"utility_rate": "Moderate", "storage": 50.0, "number_of_daily_evs": 1000.0, "return_soc": 40.0}
+  label, purpose.
 
 ### run_exploration
-Draw N LHS samples from the continuous parameter space to get a
-broad survey of cost across all parameters at once.  Set:
-  n_exploration_samples, label, purpose.
-Use this when the user asks for a broad survey, heatmap data, or wants
-to understand the overall landscape before focusing in.
+Draw N LHS samples from the parameter space for a broad cost survey.  Set:
+  n_exploration_samples (default 20), label, purpose.
+  param_specs: list of parameters to sweep (omit or empty = sweep all 4).
+  fixed_context: dict of any parameters to hold fixed during the sweep (may be empty).
 
 ### run_optimization
-Bayesian-optimize any subset of the 4 parameters jointly.  Fix parameters
-you want to hold constant using opt_fixed_* fields; omit any field to include
-that parameter in the optimization.  At least one field must be omitted.
-
-  opt_fixed_utility_rate          str   "Moderate" | "Aggressive"  (omit to optimize)
-  opt_fixed_storage              float 0–100                       (omit to optimize)
-  opt_fixed_number_of_daily_evs   float 10–10000                    (omit to optimize)
-  opt_fixed_return_soc            float 25–55                       (omit to optimize)
-  n_init_samples, n_bo_batches, n_parallel_per_batch, label, purpose.
+Bayesian-optimize any subset of parameters jointly.  Set:
+  param_specs: list of FREE variables, each as:
+    {"name": "storage",             "type": "continuous",  "min": 0.0,   "max": 100.0}
+    {"name": "number_of_daily_evs", "type": "continuous",  "min": 10.0,  "max": 10000.0}
+    {"name": "return_soc",          "type": "continuous",  "min": 25.0,  "max": 55.0}
+    {"name": "utility_rate",        "type": "categorical", "categories": ["Moderate","Aggressive"]}
+  fixed_context: dict of parameters held FIXED, e.g.
+    {"utility_rate": "Moderate", "number_of_daily_evs": 1000.0}
+  n_init_samples (default 3), n_bo_batches (default 1), n_parallel_per_batch (default 1).
 
   Total BO evaluations = n_bo_batches × n_parallel_per_batch.
-  n_parallel_per_batch=1 (default) is sequential (most sample-efficient).
+  n_parallel_per_batch=1 is sequential (most sample-efficient).
   n_parallel_per_batch>1 is a parallel batch (faster wall-clock, less efficient).
-  Ask the user when they specify a batch structure (e.g. "1 batch of 5 parallel",
-  "3 rounds of 4", "5 sequential"); otherwise default to n_bo_batches=1, n_parallel_per_batch=1.
+  Ask the user when they specify a batch structure; otherwise default to 1×1.
 
 ### evaluate_surrogate
-Query the trained surrogate model from a prior run_optimization step to predict
-cost at a specific parameter point — no simulation or HPC is needed.  Set:
-  utility_rate, storage (float 0–100), number_of_daily_evs (float 10–10000),
-  return_soc (float 25–55), label, purpose.
-Use this when the user asks to "use the surrogate to interpolate/predict" or
-"evaluate without running a simulation".  Always pair with a prior
-run_optimization step that covers the same parameter space.
-Do NOT add a run_simulation step to validate the surrogate unless the user
-explicitly asks for validation or ground-truth comparison.
+Query the trained surrogate from a prior run_optimization — no simulation needed.  Set:
+  fixed_context: dict with ALL parameter values at the evaluation point.
+  label, purpose.
+Pair with a prior run_optimization whose param_specs are consistent.
 
 ## Creative Composition Examples
-  Compare two configs                → 2 × run_simulation
-  Sweep utility rates                → run_simulation × 2 (Moderate + Aggressive, same rest)
-  Survey full space                  → run_exploration (broad LHS)
-  Optimize storage + SOC             → run_optimization (fix utility_rate + demand)
-  Optimize demand only               → run_optimization (fix utility_rate + storage + return_soc)
-  Optimize all continuous params     → run_optimization (fix only utility_rate)
-  Optimize everything                → run_optimization (no fixed params)
-  Baseline then optimize             → run_simulation(storage=0) + run_optimization
-  Multi-scenario study               → run_optimization × N (different fixed values per run)
-  Optimize then predict a new point  → run_optimization + evaluate_surrogate
+  Compare two configs          → 2 × run_simulation (different fixed_context each)
+  Sweep utility rates          → run_simulation × 2 (fixed_context differs by utility_rate)
+  Survey full space            → run_exploration (n_exploration_samples, empty param_specs)
+  Optimize storage + SOC       → run_optimization(
+                                   param_specs=[{storage,continuous,0,100},{return_soc,continuous,25,55}],
+                                   fixed_context={"utility_rate":"Moderate","number_of_daily_evs":1000})
+  Optimize everything          → run_optimization(param_specs=[all 4], fixed_context={})
+  Baseline then optimize       → run_simulation(fixed_context={...,storage=0}) + run_optimization
+  Multi-scenario study         → run_optimization × N (different fixed_context per run)
+  Optimize then predict        → run_optimization + evaluate_surrogate
 
-Set 'reasoning' with scientific rationale grounded in the parameter ranges and
-what the simulations are expected to reveal.
+Set 'reasoning' with scientific rationale grounded in the parameter ranges.
 Set 'description' to a one-line summary of the full plan.
 """
 
@@ -542,30 +529,37 @@ def _fetch_registry_summary() -> str:
         return "Registry: unavailable ({})".format(exc)
 
 
+def _fmt_specs(specs: list) -> str:
+    """Format a list of param_specs for display."""
+    parts = []
+    for ps in specs:
+        if isinstance(ps, dict):
+            name, ptype = ps.get("name", "?"), ps.get("type", "")
+        else:
+            name, ptype = ps.name, ps.type
+            ps = ps.model_dump()
+        if ptype in ("continuous", "ordered"):
+            parts.append("{}∈[{},{}]".format(name, ps.get("min", "?"), ps.get("max", "?")))
+        else:
+            parts.append("{}∈{}".format(name, ps.get("categories", [])))
+    return "  ".join(parts)
+
+
 def _run_simulation_step(step: dict) -> dict:
     """Execute one run_simulation step via the AC MCP server."""
-    utility_rate = step["utility_rate"]
-    storage     = step["storage"]
-    n_evs        = float(step["number_of_daily_evs"])
-    soc          = float(step["return_soc"])
-    label        = step.get("label") or "{}-{}-{}-SOC{}".format(
-        utility_rate, storage, n_evs, soc)
-    canonical    = "{}-{}evs-SOC{}".format(utility_rate, n_evs, soc)
+    fixed_ctx = dict(step.get("fixed_context") or {})
+    label     = step.get("label") or "sim-{}".format(
+        "-".join(str(v) for v in list(fixed_ctx.values())[:3]))
 
-    print("  Submitting: {} | {} | {} EVs/day | SOC {}".format(
-        utility_rate, storage, n_evs, soc))
+    print("  Submitting: {}".format(
+        "  ".join("{}={}".format(k, v) for k, v in sorted(fixed_ctx.items()))))
 
     exp = _call_tool(
         "create_experiment",
-        name=canonical,
+        name=step.get("label") or "rental-car-simulation",
         description=step["purpose"],
         param_specs=[],
-        fixed_context={
-            "utility_rate": utility_rate,
-            "storage": storage,
-            "number_of_daily_evs": n_evs,
-            "return_soc": soc,
-        },
+        fixed_context=fixed_ctx,
         output_label=_OUTPUT_LABEL,
         hpc_config_path=_HPC_CONFIG_PATH,
         experiment_type="evaluation",
@@ -577,9 +571,7 @@ def _run_simulation_step(step: dict) -> dict:
         raw_best = exp.get("best_y")
         cost = -raw_best if raw_best is not None else None
         return {
-            "data_points": [{"label": label, "utility_rate": utility_rate,
-                              "storage": storage, "number_of_daily_evs": n_evs,
-                              "return_soc": soc, "cost": cost}],
+            "data_points": [{"label": label, "params": fixed_ctx, "cost": cost}],
             "reuse_note": "Reused cached result for {}.".format(label),
             "error": None,
         }
@@ -601,9 +593,7 @@ def _run_simulation_step(step: dict) -> dict:
     cost = -raw_cost
 
     return {
-        "data_points": [{"label": label, "utility_rate": utility_rate,
-                          "storage": storage, "number_of_daily_evs": n_evs,
-                          "return_soc": soc, "cost": cost}],
+        "data_points": [{"label": label, "params": fixed_ctx, "cost": cost}],
         "reuse_note": None, "error": None,
     }
 
@@ -640,23 +630,25 @@ def _lhs_jobs(n_samples: int, seed: int = 42) -> list:
 
 
 def _run_exploration_step(step: dict) -> dict:
-    """Execute one run_exploration step (LHS survey over the full discrete space)."""
-    n_samples = int(step.get("n_exploration_samples") or 20)
-    label     = step.get("label") or "exploration-{}".format(n_samples)
+    """Execute one run_exploration step (LHS survey over the parameter space)."""
+    n_samples   = int(step.get("n_exploration_samples") or 20)
+    label       = step.get("label") or "exploration-{}".format(n_samples)
+    # Use param_specs from step if provided; fall back to the full 4-param default.
+    raw_specs   = step.get("param_specs") or []
+    param_specs = ([ps.model_dump() if hasattr(ps, "model_dump") else dict(ps)
+                    for ps in raw_specs]
+                   if raw_specs else list(_DEFAULT_EXPLORATION_SPECS))
+    fixed_ctx   = dict(step.get("fixed_context") or {})
 
-    print("  Exploring discrete space: {} LHS samples".format(n_samples))
+    print("  Exploring: {} LHS samples  params=[{}]".format(
+        n_samples, _fmt_specs(param_specs)))
 
     exp = _call_tool(
         "create_experiment",
-        name="rental-car-exploration",
+        name=step.get("label") or "rental-car-exploration",
         description=step["purpose"],
-        param_specs=[
-            {"name": "utility_rate",        "type": "categorical", "categories": _UTILITY_RATES},
-            {"name": "storage",             "type": "continuous",  "min": 0.0,  "max": 100.0},
-            {"name": "number_of_daily_evs",  "type": "continuous",  "min": 10.0, "max": 10000.0},
-            {"name": "return_soc",           "type": "continuous",  "min": 25.0, "max": 55.0},
-        ],
-        fixed_context={},
+        param_specs=param_specs,
+        fixed_context=fixed_ctx,
         output_label=_OUTPUT_LABEL,
         hpc_config_path=_HPC_CONFIG_PATH,
         experiment_type="exploration",
@@ -668,14 +660,9 @@ def _run_exploration_step(step: dict) -> dict:
         cached  = _call_tool("get_experiment", experiment_id=exp_id)
         results = cached.get("results", [])
         data_points = [
-            {
-                "label":              "lhs-{}".format(i + 1),
-                "utility_rate":       r["x"].get("utility_rate"),
-                "storage":           r["x"].get("storage"),
-                "number_of_daily_evs":r["x"].get("number_of_daily_evs"),
-                "return_soc":         r["x"].get("return_soc"),
-                "cost":               -r["y"],
-            }
+            {"label": "lhs-{}".format(i + 1),
+             "params": {**fixed_ctx, **r["x"]},
+             "cost": -r["y"]}
             for i, r in enumerate(results)
         ]
         return {"data_points": data_points,
@@ -695,14 +682,10 @@ def _run_exploration_step(step: dict) -> dict:
     raw_results = status.get("results", [])
     data_points = []
     for i, r in enumerate(raw_results):
-        x = r.get("x", {})
         data_points.append({
-            "label":               "lhs-{}".format(i + 1),
-            "utility_rate":        x.get("utility_rate"),
-            "storage":            x.get("storage"),
-            "number_of_daily_evs": x.get("number_of_daily_evs"),
-            "return_soc":          x.get("return_soc"),
-            "cost":                -r["y"],
+            "label":  "lhs-{}".format(i + 1),
+            "params": {**fixed_ctx, **r.get("x", {})},
+            "cost":   -r["y"],
         })
 
     return {"data_points": data_points, "reuse_note": None, "error": None}
@@ -710,14 +693,8 @@ def _run_exploration_step(step: dict) -> dict:
 
 def _run_surrogate_eval_step(step: dict) -> dict:
     """Query the trained surrogate from a prior optimization at a specific point."""
-    utility_rate = step.get("utility_rate")
-    storage      = float(step.get("storage") or 0.0)
-    n_evs        = float(step.get("number_of_daily_evs") or 0.0)
-    soc          = float(step.get("return_soc") or 0.0)
-    label        = step.get("label") or "surrogate-eval"
-
-    eval_point = {"utility_rate": utility_rate, "storage": storage,
-                  "number_of_daily_evs": n_evs, "return_soc": soc}
+    eval_point = dict(step.get("fixed_context") or {})
+    label      = step.get("label") or "surrogate-eval"
 
     print("  Querying surrogate at: {}".format(
         ", ".join("{}={}".format(k, v) for k, v in sorted(eval_point.items()))))
@@ -796,49 +773,40 @@ def _run_surrogate_eval_step(step: dict) -> dict:
         std_str = " (±${:.2f} std)".format(std) if std is not None else ""
         print("  Surrogate prediction: cost=${:.2f}{}".format(mean_cost, std_str))
 
-    dp = dict(eval_point)
-    dp["label"]          = label
-    dp["cost"]           = mean_cost
-    dp["surrogate_std"]  = std
-    dp["is_surrogate"]   = True
+    dp = {
+        "label":        label,
+        "params":       eval_point,
+        "cost":         mean_cost,
+        "surrogate_std": std,
+        "is_surrogate": True,
+    }
     return {"data_points": [dp], "reuse_note": None, "error": None}
 
 
 def _run_optimization_step(step: dict) -> dict:
-    """Execute one run_optimization step over any combination of the 4 parameters."""
-    # Build fixed_context from whichever opt_fixed_* fields are provided
-    fixed_context = {}
-    if step.get("opt_fixed_utility_rate") is not None:
-        fixed_context["utility_rate"]        = step["opt_fixed_utility_rate"]
-    if step.get("opt_fixed_storage") is not None:
-        fixed_context["storage"]            = float(step["opt_fixed_storage"])
-    if step.get("opt_fixed_number_of_daily_evs") is not None:
-        fixed_context["number_of_daily_evs"] = float(step["opt_fixed_number_of_daily_evs"])
-    if step.get("opt_fixed_return_soc") is not None:
-        fixed_context["return_soc"]          = float(step["opt_fixed_return_soc"])
-
-    # Parameters to optimize = everything NOT pinned in fixed_context
-    param_specs   = [spec for key, spec in _ALL_OPT_PARAMS.items() if key not in fixed_context]
-    opt_var_names = [s["name"] for s in param_specs]
+    """Execute one run_optimization step over any combination of parameters."""
+    raw_specs     = step.get("param_specs") or []
+    param_specs   = [ps.model_dump() if hasattr(ps, "model_dump") else dict(ps)
+                     for ps in raw_specs]
+    fixed_context = dict(step.get("fixed_context") or {})
+    opt_var_names = [ps["name"] for ps in param_specs]
 
     if not param_specs:
         return {"data_points": [], "reuse_note": None,
-                "error": "run_optimization: all 4 parameters are fixed — nothing to optimize."}
+                "error": "run_optimization: param_specs is empty — nothing to optimize."}
 
     n_init_raw = step.get("n_init_samples")
     n_init     = 3 if n_init_raw is None else int(n_init_raw)
     n_batches  = int(step.get("n_bo_batches") or 1)
     n_parallel = int(step.get("n_parallel_per_batch") or 1)
-    n_steps    = n_batches * n_parallel   # total BO evaluations
-    blocking   = (n_parallel == 1)        # sequential when 1 per batch
-    fixed_str  = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))
-    opt_str    = "+".join(opt_var_names)
-    label      = step.get("label") or "opt-{}".format(
-        "_".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))) or "opt-all"
+    n_steps    = n_batches * n_parallel
+    blocking   = (n_parallel == 1)
+    fixed_str  = "  ".join("{}={}".format(k, v) for k, v in sorted(fixed_context.items()))
+    label      = step.get("label") or "opt-{}".format("+".join(opt_var_names))
     exp_name   = label
 
-    print("  Optimizing [{}]: fixed=({})  (init={}, {}x{} BO = {} evals)".format(
-        opt_str, fixed_str, n_init, n_batches, n_parallel, n_steps))
+    print("  Optimizing [{}]: fixed=({})  (init={}, {}×{} BO = {} evals)".format(
+        _fmt_specs(param_specs), fixed_str, n_init, n_batches, n_parallel, n_steps))
 
     # _found non-empty  → warm-start from prior data: create a NEW experiment so
     #                      run_manager can seed from the old one via find_reusable_data.
@@ -876,11 +844,10 @@ def _run_optimization_step(step: dict) -> dict:
             best_x_dict = dict(zip(opt_var_names, best_x_raw))
         else:
             best_x_dict = {}
-        dp = {"label": label, "cost": best_cost, "is_best": True}
-        dp.update(fixed_context)
-        dp.update(best_x_dict)
+        dp_params = {**fixed_context, **best_x_dict}
         return {
-            "data_points": [dp],
+            "data_points": [{"label": label, "params": dp_params,
+                              "cost": best_cost, "is_best": True}],
             "reuse_note": "Reused cached optimization for {}.".format(label),
             "error": None,
         }
@@ -904,21 +871,24 @@ def _run_optimization_step(step: dict) -> dict:
 
     raw_results = status.get("results", [])
     best_x_dict = status.get("best_x") or {}
+    if isinstance(best_x_dict, list):
+        best_x_dict = dict(zip(opt_var_names, best_x_dict))
     raw_best    = status.get("best_y")
     best_cost   = -raw_best if raw_best is not None else None
-    # n_warmup is the actual number of seed/LHS points before BO started;
-    # fall back to n_init if the server didn't return it (older builds).
     n_warmup    = status.get("n_warmup", n_init)
 
     data_points = []
     for i, r in enumerate(raw_results):
-        if i < n_warmup:
-            pt_lbl = "seed-{}".format(i + 1) if has_warmstart else "init-{}".format(i + 1)
-        else:
-            pt_lbl = "bo-{}".format(i - n_warmup + 1)
-        dp = {"label": pt_lbl, "cost": -r["y"]}
-        dp.update(r.get("x", {}))  # fills all 4 param values from the server result
-        if all(dp.get(k) == best_x_dict.get(k) for k in opt_var_names):
+        pt_lbl = (
+            ("seed-{}".format(i + 1) if has_warmstart else "init-{}".format(i + 1))
+            if i < n_warmup else "bo-{}".format(i - n_warmup + 1)
+        )
+        x_dict = r.get("x") or {}
+        if isinstance(x_dict, list):
+            x_dict = dict(zip(opt_var_names, x_dict))
+        dp_params = {**fixed_context, **x_dict}
+        dp = {"label": pt_lbl, "params": dp_params, "cost": -r["y"]}
+        if all(dp_params.get(k) == best_x_dict.get(k) for k in opt_var_names):
             dp["is_best"] = True
         data_points.append(dp)
 
@@ -926,7 +896,7 @@ def _run_optimization_step(step: dict) -> dict:
         return {"data_points": data_points, "reuse_note": None,
                 "error": "All BO trials returned no result"}
 
-    best_vals = ", ".join("{}={:.4g}".format(k, v)
+    best_vals = "  ".join("{}={:.4g}".format(k, v)
                           for k, v in sorted(best_x_dict.items()) if k in opt_var_names)
     print("  Best: [{}], cost=${:.2f}".format(best_vals, best_cost))
     return {"data_points": data_points, "reuse_note": None, "error": None}
@@ -1009,29 +979,29 @@ def plan(state):
         print("\nPlan: {} ({} steps)".format(pd["description"], len(steps)))
         for i, s in enumerate(steps, 1):
             lbl = " ({})".format(s["label"]) if s.get("label") else ""
-            detail = ""
+            print("  Step {}: [{}]{} — {}".format(i, s["tool"], lbl, s["purpose"]))
             if s["tool"] == "run_simulation":
-                detail = "  → {} | {} | {} EVs | SOC {}".format(
-                    s.get("utility_rate"), s.get("storage"),
-                    s.get("number_of_daily_evs"), s.get("return_soc"))
+                ctx = s.get("fixed_context") or {}
+                print("    fixed={}".format(
+                    "  ".join("{}={}".format(k, v) for k, v in sorted(ctx.items()))))
             elif s["tool"] == "run_exploration":
-                detail = "  → {} LHS samples".format(s.get("n_exploration_samples"))
+                specs = s.get("param_specs") or []
+                print("    {} LHS  params=[{}]".format(
+                    s.get("n_exploration_samples") or 20,
+                    _fmt_specs(specs) if specs else "all"))
             elif s["tool"] == "run_optimization":
-                fixed_parts = {k[len("opt_fixed_"):]: v
-                               for k, v in s.items()
-                               if k.startswith("opt_fixed_") and v is not None}
-                opt_vars = [k for k in _ALL_OPT_PARAMS if k not in fixed_parts]
-                fixed_str = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_parts.items()))
-                n_bat_d = s.get("n_bo_batches") or 1
-                n_par_d = s.get("n_parallel_per_batch") or 1
-                detail = "  → BO over [{}]: fixed=({}) (init={}, {}x{} BO = {} evals)".format(
-                    "+".join(opt_vars), fixed_str,
-                    s.get("n_init_samples"), n_bat_d, n_par_d, n_bat_d * n_par_d)
+                specs = s.get("param_specs") or []
+                ctx   = s.get("fixed_context") or {}
+                n_bat = s.get("n_bo_batches") or 1
+                n_par = s.get("n_parallel_per_batch") or 1
+                print("    opt=[{}]  fixed=({})  BO={}×{}={}".format(
+                    _fmt_specs(specs),
+                    "  ".join("{}={}".format(k, v) for k, v in sorted(ctx.items())),
+                    n_bat, n_par, n_bat * n_par))
             elif s["tool"] == "evaluate_surrogate":
-                detail = "  → surrogate prediction at (ur={}, stor={}, evs={}, soc={})".format(
-                    s.get("utility_rate"), s.get("storage"),
-                    s.get("number_of_daily_evs"), s.get("return_soc"))
-            print("  Step {}: [{}]{} — {}{}".format(i, s["tool"], lbl, s["purpose"], detail))
+                ctx = s.get("fixed_context") or {}
+                print("    surrogate at {}".format(
+                    "  ".join("{}={}".format(k, v) for k, v in sorted(ctx.items()))))
         print("  Reasoning:", pd["reasoning"][:200], "...")
 
         return {**reset,
@@ -1111,45 +1081,36 @@ def search_registry(state):
         print("Warning: registry search failed ({}); assuming no reuse.".format(exc))
         all_entries = []
 
+    def _param_key(specs):
+        return sorted((s.get("name",""), s.get("type","")) for s in specs)
+
     annotated = []
     for step in steps:
         step = dict(step)
         step["_found"] = None
+        fixed_ctx   = step.get("fixed_context") or {}
+        param_specs = step.get("param_specs") or []
+        step_pk     = _param_key(
+            [ps.model_dump() if hasattr(ps, "model_dump") else ps for ps in param_specs]
+        )
         found_list = []
         for e in all_entries:
             if e.get("run_status") != "completed":
                 continue
             ctx = e.get("fixed_context") or {}
             if step["tool"] == "run_simulation":
-                if (ctx.get("utility_rate") == step.get("utility_rate")
-                        and ctx.get("storage") == step.get("storage")
-                        and ctx.get("number_of_daily_evs") == step.get("number_of_daily_evs")
-                        and ctx.get("return_soc") == step.get("return_soc")):
-                    step["_found"] = e   # exact match — single entry
+                if ctx == fixed_ctx:
+                    step["_found"] = e
                     break
             elif step["tool"] == "run_optimization":
-                # Build expected fixed_context for this step
-                expected_fixed = {}
-                if step.get("opt_fixed_utility_rate") is not None:
-                    expected_fixed["utility_rate"]        = step["opt_fixed_utility_rate"]
-                if step.get("opt_fixed_storage") is not None:
-                    expected_fixed["storage"]            = float(step["opt_fixed_storage"])
-                if step.get("opt_fixed_number_of_daily_evs") is not None:
-                    expected_fixed["number_of_daily_evs"] = float(step["opt_fixed_number_of_daily_evs"])
-                if step.get("opt_fixed_return_soc") is not None:
-                    expected_fixed["return_soc"]          = float(step["opt_fixed_return_soc"])
-                # Match on experiment_type + fixed_context + same optimized param names
                 if e.get("experiment_type") != "optimization":
                     continue
-                if not all(ctx.get(k) == v for k, v in expected_fixed.items()):
+                if ctx != fixed_ctx:
                     continue
-                # Param names must match (the set of params being optimized)
-                opt_var_names = sorted(k for k in _ALL_OPT_PARAMS if k not in expected_fixed)
-                e_param_names = sorted(s.get("name") for s in (e.get("param_specs") or []))
-                if e_param_names == opt_var_names:
+                if _param_key(e.get("param_specs") or []) == step_pk:
                     found_list.append(e)
         if step["tool"] == "run_optimization" and step["_found"] is None:
-            step["_found"] = found_list   # list (possibly empty) for opt steps
+            step["_found"] = found_list
         annotated.append(step)
     return {"plan_steps": annotated, "status": "searched"}
 
@@ -1186,13 +1147,11 @@ def negotiate_reuse(state):
         prior_list = s.get("_found") or []
         total_n    = sum(pe.get("n_samples", 0) or 0 for pe in prior_list)
         lbl        = " ({})".format(s["label"]) if s.get("label") else ""
-        fixed_parts = {k[len("opt_fixed_"):]: v
-                       for k, v in s.items()
-                       if k.startswith("opt_fixed_") and v is not None}
-        opt_vars    = [k for k in _ALL_OPT_PARAMS if k not in fixed_parts]
-        fixed_str   = ", ".join("{}={}".format(k, v) for k, v in sorted(fixed_parts.items()))
-        print("  Step {}{}: optimize [{}]  fixed=({})".format(
-            i + 1, lbl, "+".join(opt_vars), fixed_str))
+        specs      = s.get("param_specs") or []
+        fixed_ctx  = s.get("fixed_context") or {}
+        fixed_str  = "  ".join("{}={}".format(k, v) for k, v in sorted(fixed_ctx.items()))
+        print("  Step {}{}: opt=[{}]  fixed=({})".format(
+            i + 1, lbl, _fmt_specs(specs), fixed_str))
         for pe in prior_list:
             p_n    = pe.get("n_samples", "?")
             p_best = pe.get("best_y")
@@ -1429,11 +1388,10 @@ def synthesize_and_explain(state):
             std = r.get("surrogate_std")
             cost_str += " ±${:.2f} (surrogate)".format(std) if std is not None else " (surrogate)"
         best_marker = " [BEST]" if r.get("is_best") else ""
-        lines.append("  {} ({} | {} | {} EVs | SOC {}): {}{}".format(
-            r.get("label", "?"),
-            r.get("utility_rate", "?"), r.get("storage", "?"),
-            r.get("number_of_daily_evs", "?"), r.get("return_soc", "?"),
-            cost_str, best_marker))
+        params     = r.get("params") or {}
+        params_str = "  ".join("{}={}".format(k, v) for k, v in sorted(params.items()))
+        lines.append("  {} ({}): {}{}".format(
+            r.get("label", "?"), params_str, cost_str, best_marker))
 
     context_msg = "\n".join(lines)
     print("\nGenerating expert explanation...")
