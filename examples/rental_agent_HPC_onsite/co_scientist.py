@@ -32,7 +32,7 @@ if str(_AGENT_DIR) not in sys.path:
 
 import chat_registry  # noqa: E402 (after sys.path setup)
 
-_AGENT_SCRIPT = _AGENT_DIR / "controller.py"
+_AGENT_SCRIPT = _AGENT_DIR / "rental_agent.py"
 
 # ---------------------------------------------------------------------------
 # Status helpers

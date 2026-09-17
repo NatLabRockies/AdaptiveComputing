@@ -26,11 +26,14 @@ echo "SLURM job ID: $SLURM_JOB_ID  Node: $SLURMD_NODENAME"
 echo "Task ID: $task_id"
 
 # --- Resolve paths ---
-WORK_DIR="$SLURM_SUBMIT_DIR"
+# SLURM_SUBMIT_DIR is simulation_files/ (where sbatch was invoked from).
+# The agent working directory is one level up.
+SIM_DIR="$SLURM_SUBMIT_DIR"
+WORK_DIR="$(dirname "$SIM_DIR")"
 CASE_DIR="$WORK_DIR/cases/$task_id"
-SIM_DIR="$WORK_DIR/simulation_files"
 
 echo "Work dir:  $WORK_DIR"
+echo "Sim dir:   $SIM_DIR"
 echo "Case dir:  $CASE_DIR"
 
 mkdir -p "$CASE_DIR/logs"
@@ -81,7 +84,8 @@ fi
 echo "Negated cost (stored as -cost for AC maximization convention): $cost"
 
 # Write result for the manager to pick up via read_result().
-echo "$cost" > "$WORK_DIR/result_${task_id}.txt"
-echo "Wrote result to result_${task_id}.txt"
+# The manager runs with cwd=simulation_files/ so the result file lands there.
+echo "$cost" > "$SIM_DIR/result_${task_id}.txt"
+echo "Wrote result to simulation_files/result_${task_id}.txt"
 
 echo "Job completed at: $(date)"

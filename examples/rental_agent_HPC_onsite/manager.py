@@ -87,13 +87,14 @@ def create_manager(
                       and case directories live.  Defaults to this script's dir.
     """
     work_dir = work_dir or str(SCRIPT_DIR)
-    batch_script = str(SCRIPT_DIR / "job.sh")
+    batch_script  = str(SCRIPT_DIR / "simulation_files" / "job.sh")
+    simulation_dir = str(SCRIPT_DIR / "simulation_files")
 
     return RentalAgentManager(
         machine_name=machine_name,
         batch_scripts=[batch_script],
         scheduler_type="slurm",
-        simulation_dir=work_dir,
+        simulation_dir=simulation_dir,
         poll_interval=10,
         hero_client=hero_client,
         work_dir=work_dir,
