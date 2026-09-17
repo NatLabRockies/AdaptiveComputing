@@ -92,6 +92,7 @@ def register_experiment(
     hpc_config_path: str,
     output_field_path: str = "y_data",
     experiment_type: str = "optimization",   # "optimization" | "evaluation"
+    config_blob: Optional[dict] = None,
 ) -> str:
     """Create a new registry entry and return its experiment_id."""
     experiment_id = str(uuid.uuid4())
@@ -103,6 +104,7 @@ def register_experiment(
         "run_status":        "in_progress",   # "in_progress" | "completed"
         "param_specs":       param_specs,
         "fixed_context":     fixed_context,
+        "config_blob":       config_blob or {},
         "output_label":      output_label,
         "output_field_path": output_field_path,
         "hpc_config_path":   hpc_config_path,
@@ -223,11 +225,28 @@ def load_dataset(experiment_id: str) -> dict[str, np.ndarray]:
 # Experiment matching
 # ---------------------------------------------------------------------------
 
+def _config_blob_matches(stored: Optional[dict], requested: Optional[dict]) -> bool:
+    """True when two config_blobs represent the same job configuration.
+
+    If both are empty/None (legacy experiments), they match.
+    If one is populated and the other isn't, no match (conservative).
+    Otherwise compare by value.
+    """
+    a_empty = not stored
+    b_empty = not requested
+    if a_empty and b_empty:
+        return True
+    if a_empty != b_empty:
+        return False
+    return stored == requested
+
+
 def find_matching_experiment(
     name: str,
     param_specs: list[dict],
     fixed_context: dict,
     experiment_type: str,
+    config_blob: Optional[dict] = None,
 ) -> Optional[dict]:
     """Return the most recent *completed* experiment that matches the given key fields.
 
@@ -251,6 +270,7 @@ def find_matching_experiment(
         if e.get("run_status") == "completed"
         and e["experiment_type"] == experiment_type
         and e["fixed_context"] == fixed_context
+        and _config_blob_matches(e.get("config_blob"), config_blob)
         and _param_key(e["param_specs"]) == target_key
     ]
     if not candidates:
@@ -263,6 +283,7 @@ def find_reusable_data(
     fixed_context: dict,
     experiment_type: str,
     exclude_id: Optional[str] = None,
+    config_blob: Optional[dict] = None,
 ) -> dict:
     """Search all completed experiments that share fixed_context and param names/types
     (regardless of bounds), load their datasets, and return only the data points
@@ -308,6 +329,7 @@ def find_reusable_data(
         if e.get("run_status") == "completed"
         and e["experiment_type"] == experiment_type
         and e["fixed_context"] == fixed_context
+        and _config_blob_matches(e.get("config_blob"), config_blob)
         and _param_key(e["param_specs"]) == target_key
         and e["id"] != exclude_id
     ]

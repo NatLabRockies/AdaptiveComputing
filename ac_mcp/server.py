@@ -62,13 +62,15 @@ def create_experiment(
     output_field_path: str = "y_data",
     experiment_type: str = "optimization",
     force_new: bool = False,
+    config_blob: Optional[dict] = None,
 ) -> dict:
     """
     Register a new experiment and return its experiment_id.
 
     Before creating a new entry, checks the registry for an existing *completed*
-    experiment with the same name, experiment_type, fixed_context, and param_specs.
-    If one is found it is returned immediately (no new simulations needed).
+    experiment with the same name, experiment_type, fixed_context, param_specs,
+    and config_blob.  If one is found it is returned immediately (no new
+    simulations needed).
     Pass force_new=True to skip the cache check and always create a fresh experiment.
 
     Parameters
@@ -86,7 +88,8 @@ def create_experiment(
         Pass an empty list [] for evaluation-only experiments.
     fixed_context : dict
         Parameters constant across all jobs, e.g. {"n_e": 100, "neuron_type": "BE-LIF"}.
-        These are written verbatim into every job's metadata.
+        These are written verbatim into every job's metadata alongside param values,
+        and are used for experiment identity matching and warm-start data search.
     output_label : str
         Semantic description of y_data, e.g. "MNIST prediction accuracy (%)".
         Stored in the registry for co-scientist reasoning.
@@ -100,6 +103,15 @@ def create_experiment(
         "optimization" or "evaluation".
     force_new : bool
         If True, skip cache check and always register a new experiment.
+    config_blob : dict or None
+        Full application config written verbatim into every task's metadata under
+        the key "config".  The HPC manager can read meta["config"] and write it
+        directly as a config file (e.g. config.json) without needing to know the
+        application's parameter schema.  Applications whose managers use individual
+        metadata fields can omit this — the key will not appear in task metadata.
+        config_blob is included in experiment identity matching: experiments with
+        different config_blobs are treated as distinct even when fixed_context
+        and param_specs are identical.
 
     Returns
     -------
@@ -114,6 +126,7 @@ def create_experiment(
             param_specs=param_specs,
             fixed_context=fixed_context,
             experiment_type=experiment_type,
+            config_blob=config_blob,
         )
         if existing is not None:
             return {"experiment_id": existing["id"], "reused": True,
@@ -130,6 +143,7 @@ def create_experiment(
         hpc_config_path=hpc_config_path,
         output_field_path=output_field_path,
         experiment_type=experiment_type,
+        config_blob=config_blob,
     )
     return {"experiment_id": exp_id, "reused": False}
 

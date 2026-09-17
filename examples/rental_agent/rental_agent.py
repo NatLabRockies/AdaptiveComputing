@@ -74,12 +74,14 @@ _AC_MCP_START_SCRIPT = os.environ.get(
     "AC_MCP_START_SCRIPT",
     os.path.expanduser("~/AdaptiveComputing/ac_mcp/start_server.sh"),
 )
+_MCP_SESSION_NAME = "ac_mcp_server"
 
 
 def _ensure_server_running() -> None:
-    """Start the AC MCP server if it is not reachable, then wait for it to be ready."""
+    """Start the AC MCP server in a tmux session if it is not reachable."""
     import urllib.error
     import urllib.request
+    from adaptive_computing.hpc.local_launcher import ensure_command_running
 
     url = _AC_MCP_URL.rstrip("/") + "/"  # health-check the root endpoint
 
@@ -100,11 +102,13 @@ def _ensure_server_running() -> None:
         print("Start the server manually, then retry.")
         return
 
-    print(f"Starting AC MCP server via {_AC_MCP_START_SCRIPT} ...")
+    print(f"Starting AC MCP server in tmux session '{_MCP_SESSION_NAME}'...")
     port = _AC_MCP_URL.split(":")[-1].split("/")[0]
-    subprocess.run(
-        ["bash", _AC_MCP_START_SCRIPT, _AC_MCP_STORAGE_DIR, port],
-        check=True,
+    cmd = f"bash {_AC_MCP_START_SCRIPT!r} {_AC_MCP_STORAGE_DIR!r} {port}"
+    ensure_command_running(
+        session_name=_MCP_SESSION_NAME,
+        command=cmd,
+        log_file="/tmp/ac_mcp_server.log",
     )
 
     for _ in range(30):
@@ -1523,7 +1527,7 @@ def _route_after_followup(state):
 # 7. Graph assembly
 # ---------------------------------------------------------------------------
 
-def build_graph():
+def build_graph(checkpointer=None):
     builder = StateGraph(AgentState)
     builder.add_node("clarify",                clarify)
     builder.add_node("plan",                   plan)
@@ -1545,7 +1549,7 @@ def build_graph():
     builder.add_conditional_edges("execute_step",      _route_after_execute)
     builder.add_edge("synthesize_and_explain",         "ask_followup")
     builder.add_conditional_edges("ask_followup",      _route_after_followup)
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
 
 
 # ---------------------------------------------------------------------------
@@ -1591,7 +1595,6 @@ def run_agent(
         _write_checkpoint()  # initial write so the entry exists immediately
 
     _ensure_server_running()
-    graph = build_graph()
     initial_state = {
         "user_request":          user_request,
         "conversation_history":  list(prior_history or []),
@@ -1609,7 +1612,24 @@ def run_agent(
     }
     print("Request: {}\n".format(user_request))
     try:
-        final = graph.invoke(initial_state)
+        if chat_id:
+            from langgraph.checkpoint.sqlite import SqliteSaver
+            import chat_registry as _chat_registry
+            sqlite_db = str(
+                _chat_registry.checkpoint_path(chat_id).with_suffix(".db")
+            )
+            with SqliteSaver.from_conn_string(sqlite_db) as checkpointer:
+                graph = build_graph(checkpointer=checkpointer)
+                config = {"configurable": {"thread_id": chat_id}}
+                snap = graph.get_state(config)
+                if snap.next:
+                    print("[rental_agent] Resuming interrupted session from checkpoint...")
+                    final = graph.invoke(None, config=config)
+                else:
+                    final = graph.invoke(initial_state, config=config)
+        else:
+            graph = build_graph()
+            final = graph.invoke(initial_state)
     except Exception as exc:
         _write_checkpoint(status="error", error=str(exc))
         raise
@@ -1634,15 +1654,10 @@ def run_agent(
 
 
 def _stop_mcp_server() -> None:
-    """Kill the ac_mcp_server tmux session when this agent script exits."""
+    """Kill the AC MCP server tmux session when this agent script exits."""
     try:
-        if subprocess.run(
-            ["tmux", "has-session", "-t", "ac_mcp_server"],
-            capture_output=True,
-        ).returncode == 0:
-            print("\n[rental_agent] Stopping AC MCP server...")
-            subprocess.run(["tmux", "kill-session", "-t", "ac_mcp_server"],
-                           capture_output=True)
+        from adaptive_computing.hpc.local_launcher import stop_manager
+        stop_manager(_MCP_SESSION_NAME)
     except Exception:
         pass
 

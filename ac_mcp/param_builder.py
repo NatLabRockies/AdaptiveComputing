@@ -14,7 +14,7 @@ jobs in an experiment (e.g. {"n_e": 100, "neuron_type": "BE-LIF"}).
 """
 
 from __future__ import annotations
-from typing import Any
+from typing import Any, Optional
 
 
 def build_ac_params(param_specs: list[dict]) -> list:
@@ -44,10 +44,11 @@ def build_ac_params(param_specs: list[dict]) -> list:
 class _TaskFormatter:
     """Picklable callable that maps x_data_i floats → Hero task metadata dict."""
     def __init__(self, param_specs: list[dict], fixed_context: dict,
-                 machine_names: list[str]):
+                 machine_names: list[str], config_blob: Optional[dict] = None):
         self.param_specs    = param_specs
         self.fixed_context  = fixed_context
         self.machine_names  = machine_names
+        self.config_blob    = config_blob or {}
 
     def __call__(self, x_data_i: Any) -> dict:
         meta: dict = {"y_data": None}
@@ -61,6 +62,8 @@ class _TaskFormatter:
             else:
                 meta[spec["name"]] = raw
         meta.update(self.fixed_context)
+        if self.config_blob:
+            meta["config"] = self.config_blob
         meta["scheduler_job_id"] = {m: -1    for m in self.machine_names}
         meta["running"]      = {m: False for m in self.machine_names}
         return meta
@@ -68,37 +71,45 @@ class _TaskFormatter:
 
 class _EvalFormatter:
     """Picklable callable for evaluation-only runs; maps x_data_i index → job metadata."""
-    def __init__(self, jobs: list[dict], machine_names: list[str]):
+    def __init__(self, jobs: list[dict], machine_names: list[str],
+                 config_blob: Optional[dict] = None):
         self.jobs          = jobs
         self.machine_names = machine_names
+        self.config_blob   = config_blob or {}
 
     def __call__(self, x_data_i: Any) -> dict:
         idx  = int(round(float(x_data_i[0])))
         meta = dict(self.jobs[idx])
         meta.setdefault("y_data", None)
+        if self.config_blob:
+            meta["config"] = self.config_blob
         meta["scheduler_job_id"] = {m: -1    for m in self.machine_names}
         meta["running"]      = {m: False for m in self.machine_names}
         return meta
 
 
 def build_task_formatter(param_specs: list[dict], fixed_context: dict,
-                         machine_names: list[str]) -> _TaskFormatter:
+                         machine_names: list[str],
+                         config_blob: Optional[dict] = None) -> _TaskFormatter:
     """
     Return a picklable Hero task_formatter.
 
     The formatter maps x_data_i (1-D float array, one value per param_spec)
     to a metadata dict containing decoded param values, fixed_context fields,
-    and Hero bookkeeping keys (scheduler_job_id, running).
+    Hero bookkeeping keys (scheduler_job_id, running), and optionally a
+    "config" key holding the full application config_blob.
     """
-    return _TaskFormatter(param_specs, fixed_context, machine_names)
+    return _TaskFormatter(param_specs, fixed_context, machine_names, config_blob)
 
 
 def build_evaluation_formatter(jobs: list[dict],
-                               machine_names: list[str]) -> _EvalFormatter:
+                               machine_names: list[str],
+                               config_blob: Optional[dict] = None) -> _EvalFormatter:
     """
     Formatter for evaluation-only (no surrogate) runs.
 
     x_data encodes a job index [0, 1, 2, ...]; the formatter looks up the full
-    metadata from the pre-built `jobs` list.
+    metadata from the pre-built `jobs` list.  config_blob, if provided, is
+    injected into each task's metadata under the key "config".
     """
-    return _EvalFormatter(jobs, machine_names)
+    return _EvalFormatter(jobs, machine_names, config_blob)

@@ -164,6 +164,51 @@ def ensure_manager_running(
     return True
 
 
+def ensure_command_running(
+    session_name: str,
+    command: str,
+    log_file: str | None = None,
+) -> bool:
+    """Start an arbitrary shell command in a persistent tmux session if not running.
+
+    Generalised variant of :func:`ensure_manager_running` for non-manager
+    processes such as the AC MCP server.  Uses ``setsid`` so the session
+    survives ``KillUserProcesses=yes``.  Safe to call repeatedly.
+
+    Args:
+        session_name: Name for the tmux session.
+        command:      Shell command to run inside the session.
+        log_file:     Optional path to redirect stdout+stderr.
+
+    Returns:
+        ``True`` if a new session was launched, ``False`` if already running.
+    """
+    env = _make_env()
+    _ensure_tmux(env)
+
+    result = _tmux("has-session", "-t", session_name, env=env)
+    if result.returncode == 0:
+        print(f"[local_launcher] Session '{session_name}' already running")
+        return False
+
+    # Kill any stale session before creating a fresh one.
+    _tmux("kill-session", "-t", session_name, env=env)
+
+    result = subprocess.run(
+        f"setsid tmux new-session -d -s {session_name}",
+        shell=True, env=env, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Failed to create tmux session '{session_name}': {result.stderr.strip()}"
+        )
+
+    full_cmd = command if log_file is None else f"{command} > {log_file!r} 2>&1"
+    _tmux("send-keys", "-t", session_name, full_cmd, "Enter", env=env)
+    print(f"[local_launcher] Started session '{session_name}'")
+    return True
+
+
 def stop_manager(session_name: str = DEFAULT_SESSION_NAME) -> None:
     """Gracefully stop the manager tmux session.
 
