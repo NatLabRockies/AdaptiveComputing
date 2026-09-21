@@ -921,7 +921,7 @@ def _run_optimization_step(step: dict) -> dict:
 
 def clarify(state):
     llm      = _get_llm()
-    decision = llm.with_structured_output(ClarificationDecision)
+    decision = llm.with_structured_output(ClarificationDecision, method="function_calling")
     history  = state.get("conversation_history") or []
     prev_ctx = state.get("clarification_context") or ""
 
@@ -958,7 +958,7 @@ def clarify(state):
 
 def plan(state):
     llm      = _get_llm()
-    plan_llm = llm.with_structured_output(ResearchPlan)
+    plan_llm = llm.with_structured_output(ResearchPlan, method="function_calling")
 
     reset = {
         "plan_steps": [], "plan_reasoning": None, "plan_description": None,
@@ -1213,7 +1213,7 @@ def negotiate_reuse(state):
 
     try:
         llm    = _get_llm()
-        parser = llm.with_structured_output(ReusePatchResult)
+        parser = llm.with_structured_output(ReusePatchResult, method="function_calling")
         result = parser.invoke([
             SystemMessage(content=_NEGOTIATE_REUSE_SYSTEM_PROMPT),
             HumanMessage(content="\n".join(context_lines)),

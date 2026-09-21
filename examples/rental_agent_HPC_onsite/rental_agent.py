@@ -908,11 +908,13 @@ def _run_surrogate_eval_step(step: dict) -> dict:
     std_str = " (±${:.2f} std)".format(std)
     print("  Surrogate prediction: cost=${:.2f}{}".format(mean_cost, std_str))
 
-    dp = dict(eval_point)
-    dp["label"]         = label
-    dp["cost"]          = mean_cost
-    dp["surrogate_std"] = std
-    dp["is_surrogate"]  = True
+    dp = {
+        "label":        label,
+        "params":       eval_point,
+        "cost":         mean_cost,
+        "surrogate_std": std,
+        "is_surrogate": True,
+    }
     return {"data_points": [dp], "reuse_note": None, "error": None}
 
 
@@ -922,7 +924,7 @@ def _run_surrogate_eval_step(step: dict) -> dict:
 
 def clarify(state):
     llm      = _get_llm()
-    decision = llm.with_structured_output(ClarificationDecision)
+    decision = llm.with_structured_output(ClarificationDecision, method="function_calling")
     history  = state.get("conversation_history") or []
     prev_ctx = state.get("clarification_context") or ""
 
@@ -959,7 +961,7 @@ def clarify(state):
 
 def plan(state):
     llm      = _get_llm()
-    plan_llm = llm.with_structured_output(ResearchPlan)
+    plan_llm = llm.with_structured_output(ResearchPlan, method="function_calling")
 
     reset = {
         "plan_steps": [], "plan_reasoning": None, "plan_description": None,
@@ -1174,7 +1176,7 @@ def negotiate_reuse(state):
 
     try:
         llm    = _get_llm()
-        parser = llm.with_structured_output(ReusePatchResult)
+        parser = llm.with_structured_output(ReusePatchResult, method="function_calling")
         result = parser.invoke([
             SystemMessage(content=_NEGOTIATE_REUSE_SYSTEM_PROMPT),
             HumanMessage(content="\n".join(context_lines)),
@@ -1361,11 +1363,10 @@ def synthesize_and_explain(state):
             std = r.get("surrogate_std")
             cost_str += " ±${:.2f} (surrogate)".format(std) if std is not None else " (surrogate)"
         best_marker = " [BEST]" if r.get("is_best") else ""
-        lines.append("  {} ({} | {} | {} EVs | SOC {}): {}{}".format(
-            r.get("label", "?"),
-            r.get("utility_rate", "?"), r.get("storage", "?"),
-            r.get("number_of_daily_evs", "?"), r.get("return_soc", "?"),
-            cost_str, best_marker))
+        params     = r.get("params") or {}
+        params_str = "  ".join("{}={}".format(k, v) for k, v in sorted(params.items()))
+        lines.append("  {} ({}): {}{}".format(
+            r.get("label", "?"), params_str, cost_str, best_marker))
 
     context_msg = "\n".join(lines)
     print("\nGenerating expert explanation...")
