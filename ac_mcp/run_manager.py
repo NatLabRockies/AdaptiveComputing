@@ -417,8 +417,15 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
                 error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
         return
 
+    # Capture HERO_QUEUE now. hero_authenticate() inside ActiveLoopDriverHero
+    # calls set_hero_env_vars() again which would reset HERO_QUEUE; passing it
+    # as queue_name bypasses that second overwrite.
+    from hero import get_env_variable as _gev
+    _hero_queue = _gev('HERO_QUEUE')
+
     try:
-        formatter = build_evaluation_formatter(jobs, hpc.machine_names)
+        formatter = build_evaluation_formatter(jobs, hpc.machine_names,
+                                               config_blob=entry.get("config_blob"))
         driver = ActiveLoopDriverHero(
             simulations=[None],
             params=[OrderedVariable(min_val=0, max_val=max(n - 1, 1))],
@@ -427,6 +434,7 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
             surrogate=None,
             blocking=False,
             task_formatter=formatter,
+            queue_name=_hero_queue,
         )
 
         # Submit all jobs at once, x_data = [[0], [1], ..., [n-1]]
@@ -492,6 +500,7 @@ def _opt_worker(run_id: str, entry: dict,
         fixed_context=fixed_context,
         experiment_type=entry["experiment_type"],
         exclude_id=entry["id"],
+        config_blob=entry.get("config_blob"),
     )
     n_prior   = prior["n_valid"]
     n_dupes   = prior.get("n_duplicates_removed", 0)
@@ -509,10 +518,17 @@ def _opt_worker(run_id: str, entry: dict,
                 error=f"HPC setup failed: {exc}\n{traceback.format_exc()}")
         return
 
+    # Capture HERO_QUEUE now. hero_authenticate() inside ActiveLoopDriverHero
+    # calls set_hero_env_vars() again which would reset HERO_QUEUE; passing it
+    # as queue_name bypasses that second overwrite.
+    from hero import get_env_variable as _gev
+    _hero_queue = _gev('HERO_QUEUE')
+
     try:
         ac_params = build_ac_params(param_specs)
         formatter = build_task_formatter(param_specs, fixed_context,
-                                         hpc.machine_names)
+                                         hpc.machine_names,
+                                         config_blob=entry.get("config_blob"))
         mode_str = "sequential (blocking)" if blocking else "parallel (non-blocking)"
         print(f"[run {run_id[:8]}] BO mode: {mode_str}")
         driver = ActiveLoopDriverHero(
@@ -524,6 +540,7 @@ def _opt_worker(run_id: str, entry: dict,
             acq_func=acq_func,
             blocking=blocking,
             task_formatter=formatter,
+            queue_name=_hero_queue,
         )
 
         if use_prior:
