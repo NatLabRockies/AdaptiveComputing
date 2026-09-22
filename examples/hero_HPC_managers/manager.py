@@ -124,7 +124,27 @@ def hero_manager():
         stale_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state=state)
         for task in stale_tasks:
             try:
-                job_id = (task.get('metadata') or {}).get('scheduler_job_id', {}).get(machine_name, -1)
+                meta = task.get('metadata') or {}
+                # Ensure this machine's bookkeeping keys exist (tasks created by a
+                # different machine or under a different machine_name lack them).
+                needs_init = False
+                if 'scheduler_job_id' not in meta:
+                    meta['scheduler_job_id'] = {machine_name: -1}
+                    needs_init = True
+                elif machine_name not in meta['scheduler_job_id']:
+                    meta['scheduler_job_id'][machine_name] = -1
+                    needs_init = True
+                if 'running' not in meta:
+                    meta['running'] = {machine_name: False}
+                    needs_init = True
+                elif machine_name not in meta['running']:
+                    meta['running'][machine_name] = False
+                    needs_init = True
+                if needs_init:
+                    task_engine.update_task(task_id=task['id'], state=state,
+                                            name=task['name'], metadata=meta)
+
+                job_id = meta.get('scheduler_job_id', {}).get(machine_name, -1)
                 needs_reset = False
                 if state == 'error':
                     print(f"  Resetting error task {task['id']} to ready for retry")
@@ -169,9 +189,10 @@ def hero_manager():
         # resubmit them in the same poll cycle.
         pass1_processed = set()
         for current_task in ready_tasks:
-            if current_task['metadata']['scheduler_job_id'][machine_name] == -1:
+            meta = current_task['metadata']
+            if meta.get('scheduler_job_id', {}).get(machine_name, -1) == -1:
                 continue  # not yet submitted — handled in Pass 2
-            job_id = current_task['metadata']['scheduler_job_id'][machine_name]
+            job_id = meta.get('scheduler_job_id', {}).get(machine_name, -1)
             if scheduler_type == 'pbs':
                 status_check = subprocess.run(f"qstat -f -x {job_id}", shell=True, capture_output=True, text=True)
                 status = _get_pbs_status(status_check.stdout, status_check.returncode)
@@ -198,7 +219,7 @@ def hero_manager():
                             current_task['metadata']['running'][machine_name] = False
                             task_engine.update_task(task_id=current_task['id'], state='ready', name=current_task['name'], metadata=current_task['metadata'])
                             continue
-            if 'RUNNING' in status and not current_task['metadata']['running'][machine_name]:
+            if 'RUNNING' in status and not meta.get('running', {}).get(machine_name, False):
                 print(f"Job {job_id} is running for task {current_task['id']} — calling hero_initialize")
                 rc = _call_hero_initialize(current_task['id'], machine_name, i_fidelity)
                 if rc == 0:
@@ -258,7 +279,7 @@ def hero_manager():
         for current_task in ready_tasks:
             if current_task['id'] in pass1_processed:
                 continue  # already handled in Pass 1 this cycle
-            if current_task['metadata']['scheduler_job_id'][machine_name] != -1:
+            if current_task['metadata'].get('scheduler_job_id', {}).get(machine_name, -1) != -1:
                 continue  # already submitted — handled in Pass 1
             t = current_task['metadata']['x_data'][0]
             # Use configured script name for this machine
@@ -312,10 +333,11 @@ def hero_manager():
         # For all running tasks
         running_tasks = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='running')
         for current_task in running_tasks:
+            meta = current_task['metadata']
             # If not running on my machine, if it's queued on my machine, cancel it and mark it as unqueue on my machine.
-            if not current_task['metadata']['running'][machine_name]:
-                if current_task['metadata']['scheduler_job_id'][machine_name] != -1:
-                    job_id = current_task['metadata']['scheduler_job_id'][machine_name]
+            if not meta.get('running', {}).get(machine_name, False):
+                if meta.get('scheduler_job_id', {}).get(machine_name, -1) != -1:
+                    job_id = meta.get('scheduler_job_id', {}).get(machine_name, -1)
                     command = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
                     print(f"Running command: {command}")
                     subprocess.run(command, shell=True, check=True)
@@ -324,8 +346,8 @@ def hero_manager():
                     print(f"Task {current_task['id']}: state = running, metadata = {current_task['metadata']}")
                 
             # If it is running on my machine, wait for completion then call hero_finalize
-            if current_task['metadata']['running'][machine_name]:
-                job_id = current_task['metadata']['scheduler_job_id'][machine_name]
+            if meta.get('running', {}).get(machine_name, False):
+                job_id = meta.get('scheduler_job_id', {}).get(machine_name, -1)
                 if scheduler_type == 'pbs':
                     status_check = subprocess.run(f"qstat -f -x {job_id}", shell=True, capture_output=True, text=True)
                     status = _get_pbs_status(status_check.stdout, status_check.returncode)

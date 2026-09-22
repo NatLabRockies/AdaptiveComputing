@@ -55,6 +55,13 @@ if __name__ == '__main__':
     params = [ContinuousVariable(min=0.8, max=2.0)]
     ac_driver = ActiveLoopDriverHero(simulations=[None], params=params, machine_names=machine_names, output_field_path='y_data', surrogate='SMT_GP', acq_func='maximum_variance', blocking=False, queue_name=_hero_queue)
 
+    # NOTE: Unlike the examples/hero/ scripts, this example shares HERO_QUEUE
+    # with the co_scientist / MCP server. Calling clear_hero_queue() here would
+    # wipe tasks from any co_scientist sessions running at the same time.
+    # If you see stale tasks from a previous run (print_hero_queue count > AC wait
+    # count), call ac_driver.dataset.clear_hero_queue() manually after confirming
+    # no other sessions are active, or use [X] Total reset in co_scientist.py.
+
     # Sampling techniques that don't use the surrogate model:
     # 1) queue hero samples at the given x_data values.
     # ac_driver.dataset.add_samples(np.array([[0.8],[2.0]]),0)
