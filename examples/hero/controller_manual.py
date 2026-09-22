@@ -7,6 +7,16 @@ import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+set_hero_env_vars()
+
+import os
+# Shared queue for all three controllers in this example directory.
+# Override with HERO_QUEUE_NAME env var if needed.
+_base_queue = os.environ.get('HERO_QUEUE', 'hero')
+os.environ['HERO_QUEUE'] = os.environ.get(
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
+
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.datasets import HeroDataset
 
@@ -20,6 +30,8 @@ if __name__ == '__main__':
     machine_names = ['local']
     # Use 'y_data' as output_field_path to match what our simple worker provides
     dataset = HeroDataset(params, machine_names, 'y_data', n_fidelity=1, blocking=False)
+    # Clear any stale tasks from previous runs before submitting new ones.
+    dataset.clear_hero_queue()
     # queue hero samples at the given x_data values. No initial guess provided.
     dataset.add_samples(np.array([[1.1]]),0)
     dataset.add_samples(np.array([[1.5],[1.8]]),0)

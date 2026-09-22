@@ -16,7 +16,7 @@ import os
 # they always agree. Set HERO_QUEUE_NAME to override.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
 os.environ['HERO_QUEUE'] = os.environ.get(
-    'HERO_QUEUE_NAME', f"{_base_queue}-hero-controller")
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHero

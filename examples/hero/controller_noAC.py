@@ -3,8 +3,15 @@ import json
 import time
 import numpy as np
 
+import os
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
+
+# Shared queue for all three controllers in this example directory.
+# Override with HERO_QUEUE_NAME env var if needed.
+_base_queue = os.environ.get('HERO_QUEUE', 'hero')
+os.environ['HERO_QUEUE'] = os.environ.get(
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
 
 # Use simple local machine name for basic Hero introduction
 machine_names = ['local']
@@ -25,8 +32,13 @@ def hero_controller():
     task_engine = hero.TaskEngine(APPLICATION_ID)
     hero.authenticate()
 
-    # Use the queue corresponding to fidelity level zero
-    queue_record = task_engine.add_queue(name=HERO_QUEUE)
+    # Find or create the shared queue for this example.
+    try:
+        queue_record = task_engine.read_queue_by_name(name=HERO_QUEUE, state="active")
+        print(f'Found existing active queue: {HERO_QUEUE}')
+    except Exception:
+        queue_record = task_engine.add_queue(name=HERO_QUEUE)
+        print(f'Created new queue: {HERO_QUEUE}')
 
     # Clear out any existing tasks
     ready_task_records = task_engine.read_tasks(queue_id=queue_record['id'], metatype='Task', state='ready')

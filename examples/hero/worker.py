@@ -18,7 +18,7 @@ set_hero_env_vars()
 # always use the same queue. Override with HERO_QUEUE_NAME if needed.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
 os.environ['HERO_QUEUE'] = os.environ.get(
-    'HERO_QUEUE_NAME', f"{_base_queue}-hero-controller")
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
 
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
