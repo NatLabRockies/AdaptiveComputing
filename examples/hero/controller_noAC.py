@@ -10,8 +10,10 @@ set_hero_env_vars()
 # Shared queue for all three controllers in this example directory.
 # Override with HERO_QUEUE_NAME env var if needed.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
+_SUFFIX = '-hero-example'
 os.environ['HERO_QUEUE'] = os.environ.get(
-    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
+    'HERO_QUEUE_NAME',
+    _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
 # Use simple local machine name for basic Hero introduction
 machine_names = ['local']

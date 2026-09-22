@@ -14,8 +14,10 @@ import os
 # Shared queue for all three controllers in this example directory.
 # Override with HERO_QUEUE_NAME env var if needed.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
+_SUFFIX = '-hero-example'
 os.environ['HERO_QUEUE'] = os.environ.get(
-    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
+    'HERO_QUEUE_NAME',
+    _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.datasets import HeroDataset

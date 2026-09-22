@@ -15,8 +15,10 @@ import os
 # script name. Both controller.py and worker.py derive the same name so
 # they always agree. Set HERO_QUEUE_NAME to override.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
+_SUFFIX = '-hero-example'
 os.environ['HERO_QUEUE'] = os.environ.get(
-    'HERO_QUEUE_NAME', f"{_base_queue}-hero-example")
+    'HERO_QUEUE_NAME',
+    _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHero
