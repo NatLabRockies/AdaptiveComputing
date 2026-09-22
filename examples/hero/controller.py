@@ -11,12 +11,12 @@ from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
 import os
-# Isolate this example's queue from other experiments by appending the
-# script name. Both controller.py and worker.py derive the same name so
-# they always agree. Set HERO_QUEUE_NAME to override.
+# Derive a shared queue name for all scripts in this example directory.
+# Passed directly to the driver so set_hero_env_vars() inside
+# hero_authenticate() cannot overwrite it. Override with HERO_QUEUE_NAME.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
 _SUFFIX = '-hero-example'
-os.environ['HERO_QUEUE'] = os.environ.get(
+_EXAMPLE_QUEUE = os.environ.get(
     'HERO_QUEUE_NAME',
     _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
@@ -77,7 +77,8 @@ def main():
         acq_func='expected_improvement',  # Acquisition function for active learning
         blocking=False,      # Non-blocking Hero processing
         nan_behavior='mask_ignore',  # Handle failed Hero tasks gracefully
-        task_formatter=task_formatter  # Convert x_data to worker format
+        task_formatter=task_formatter,  # Convert x_data to worker format
+        queue_name=_EXAMPLE_QUEUE,  # Shared queue for this example directory
     )
     
     # Clear any stale tasks from previous runs of this script.

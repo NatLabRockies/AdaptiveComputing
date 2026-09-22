@@ -11,11 +11,12 @@ from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
 
 import os
-# Shared queue for all three controllers in this example directory.
-# Override with HERO_QUEUE_NAME env var if needed.
+# Derive a shared queue name for all scripts in this example directory.
+# Passed directly to HeroDataset so set_hero_env_vars() inside
+# hero_authenticate() cannot overwrite it. Override with HERO_QUEUE_NAME.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
 _SUFFIX = '-hero-example'
-os.environ['HERO_QUEUE'] = os.environ.get(
+_EXAMPLE_QUEUE = os.environ.get(
     'HERO_QUEUE_NAME',
     _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
@@ -31,7 +32,8 @@ if __name__ == '__main__':
     # For simple local processing, we use a single local "machine" name
     machine_names = ['local']
     # Use 'y_data' as output_field_path to match what our simple worker provides
-    dataset = HeroDataset(params, machine_names, 'y_data', n_fidelity=1, blocking=False)
+    dataset = HeroDataset(params, machine_names, 'y_data', n_fidelity=1, blocking=False,
+                          queue_name=_EXAMPLE_QUEUE)
     # Clear any stale tasks from previous runs before submitting new ones.
     dataset.clear_hero_queue()
     # queue hero samples at the given x_data values. No initial guess provided.

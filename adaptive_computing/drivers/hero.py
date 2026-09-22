@@ -10,7 +10,7 @@ import numpy as np
 class ActiveLoopDriverHero(ActiveLoopDriver):
     def __init__(self, simulations, params, machine_names, output_field_path, surrogate=None, dataset=None,
                  nan_behavior='fail', fidelity_costs=None, acq_func='expected_improvement', blocking=False,
-                 task_formatter=None, inline_manager=None, hero_client=None):
+                 task_formatter=None, inline_manager=None, hero_client=None, queue_name=None):
         self.use_hero = True
         if dataset is None:
             if isinstance(simulations, list):
@@ -19,7 +19,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
                 n_fidelity = 1
             dataset = HeroDataset(params, machine_names, output_field_path, n_fidelity=n_fidelity, blocking=blocking,
                                 task_formatter=task_formatter, nan_behavior=nan_behavior,
-                                hero_client=hero_client)
+                                hero_client=hero_client, queue_name=queue_name)
         self.dataset = dataset
         if blocking:
             retrain = True

@@ -11,7 +11,7 @@ set_hero_env_vars()
 # Override with HERO_QUEUE_NAME env var if needed.
 _base_queue = os.environ.get('HERO_QUEUE', 'hero')
 _SUFFIX = '-hero-example'
-os.environ['HERO_QUEUE'] = os.environ.get(
+_EXAMPLE_QUEUE = os.environ.get(
     'HERO_QUEUE_NAME',
     _base_queue if _base_queue.endswith(_SUFFIX) else _base_queue + _SUFFIX)
 
@@ -21,7 +21,7 @@ machine_names = ['local']
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')
     HERO_PROJECT = get_env_variable('HERO_PROJECT')
-    HERO_QUEUE = get_env_variable('HERO_QUEUE')
+    HERO_QUEUE = _EXAMPLE_QUEUE
 except EnvironmentError as e:
     print(e)
     exit(1)
