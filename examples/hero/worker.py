@@ -10,8 +10,15 @@ import numpy as np
 import time
 import sys
 
+import os
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 set_hero_env_vars()
+
+# Mirror the queue-name derivation from controller.py so both scripts
+# always use the same queue. Override with HERO_QUEUE_NAME if needed.
+_base_queue = os.environ.get('HERO_QUEUE', 'hero')
+os.environ['HERO_QUEUE'] = os.environ.get(
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-controller")
 
 try:
     HERO_ENV = get_env_variable('HERO_ENV', 'dev')

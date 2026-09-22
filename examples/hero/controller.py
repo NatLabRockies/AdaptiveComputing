@@ -7,6 +7,17 @@ import os
 # add the path to the adaptive_computing module
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
+from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+set_hero_env_vars()
+
+import os
+# Isolate this example's queue from other experiments by appending the
+# script name. Both controller.py and worker.py derive the same name so
+# they always agree. Set HERO_QUEUE_NAME to override.
+_base_queue = os.environ.get('HERO_QUEUE', 'hero')
+os.environ['HERO_QUEUE'] = os.environ.get(
+    'HERO_QUEUE_NAME', f"{_base_queue}-hero-controller")
+
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHero
 
@@ -67,6 +78,12 @@ def main():
         task_formatter=task_formatter  # Convert x_data to worker format
     )
     
+    # Clear any stale tasks from previous runs of this script.
+    # We do this explicitly here (not automatically in HeroDataset.__init__)
+    # so that shared co_scientist queues are never wiped by accident.
+    print("Clearing any stale tasks from previous runs...")
+    ac_driver.dataset.clear_hero_queue()
+
     # Initialize with Latin Hypercube samples
     print("\\nStep 1: Initializing with 3 LHS samples...")
     ac_driver.initialize(N_samples_init=3)
