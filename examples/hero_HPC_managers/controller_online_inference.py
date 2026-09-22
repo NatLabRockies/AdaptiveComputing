@@ -30,10 +30,18 @@ if __name__ == '__main__':
     run_remote_managers()
     wait_for_managers()
 
+    # Capture HERO_QUEUE now — hero_authenticate() calls set_hero_env_vars()
+    # which would reset HERO_QUEUE before reading it; passing queue_name
+    # explicitly bypasses that second overwrite.
+    from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+    from hero import get_env_variable
+    set_hero_env_vars()
+    _hero_queue = get_env_variable('HERO_QUEUE')
+
     with open('offline_training.pkl', 'rb') as f:
         ac_driver = pickle.load(f)
 
-    ac_driver.dataset.hero_authenticate(machine_names=machine_names)
+    ac_driver.dataset.hero_authenticate(machine_names=machine_names, queue_name=_hero_queue)
 
     # Clear any stale tasks left over from a previous run.
     # WARNING: this deletes ALL tasks on the shared Hero queue — do not call
