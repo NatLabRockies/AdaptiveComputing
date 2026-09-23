@@ -3,7 +3,7 @@
 rental_agent.py — Rental Car Electrification Co-Scientist Agent
 ================================================================
 An interactive LangGraph agent that acts as a research partner for
-optimizing EV fleet electrification at an airport rental car facility.
+optimizing vehicle fleet electrification at an airport rental car facility.
 
 The user describes a goal in natural language; the agent:
   1. (Optionally) asks targeted clarifying questions
@@ -39,7 +39,7 @@ All simulation / optimisation is delegated to the AC MCP server.
 Usage
 -----
     python rental_agent.py
-    python rental_agent.py "What storage minimizes cost for 5000 EVs/day?"
+    python rental_agent.py "What storage minimizes cost for 5000 vehicles/day?"
     python rental_agent.py "Compare Moderate vs Aggressive utility rates across all storage options."
 """
 
@@ -349,7 +349,7 @@ _SIMULATOR_CONTEXT = """\
 You are advising on a pre-built, fixed black-box rental car electrification model.
 The following properties are FIXED and cannot be changed:
 
-  Facility     : Airport rental car center with EV fleet
+  Facility     : Airport rental car center with vehicle fleet
   Objective    : Minimize total daily energy cost (USD)
   Metric       : cost — total daily cost to charge the fleet
 
@@ -1701,16 +1701,16 @@ if __name__ == "__main__":
     atexit.register(_stop_mcp_server)
 
     examples = [
-        "What storage percentage minimizes daily cost for a facility with 5000 EVs/day "
+        "What storage percentage minimizes daily cost for a facility with 5000 vehicles/day "
         "using an Aggressive utility rate?",
 
         "Compare Moderate vs Aggressive utility rates for a medium-demand facility "
-        "(1000 EVs/day, SOC 35). Which is cheaper and by how much?",
+        "(1000 vehicles/day, SOC 35). Which is cheaper and by how much?",
 
         "Survey the full parameter space with LHS sampling and explain which parameters "
         "have the biggest impact on cost.",
 
-        "Conduct a parallel Bayesian optimization (3 initial samples, 1 batch of 5 parallel BO samples) to find the cost-minimizing demand (number of daily EVs) with fixed state of charge = 30, fixed storage=40 percent, and fixed utility rate = Aggressive.",
+        "Conduct a parallel Bayesian optimization (3 initial samples, 1 batch of 5 parallel BO samples) to find the cost-minimizing demand (number of daily vehicles) with fixed state of charge = 30, fixed storage=40 percent, and fixed utility rate = Aggressive.",
 
         "Survey the parameter space holding utility_rate=moderate fixed and the other variables varying. Use the maximum_variance acquisition function and 5 initial samples and 1 batch of 5 parallel BO samples. Then use the surrogate to interpolate to evaluate the point utility_rate=moderate, storage=50, number_of_daily_evs=2000, return_soc=40.",
 

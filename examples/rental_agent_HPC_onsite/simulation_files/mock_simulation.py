@@ -28,7 +28,7 @@ import time
 # Analytic cost model
 # ---------------------------------------------------------------------------
 
-# Base electricity cost per EV per day (USD).
+# Base electricity cost per vehicle per day (USD).
 # Covers charging infrastructure amortization + energy at grid rate.
 _BASE_COST_PER_EV = 50.0
 
@@ -77,10 +77,10 @@ def compute_cost(
                * soc_factor(return_soc)
 
     Example outputs (sanity check):
-        Moderate,  storage=0,   1 000 EVs, SOC 25 →  $50 000
-        Moderate,  storage=100, 1 000 EVs, SOC 55 →  $20 625
-        Aggressive,storage=0,   1 000 EVs, SOC 25 →  $75 000
-        Aggressive,storage=100,10 000 EVs, SOC 55 →  $206 250
+        Moderate,  storage=0,   1 000 vehicles, SOC 25 →  $50 000
+        Moderate,  storage=100, 1 000 vehicles, SOC 55 →  $20 625
+        Aggressive,storage=0,   1 000 vehicles, SOC 25 →  $75 000
+        Aggressive,storage=100,10 000 vehicles, SOC 55 →  $206 250
     """
     if utility_rate not in _UTILITY_MULT:
         raise ValueError(f"Unknown utility_rate: {utility_rate!r}")

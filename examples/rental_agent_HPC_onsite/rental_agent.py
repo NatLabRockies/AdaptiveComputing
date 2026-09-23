@@ -29,7 +29,7 @@ Graph
 Usage
 -----
     python controller.py
-    python controller.py "What storage minimizes cost for 5000 EVs/day?"
+    python controller.py "What storage minimizes cost for 5000 vehicles/day?"
     python controller.py "Compare Moderate vs Aggressive utility rates."
 """
 
@@ -240,7 +240,7 @@ _SIMULATOR_CONTEXT = """\
 You are advising on a pre-built, fixed black-box rental car electrification model.
 The following properties are FIXED and cannot be changed:
 
-  Facility     : Airport rental car center with EV fleet
+  Facility     : Airport rental car center with vehicle fleet
   Objective    : Minimize total daily energy cost (USD)
   Metric       : cost — total daily cost to charge the fleet
 
@@ -1620,17 +1620,17 @@ def run_agent(
 
 if __name__ == "__main__":
     examples = [
-        "What storage percentage minimizes daily cost for a facility with 5000 EVs/day "
+        "What storage percentage minimizes daily cost for a facility with 5000 vehicles/day "
         "using an Aggressive utility rate?",
 
         "Compare Moderate vs Aggressive utility rates for a medium-demand facility "
-        "(1000 EVs/day, SOC 35). Which is cheaper and by how much?",
+        "(1000 vehicles/day, SOC 35). Which is cheaper and by how much?",
 
         "Survey the full parameter space with LHS sampling and explain which parameters "
         "have the biggest impact on cost.",
 
         "Conduct a parallel Bayesian optimization (3 initial samples, 1 batch of 5 parallel BO samples) "
-        "to find the cost-minimizing demand (number of daily EVs) with fixed state of charge = 30, "
+        "to find the cost-minimizing demand (number of daily vehicles) with fixed state of charge = 30, "
         "fixed storage=40 percent, and fixed utility rate = Aggressive.",
 
         "Survey the parameter space holding utility_rate=moderate fixed and the other variables varying. "
