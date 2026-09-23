@@ -171,13 +171,24 @@ def _ensure_hpc_running(hpc_config_path: str) -> Any:
 
         if not all_alive:
             print("[ac_mcp] Starting remote managers...")
-            while True:
+            _MAX_INIT_ATTEMPTS = 3
+            for _attempt in range(1, _MAX_INIT_ATTEMPTS + 1):
                 run_remote_managers()
                 try:
                     wait_for_managers()
                     break
                 except RuntimeError as exc:
-                    print(f"[ac_mcp] Managers not ready ({exc}). Retrying in 15s...")
+                    if _attempt == _MAX_INIT_ATTEMPTS:
+                        raise RuntimeError(
+                            f"[ac_mcp] Remote managers could not be started after "
+                            f"{_MAX_INIT_ATTEMPTS} attempts: {exc}\n"
+                            "  Kill any stale 'manager_session' on Kestrel and restart "
+                            "the MCP server:\n"
+                            "    ssh <login-node> \"tmux kill-session -t manager_session\"\n"
+                            "    tmux kill-session -t ac_mcp_server"
+                        )
+                    print(f"[ac_mcp] Managers not ready ({exc}). "
+                          f"Retrying ({_attempt}/{_MAX_INIT_ATTEMPTS}) in 15s...")
                     time.sleep(15)
 
         # Print kill commands for each remote manager so they're easy to find.
