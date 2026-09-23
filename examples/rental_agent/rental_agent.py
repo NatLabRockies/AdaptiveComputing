@@ -110,7 +110,7 @@ def _ensure_server_running() -> None:
     # the script finds itself and exits "Session already running".
     ac_root = os.path.dirname(os.path.dirname(os.path.abspath(_AC_MCP_START_SCRIPT)))
     cmd = (
-        "cd {root!r} && {python!r} -m ac_mcp.server "
+        "cd {root!r} && {python!r} -u -m ac_mcp.server "
         "--storage-dir {storage!r} --port {port}".format(
             root=ac_root,
             python=sys.executable,
