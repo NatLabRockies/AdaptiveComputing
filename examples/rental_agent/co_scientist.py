@@ -322,7 +322,8 @@ def _print_kill_reference() -> None:
     print()
     print("  MCP server:  tmux kill-session -t ac_mcp_server")
     try:
-        import importlib.util as _ilu, os as _os
+        import importlib.util as _ilu
+        import os as _os
         _hpc_path = str(Path(__file__).parent / "hpc_config.py")
         spec = _ilu.spec_from_file_location("_hpc_cfg", _hpc_path)
         _hpc = _ilu.module_from_spec(spec)
