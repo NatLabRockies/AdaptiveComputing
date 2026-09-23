@@ -1,5 +1,5 @@
 # hpc_config.py — HPC connection settings for the rental_agent example.
-#
+1;95;0c#
 # Copy this template to hpc_config.py and fill in your site-specific values:
 #
 #   cp hpc_config.py.template hpc_config.py
@@ -39,18 +39,30 @@ remote_dirs = {
 }
 
 # ── Multi-hop SSH (optional) ──────────────────────────────────────────────────
-# Some clusters do not allow direct SSH to specific login nodes from outside
-# (e.g. Aurora at ALCF).  Set proxy_hosts to the externally-reachable gateway
-# hostname; AC will connect via: ssh -J user@hostname user@node_name
+# Some clusters do not allow direct SSH to specific login nodes from outside.
+# Set proxy_hosts to the externally-reachable gateway hostname.
+#
+# proxy_type controls HOW the gateway is used:
+#   'jump'   (default) — ssh -J user@gateway user@node cmd
+#            Works when the node accepts your local SSH key.
+#   'nested'           — ssh user@gateway "ssh user@node cmd"
+#            Required when the node only accepts connections from within the
+#            facility network (e.g. ALCF Aurora uses host-based auth).
 #
 # Example for Aurora:
-#   remote_hosts = {'aurora': 'aurora-uan-0010'}        # node_name (specific node)
-#   proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}   # hostname  (external gateway)
+#   remote_hosts = {'aurora': 'aurora-uan-0010'}        # pinned login node
+#   proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}   # external gateway
+#   proxy_type   = {'aurora': 'nested'}                 # host-based auth on nodes
 #
-# For simple clusters where direct SSH is allowed, omit proxy_hosts entirely.
+# For simple clusters where direct SSH is allowed, omit both proxy_hosts and
+# proxy_type entirely.
 proxy_hosts = {
     # 'aurora': 'aurora.alcf.anl.gov',
 }
+
+# proxy_type = {
+#     # 'aurora': 'nested',   # needed for ALCF Aurora
+# }
 
 # ── Scheduler selection ───────────────────────────────────────────────────────
 # Set to 'slurm' (default) or 'pbs' for each machine.

@@ -141,7 +141,8 @@ def _ensure_hpc_running(hpc_config_path: str) -> Any:
 
         hpc          = _load_hpc_config(hpc_config_path)
         python_paths = getattr(hpc, "python_paths", {})
-        proxy_hosts  = getattr(hpc, "proxy_hosts", {})
+        proxy_hosts  = getattr(hpc, "proxy_hosts",  {})
+        proxy_type   = getattr(hpc, "proxy_type",   {})
 
         # setup_remote_state registers a SIGINT handler; Python only allows
         # that from the main thread, so worker threads temporarily no-op it.
@@ -151,13 +152,13 @@ def _ensure_hpc_running(hpc_config_path: str) -> Any:
             try:
                 setup_remote_state(hpc.machine_names, hpc.remote_usernames,
                                    hpc.remote_hosts, hpc.remote_dirs, python_paths,
-                                   proxy_hosts=proxy_hosts)
+                                   proxy_hosts=proxy_hosts, proxy_type=proxy_type)
             finally:
                 _signal.signal = _orig
         else:
             setup_remote_state(hpc.machine_names, hpc.remote_usernames,
                                hpc.remote_hosts, hpc.remote_dirs, python_paths,
-                               proxy_hosts=proxy_hosts)
+                               proxy_hosts=proxy_hosts, proxy_type=proxy_type)
 
         # Detect existing managers (e.g. server restart with managers still alive).
         all_alive = all(
@@ -220,19 +221,25 @@ def _update(rs: RunStatus, **kwargs):
 # Manager health watchdog
 # ---------------------------------------------------------------------------
 
-def _check_manager_alive(machine: str, username: str, host: str) -> bool | None:
-    """SSH-ping the remote manager_session.  Returns True/False/None (unknown)."""
+def _check_manager_alive(machine: str, username: str = "", host: str = "") -> bool | None:
+    """SSH-ping the remote manager_session.  Returns True/False/None (unknown).
+
+    Uses the proxy configuration from autonomous.py module state so that
+    nested SSH (for clusters like Aurora) is handled correctly.  The ``username``
+    and ``host`` args are kept for backwards compatibility but are ignored when
+    autonomous.py state has been populated by setup_remote_state.
+    """
+    from adaptive_computing.hpc.autonomous import _build_ssh_cmd
     from adaptive_computing.hpc.remote_manager import SESSION_NAME
     try:
+        cmd_str = (
+            "bash -l -c '"
+            "command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
+            f"tmux has-session -t {SESSION_NAME} 2>/dev/null "
+            "&& echo ALIVE || echo DEAD'"
+        )
         r = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-             f"{username}@{host}",
-             (
-                 "bash -l -c '"
-                 "command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
-                 f"tmux has-session -t {SESSION_NAME} 2>/dev/null "
-                 "&& echo ALIVE || echo DEAD'"
-             )],
+            _build_ssh_cmd(machine, [cmd_str], connect_timeout=10),
             capture_output=True, text=True, timeout=20,
         )
         if "ALIVE" in r.stdout:

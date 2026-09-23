@@ -19,12 +19,19 @@ remote_hosts = {
     'machine_b': 'machine-b.hpc.example.gov'
 }
 
-# hostname / gateway (optional): externally-reachable address used as an SSH
-# ProxyJump (-J) to reach the node_name above.  Only needed on clusters where
-# direct SSH to specific login nodes is blocked from outside (e.g. Aurora).
-# AC connects via: ssh -J user@hostname user@node_name
+# hostname / gateway (optional): externally-reachable address used to reach the
+# node_name above.  Only needed on clusters where direct SSH to specific login
+# nodes is blocked from outside (e.g. Aurora at ALCF).
 # proxy_hosts = {
 #     'aurora': 'aurora.alcf.anl.gov',  # hostname (gateway) for Aurora
+# }
+#
+# proxy_type controls HOW the gateway is used (default 'jump'):
+#   'jump'   — ssh -J user@gateway user@node cmd  (local key must work on node)
+#   'nested' — ssh user@gateway "ssh user@node cmd"  (gateway's creds used)
+# Use 'nested' for ALCF Aurora where login nodes only accept internal network SSH.
+# proxy_type = {
+#     'aurora': 'nested',
 # }
 
 # Remote directory paths to the hero_HPC_managers directory on the remote machines
@@ -88,6 +95,7 @@ python_paths = {
 # remote_usernames = {'aurora': 'your_alcf_username'}
 # remote_hosts = {'aurora': 'aurora-uan-0010'}          # node_name: specific login node
 # proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}      # hostname: external gateway
+# proxy_type   = {'aurora': 'nested'}                   # needed: host-based auth on nodes
 # remote_dirs = {'aurora': '/home/your_alcf_username/AdaptiveComputing/examples/hero_HPC_managers/'}
 # scheduler = {'aurora': 'pbs'}
 # batch_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}

@@ -198,8 +198,15 @@ def hero_manager():
                     if scheduler_type == 'pbs':
                         pbs_out = os.path.join(case_logs_dir, "pbs.out")
                         pbs_err = os.path.join(case_logs_dir, "pbs.err")
+                        python_path = (
+                            getattr(hpc_config, 'python_paths', {})
+                            .get(machine_name, '')
+                        )
+                        qsub_vars = f"task_id={task_id}"
+                        if python_path:
+                            qsub_vars += f",python_path={python_path}"
                         command = (
-                            f"qsub -v \"task_id={task_id}\" "
+                            f"qsub -v \"{qsub_vars}\" "
                             f"-o {pbs_out} -e {pbs_err} "
                             f"{script_name}"
                         )

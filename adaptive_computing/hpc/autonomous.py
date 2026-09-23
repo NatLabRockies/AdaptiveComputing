@@ -38,7 +38,12 @@ the facility network, but they do allow SSH to a load-balanced gateway.  Use
     remote_hosts = {'aurora': 'aurora-uan-0010'}        # specific node (node_name)
     proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}   # external gateway (hostname)
 
-The SSH command becomes: ``ssh -J user@aurora.alcf.anl.gov user@aurora-uan-0010``
+The default proxy_type is ``"jump"`` (``ssh -J gateway node``).  Set
+``proxy_type = {"aurora": "nested"}`` in hpc_config.py when the node only
+accepts connections from within the facility network (e.g. ALCF Aurora uses
+host-based auth — login nodes trust the gateway but not external keys).
+With ``"nested"``, AC runs ``ssh gateway "ssh node cmd"`` so the gateway
+initiates the inner SSH using its own credentials.
 
 A signal handler (SIGINT / SIGTERM / SIGHUP) is registered by
 ``setup_remote_state`` so that Ctrl-C from the controller triggers a clean
@@ -48,6 +53,7 @@ remote shutdown automatically.
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import time
@@ -64,6 +70,7 @@ _remote_hosts: dict[str, str] = {}
 _remote_dirs: dict[str, str] = {}
 _python_paths: dict[str, str] = {}
 _proxy_hosts: dict[str, str] = {}   # optional jump / gateway hosts
+_proxy_type: dict[str, str] = {}    # 'jump' (default) or 'nested' per machine
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +84,7 @@ def setup_remote_state(
     remote_dirs: dict[str, str],
     python_paths: dict[str, str],
     proxy_hosts: dict[str, str] | None = None,
+    proxy_type: dict[str, str] | None = None,
 ) -> None:
     """Populate module-level SSH settings and register a clean-shutdown signal handler.
 
@@ -97,21 +105,32 @@ def setup_remote_state(
         python_paths:    ``{machine_name: absolute_path_to_python}`` — full path to
                          the Python executable in the AC environment on each remote
                          machine, e.g. ``"/home/user/.conda-envs/AC/bin/python"``.
-        proxy_hosts:     ``{machine_name: hostname}`` — optional SSH jump / gateway
-                         host.  When set for a machine, all SSH connections to that
-                         machine go through ``-J user@hostname`` first.  Use this
-                         for clusters like Aurora where direct SSH to specific login
-                         nodes is blocked from outside but a load-balanced gateway
-                         is reachable (e.g. ``"aurora.alcf.anl.gov"``).
+        proxy_hosts:     ``{machine_name: hostname}`` — optional SSH gateway host.
+                         When set, all SSH to that machine routes through the gateway.
+                         Use for clusters like Aurora where direct SSH to specific
+                         login nodes is blocked from outside.
+        proxy_type:      ``{machine_name: "jump" | "nested"}`` — how to use the
+                         proxy gateway (default ``"jump"``).
+
+                         * ``"jump"``   — ``ssh -J user@gateway user@node cmd``
+                           (local machine authenticates to node via gateway TCP tunnel).
+                           Works when the node accepts external SSH keys.
+
+                         * ``"nested"`` — ``ssh user@gateway "ssh user@node cmd"``
+                           (gateway executes the inner SSH, using its own credentials).
+                           Required when the node only accepts connections from within
+                           the facility network (e.g. ALCF Aurora, where login nodes
+                           use host-based auth from the gateway).
     """
     global _machine_names, _remote_usernames, _remote_hosts, _remote_dirs
-    global _python_paths, _proxy_hosts
+    global _python_paths, _proxy_hosts, _proxy_type
     _machine_names = machine_names
     _remote_usernames = remote_usernames
     _remote_hosts = remote_hosts
     _remote_dirs = remote_dirs
     _python_paths = python_paths
     _proxy_hosts = proxy_hosts or {}
+    _proxy_type  = proxy_type  or {}
 
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, _signal_handler)
@@ -131,32 +150,58 @@ def _signal_handler(sig, frame):
 # SSH helpers
 # ---------------------------------------------------------------------------
 
-def _ssh_opts(machine_name: str, connect_timeout: int = 15) -> list[str]:
-    """Return base SSH option flags, including -J ProxyJump when configured.
+def _build_ssh_cmd(
+    machine_name: str,
+    remote_cmd: list[str],
+    connect_timeout: int = 15,
+) -> list[str]:
+    """Build the full subprocess command that runs *remote_cmd* on *machine_name*.
+
+    Handles three cases based on ``proxy_hosts`` / ``proxy_type`` config:
+
+    * **No proxy** — direct SSH: ``ssh [opts] user@node cmd``
+    * **proxy_type="jump"** (default) — ProxyJump: ``ssh [opts] -J user@gw user@node cmd``
+      The local machine authenticates directly to the node via a TCP tunnel through
+      the gateway.  Requires the node to accept the local SSH key.
+    * **proxy_type="nested"** — nested SSH: ``ssh [opts] user@gw "ssh user@node cmd"``
+      The gateway executes the inner SSH command using its own credentials.  Required
+      when the node only accepts connections from within the facility network
+      (e.g. ALCF Aurora — login nodes use host-based auth from the gateway).
 
     Args:
-        machine_name:    Logical machine name.
-        connect_timeout: Value for SSH ConnectTimeout option (seconds).
+        machine_name:    Logical machine name (key into the module-level dicts).
+        remote_cmd:      Command and its arguments to run on the target node, as a
+                         list.  A single-element list with a shell command string
+                         (e.g. ``["bash -l -c 'cmd'"]``) is the common form.
+        connect_timeout: SSH ConnectTimeout in seconds.
 
     Returns:
-        List of SSH option flags to insert between ``["ssh"]`` and the
-        target ``user@host`` argument.
+        A list suitable for passing directly to :func:`subprocess.run`.
     """
-    opts = [
+    user  = _remote_usernames[machine_name]
+    node  = _remote_hosts[machine_name]
+    proxy = _proxy_hosts.get(machine_name)
+    ptype = _proxy_type.get(machine_name, "jump")
+
+    base_opts = [
         "-o", "BatchMode=yes",
         "-o", "StrictHostKeyChecking=no",
         "-o", f"ConnectTimeout={connect_timeout}",
     ]
-    proxy = _proxy_hosts.get(machine_name)
-    if proxy:
-        user = _remote_usernames[machine_name]
-        opts += ["-J", f"{user}@{proxy}"]
-    return opts
 
-
-def _ssh_target(machine_name: str) -> str:
-    """Return ``user@node_name`` for the final SSH target."""
-    return f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}"
+    if proxy and ptype == "nested":
+        # Gateway executes the inner SSH; gateway → node auth is handled internally
+        # (e.g. host-based auth on Aurora).  The inner command is passed as a single
+        # shell-quoted string so the gateway shell reconstructs it correctly.
+        inner_args = [f"{user}@{node}"] + remote_cmd
+        inner_str  = " ".join(shlex.quote(a) for a in inner_args)
+        return ["ssh"] + base_opts + [f"{user}@{proxy}", f"ssh {inner_str}"]
+    elif proxy:
+        # ProxyJump: local machine authenticates to node through the gateway TCP tunnel.
+        return (["ssh"] + base_opts +
+                ["-J", f"{user}@{proxy}", f"{user}@{node}"] + remote_cmd)
+    else:
+        return ["ssh"] + base_opts + [f"{user}@{node}"] + remote_cmd
 
 
 # ---------------------------------------------------------------------------
@@ -173,14 +218,11 @@ def _check_remote_hostname(machine_name: str) -> None:
     user has already opted into pinned-node routing).
     """
     if machine_name in _proxy_hosts:
-        return  # already pinned via ProxyJump — nothing to warn about
+        return  # already pinned via proxy — nothing to warn about
     configured_host = _remote_hosts[machine_name]
     try:
         result = subprocess.run(
-            ["ssh"] + _ssh_opts(machine_name) + [
-                _ssh_target(machine_name),
-                "bash -l -c 'hostname -f'",
-            ],
+            _build_ssh_cmd(machine_name, ["bash -l -c 'hostname -f'"]),
             capture_output=True, text=True, timeout=20,
         )
         if result.returncode != 0:
@@ -209,16 +251,16 @@ def _check_remote_hostname(machine_name: str) -> None:
 
 def _is_manager_running(machine_name: str) -> bool:
     """Return True if the manager tmux session exists AND manager.py is running in it."""
-    ssh_command = ["ssh"] + _ssh_opts(machine_name) + [
-        _ssh_target(machine_name),
-        (
-            "bash -l -c 'command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
-            f"tmux list-panes -t {SESSION_NAME} -F \"#{{pane_current_command}}\" 2>/dev/null "
-            "| grep -q python && echo ready || echo not_ready'"
-        ),
-    ]
+    cmd_str = (
+        "bash -l -c 'command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
+        f"tmux list-panes -t {SESSION_NAME} -F \"#{{pane_current_command}}\" 2>/dev/null "
+        "| grep -q python && echo ready || echo not_ready'"
+    )
     try:
-        result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(
+            _build_ssh_cmd(machine_name, [cmd_str]),
+            capture_output=True, text=True, timeout=20,
+        )
         return result.returncode == 0 and result.stdout.strip() == "ready"
     except Exception:
         return False
@@ -244,15 +286,18 @@ def run_remote_managers() -> None:
     for machine_name in _machine_names:
         _check_remote_hostname(machine_name)
         if _is_manager_running(machine_name):
-            user = _remote_usernames[machine_name]
-            host = _remote_hosts[machine_name]
+            user  = _remote_usernames[machine_name]
+            host  = _remote_hosts[machine_name]
             proxy = _proxy_hosts.get(machine_name)
-            kill_cmd = (
-                f"ssh -J {user}@{proxy} {user}@{host} "
-                f"\"tmux kill-session -t {SESSION_NAME}\""
-                if proxy else
-                f"ssh {user}@{host} \"tmux kill-session -t {SESSION_NAME}\""
-            )
+            ptype = _proxy_type.get(machine_name, "jump")
+            if proxy and ptype == "nested":
+                kill_cmd = (f"ssh {user}@{proxy} "
+                            f"\"ssh {user}@{host} 'tmux kill-session -t {SESSION_NAME}'\"")
+            elif proxy:
+                kill_cmd = (f"ssh -J {user}@{proxy} {user}@{host} "
+                            f"\"tmux kill-session -t {SESSION_NAME}\"")
+            else:
+                kill_cmd = f"ssh {user}@{host} \"tmux kill-session -t {SESSION_NAME}\""
             print(
                 f"⚠️  {machine_name}: manager session already running "
                 f"— skipping launch to avoid duplicates\n"
@@ -262,10 +307,11 @@ def run_remote_managers() -> None:
             continue
         python = _python_paths[machine_name]
         remote_dir = _remote_dirs[machine_name]
-        ssh_command = ["ssh"] + _ssh_opts(machine_name, connect_timeout=30) + [
-            _ssh_target(machine_name),
-            f"{python} -m adaptive_computing.hpc.remote_manager start {machine_name} {remote_dir}",
-        ]
+        ssh_command = _build_ssh_cmd(
+            machine_name,
+            [f"{python} -m adaptive_computing.hpc.remote_manager start {machine_name} {remote_dir}"],
+            connect_timeout=30,
+        )
         print(f"Launching manager on {machine_name}")
         try:
             result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=30)
@@ -328,10 +374,11 @@ def cleanup_remote_managers() -> None:
     for machine_name in _machine_names:
         python = _python_paths[machine_name]
         remote_dir = _remote_dirs[machine_name]
-        ssh_command = ["ssh"] + _ssh_opts(machine_name, connect_timeout=30) + [
-            _ssh_target(machine_name),
-            f"{python} -m adaptive_computing.hpc.remote_manager stop {machine_name} {remote_dir}",
-        ]
+        ssh_command = _build_ssh_cmd(
+            machine_name,
+            [f"{python} -m adaptive_computing.hpc.remote_manager stop {machine_name} {remote_dir}"],
+            connect_timeout=30,
+        )
         try:
             subprocess.run(ssh_command, check=True)
             print(f"Remote cleanup completed on {_remote_hosts[machine_name]}.")

@@ -1,6 +1,8 @@
 #!/bin/bash
 #PBS -N rental_agent
-#PBS -A newbridge
+#PBS -A GenesisHackathonOct26
+#PBS -q preemptable
+#PBS -l filesystems=home
 #PBS -l walltime=00:10:00
 #PBS -l select=1:ncpus=1
 # Output/error logs go to cases_agent/<task_id>/logs/ — set via qsub -o / -e.
@@ -39,16 +41,28 @@ echo "Using config.json:"
 cat "$CASE_DIR/config.json"
 
 # =============================================================================
-# Load environment  (adapt module names for your PBS system)
+# Python interpreter: passed by manager.py via qsub -v python_path=...
+# Falls back to module loading for backwards compatibility.
 # =============================================================================
-module load mamba
-source activate AC
+if [ -n "$python_path" ]; then
+    PYTHON="$python_path"
+else
+    # Fallback: load conda/mamba and use whichever python is in PATH.
+    # Set PYTHON_MODULE to the right module name for your system, e.g.:
+    #   Aurora/Polaris (ALCF): module use /soft/modulefiles && module load conda
+    #   Most other clusters:   module load mamba
+    module load mamba 2>/dev/null || { module use /soft/modulefiles && module load conda; }
+    source activate AC 2>/dev/null || conda activate AC
+    PYTHON="python"
+fi
+
+echo "Python: $PYTHON"
 
 # =============================================================================
 # Simulation: run the mock rental car model
 # =============================================================================
 echo "--- Mock simulation beginning at: $(date) ---"
-python "$SIMULATION_FILES_DIR/mock_simulation.py" "$CASE_DIR" \
+"$PYTHON" "$SIMULATION_FILES_DIR/mock_simulation.py" "$CASE_DIR" \
     > "$CASE_DIR/logs/simulation.out" 2> "$CASE_DIR/logs/simulation.err"
 sim_exit=$?
 echo "--- Mock simulation completed at: $(date) (exit code: $sim_exit) ---"
@@ -67,7 +81,7 @@ if [ ! -f "$CASE_DIR/result.json" ]; then
     exit 1
 fi
 
-cost=$(python3 -c "import json; print(-json.load(open('$CASE_DIR/result.json'))['cost'])")
+cost=$("$PYTHON" -c "import json; print(-json.load(open('$CASE_DIR/result.json'))['cost'])")
 
 if [ -z "$cost" ]; then
     echo "Warning: Could not extract cost from result.json. Defaulting to -1."
