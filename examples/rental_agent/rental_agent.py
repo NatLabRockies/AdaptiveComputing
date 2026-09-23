@@ -70,10 +70,6 @@ _AC_MCP_URL      = os.environ.get("AC_MCP_URL", "http://localhost:8765/mcp")
 _HPC_CONFIG_PATH = os.path.join(_AGENT_DIR, "hpc_config.py")
 _OUTPUT_LABEL    = "Daily cost (USD)"
 _AC_MCP_STORAGE_DIR  = _AGENT_DIR
-_AC_MCP_START_SCRIPT = os.environ.get(
-    "AC_MCP_START_SCRIPT",
-    os.path.expanduser("~/AdaptiveComputing/ac_mcp/start_server.sh"),
-)
 _MCP_SESSION_NAME = "ac_mcp_server"
 
 
@@ -97,18 +93,11 @@ def _ensure_server_running() -> None:
     if _server_responds(3):
         return  # already running
 
-    if not os.path.exists(_AC_MCP_START_SCRIPT):
-        print(f"WARNING: AC MCP start script not found at {_AC_MCP_START_SCRIPT}")
-        print("Start the server manually, then retry.")
-        return
-
     print(f"Starting AC MCP server in tmux session '{_MCP_SESSION_NAME}'...")
     port = _AC_MCP_URL.split(":")[-1].split("/")[0]
-    # Run the Python server directly rather than via start_server.sh.
-    # start_server.sh creates its own tmux session named ac_mcp_server, which
-    # conflicts when ensure_command_running has already created that session —
-    # the script finds itself and exits "Session already running".
-    ac_root = os.path.dirname(os.path.dirname(os.path.abspath(_AC_MCP_START_SCRIPT)))
+    # Derive the repo root from the agent directory:
+    #   _AGENT_DIR = <repo>/examples/rental_agent  →  ac_root = <repo>
+    ac_root = os.path.dirname(os.path.dirname(_AGENT_DIR))
     cmd = (
         "cd {root!r} && {python!r} -u -m ac_mcp.server "
         "--storage-dir {storage!r} --port {port}".format(
