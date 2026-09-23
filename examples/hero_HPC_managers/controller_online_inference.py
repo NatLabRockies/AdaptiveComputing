@@ -22,7 +22,7 @@ if __name__ == '__main__':
         print("Using HPC configuration from hpc_config.py")
     except ImportError:
         print("ERROR: hpc_config.py not found!")
-        print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
+        print("Please copy hpc_config.py.template to hpc_config.py and edit with your HPC details.")
         sys.exit(1)
 
     from adaptive_computing.hpc import run_remote_managers, cleanup_remote_managers, setup_remote_state, wait_for_managers

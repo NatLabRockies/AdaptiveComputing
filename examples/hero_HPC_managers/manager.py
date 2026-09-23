@@ -63,7 +63,7 @@ def _call_hero_finalize(result_value, task_id, machine_name, i_fidelity):
 try:
     import hpc_config
 except ModuleNotFoundError:
-    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config_template.py to hpc_config.py with your HPC settings.")
+    print("ERROR: hpc_config.py not found. Please copy and edit hpc_config.py.template to hpc_config.py with your HPC settings.")
     exit(1)
 _required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'batch_scripts']
 _missing = [f for f in _required if not hasattr(hpc_config, f)]
@@ -71,7 +71,7 @@ if _missing:
     _defined = [a for a in dir(hpc_config) if not a.startswith('_')]
     print(f"ERROR: hpc_config.py is missing required field(s): {', '.join(_missing)}")
     print(f"Fields currently defined in hpc_config.py: {', '.join(_defined)}")
-    print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
+    print("Please check hpc_config.py against hpc_config.py.template (look for typos).")
     exit(1)
 
 try:

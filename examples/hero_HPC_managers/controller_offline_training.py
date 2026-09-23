@@ -16,12 +16,12 @@ from adaptive_computing.drivers import ActiveLoopDriverHero
 
 if __name__ == '__main__':
     # Import HPC configuration from separate file
-    # Note: Copy hpc_config_template.py to hpc_config.py and edit with your values
+    # Note: Copy hpc_config.py.template to hpc_config.py and edit with your values
     try:
         import hpc_config as _hpc_cfg
     except ModuleNotFoundError:
         print("ERROR: hpc_config.py not found!")
-        print("Please copy hpc_config_template.py to hpc_config.py and edit with your HPC details.")
+        print("Please copy hpc_config.py.template to hpc_config.py and edit with your HPC details.")
         sys.exit(1)
     _required = ['machine_names', 'remote_usernames', 'remote_hosts', 'remote_dirs', 'python_paths']
     _missing = [f for f in _required if not hasattr(_hpc_cfg, f)]
@@ -29,7 +29,7 @@ if __name__ == '__main__':
         _defined = [a for a in dir(_hpc_cfg) if not a.startswith('_')]
         print(f"ERROR: hpc_config.py is missing required field(s): {', '.join(_missing)}")
         print(f"Fields currently defined in hpc_config.py: {', '.join(_defined)}")
-        print("Please check hpc_config.py against hpc_config_template.py (look for typos).")
+        print("Please check hpc_config.py against hpc_config.py.template (look for typos).")
         sys.exit(1)
     machine_names = _hpc_cfg.machine_names
     remote_usernames = _hpc_cfg.remote_usernames

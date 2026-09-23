@@ -51,7 +51,7 @@ Copy and edit the HPC configuration template:
 
 ```bash
 cd examples/hero_HPC_managers
-cp hpc_config_template.py hpc_config.py
+cp hpc_config.py.template hpc_config.py
 # Edit hpc_config.py with your actual machine names, usernames, hosts, and paths
 ```
 

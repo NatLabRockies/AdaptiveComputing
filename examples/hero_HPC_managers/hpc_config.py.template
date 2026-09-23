@@ -1,5 +1,7 @@
 # HPC Manager Configuration Template
-# Copy this file to hpc_config.py and edit with your actual values
+# Copy this file to hpc_config.py and edit with your actual values:
+#
+#   cp hpc_config.py.template hpc_config.py
 
 # Machine names to use for HPC job submission
 machine_names = ['machine_a', 'machine_b']
