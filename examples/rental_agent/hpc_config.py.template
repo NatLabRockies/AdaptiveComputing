@@ -1,7 +1,10 @@
 # hpc_config.py — HPC connection settings for the rental_agent example.
 #
-# Copy this file to hpc_config.py and fill in your site-specific values.
-# The manager.py daemon reads this file to know where to SSH and which
+# Copy this template to hpc_config.py and fill in your site-specific values:
+#
+#   cp hpc_config.py.template hpc_config.py
+#
+# The manager.py daemon reads hpc_config.py to know where to SSH and which
 # batch script to run for each machine.
 #
 # ─────────────────────────────────────────────────────────────────────────────
