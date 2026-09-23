@@ -308,7 +308,8 @@ def _wait_with_watchdog(wait_fn, hpc, rs: RunStatus, phase: str,
                 print(f"[run {rs.run_id[:8]}] ✅ {ok}")
                 _update(rs, message=f"[{phase}] {ok}")
             else:
-                while True:
+                _MAX_RESTART_ATTEMPTS = 5
+                for _attempt in range(1, _MAX_RESTART_ATTEMPTS + 1):
                     try:
                         run_remote_managers()
                         wait_for_managers()
@@ -318,6 +319,14 @@ def _wait_with_watchdog(wait_fn, hpc, rs: RunStatus, phase: str,
                         _update(rs, message=f"[{phase}] {ok}")
                         break
                     except RuntimeError as exc:
+                        if _attempt == _MAX_RESTART_ATTEMPTS:
+                            fatal = (f"Manager could not be restarted after "
+                                     f"{_MAX_RESTART_ATTEMPTS} attempts. "
+                                     "Kill the MCP server and restart to reset state.")
+                            print(f"[run {rs.run_id[:8]}] ❌ {fatal}")
+                            _update(rs, status="error", message=f"[{phase}] {fatal}",
+                                    error=fatal)
+                            return
                         retry_msg = f"Manager restart failed ({exc}). Retrying in 15s..."
                         print(f"[run {rs.run_id[:8]}] ❌ {retry_msg}")
                         _update(rs, message=f"[{phase}] {retry_msg}")
