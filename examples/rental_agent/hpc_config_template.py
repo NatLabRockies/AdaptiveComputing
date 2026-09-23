@@ -1,31 +1,65 @@
-# HPC configuration for the rental_agent mock simulation on Kestrel.
-# Edit remote_usernames and remote_hosts to match your login node.
+# hpc_config.py — HPC connection settings for the rental_agent example.
+#
+# Copy this file to hpc_config.py and fill in your site-specific values.
+# The manager.py daemon reads this file to know where to SSH and which
+# batch script to run for each machine.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEDULER SUPPORT
+# ─────────────────────────────────────────────────────────────────────────────
+# Two batch scripts are provided in simulation_files/:
+#
+#   script_slurm.sh  — for SLURM clusters (sbatch / squeue / sacct)
+#   script_pbs.sh    — for PBS/Torque clusters (qsub / qstat)
+#
+# Set batch_scripts to point at the right script for your machine, and set
+# scheduler to 'slurm' (default) or 'pbs' so manager.py uses the right
+# submission and status-checking commands.
+# ─────────────────────────────────────────────────────────────────────────────
 
 machine_names = ['kestrel']
 
 remote_usernames = {
-    'kestrel': 'kgriffin',
+    'kestrel': 'your_username',          # your login username on the HPC system
 }
 
-# Use a specific login node so the manager's tmux session persists.
+# Use a specific login node so the manager's tmux session persists across
+# connections. Avoid load-balanced hostnames (e.g. 'login.cluster.gov')
+# because the manager may land on a different node each time.
 remote_hosts = {
-    'kestrel': 'kl1.hpc.nlr.gov',
+    'kestrel': 'kl1.hpc.nlr.gov',       # replace with your login node hostname
 }
 
-# Absolute path to the agent directory on Kestrel.
+# Absolute path to the rental_agent directory on the remote machine.
 remote_dirs = {
-    'kestrel': '/home/kgriffin/AdaptiveComputing/examples/rental_agent/',
+    'kestrel': '/home/your_username/AdaptiveComputing/examples/rental_agent/',
 }
 
-# SLURM batch script (must live in remote_dirs[machine]/simulation_files/).
+# ── Scheduler selection ───────────────────────────────────────────────────────
+# Set to 'slurm' (default) or 'pbs' for each machine.
+scheduler = {
+    'kestrel': 'slurm',   # change to 'pbs' for PBS/Torque systems
+}
+
+# ── Batch script ──────────────────────────────────────────────────────────────
+# Point at the script that matches your scheduler (see simulation_files/).
+#   SLURM: ['script_slurm.sh']
+#   PBS:   ['script_pbs.sh']
 batch_scripts = {
-    'kestrel': ['job.sh'],
+    'kestrel': ['script_slurm.sh'],
 }
 
-# Full path to the Python executable in the AC conda environment on Kestrel.
+# Full path to the Python executable in the AC conda environment on the
+# remote machine.
 python_paths = {
-    'kestrel': '/home/kgriffin/.conda-envs/AC/bin/python',
+    'kestrel': '/home/your_username/.conda-envs/AC/bin/python',
 }
 
-# Set True for fast test runs (simulation still runs, but no real wait).
+# ── Optional: debug / test runs ───────────────────────────────────────────────
+# Set debug_run = True to submit to a shorter-walltime debug partition.
+# Define debug_partitions to override the default partition per machine.
 debug_run = False
+
+debug_partitions = {
+    # 'kestrel': 'debug',   # uncomment and set your debug partition name
+}

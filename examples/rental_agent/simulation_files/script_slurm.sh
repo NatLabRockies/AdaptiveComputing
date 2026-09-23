@@ -15,7 +15,7 @@ task_id=$1
 
 if [ -z "$task_id" ]; then
     echo "Error: Missing argument 'task_id'"
-    echo "Usage: sbatch job.sh <task_id>"
+    echo "Usage: sbatch script_slurm.sh <task_id>"
     exit 1
 fi
 

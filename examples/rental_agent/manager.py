@@ -3,8 +3,8 @@ manager.py — AC/Hero queue manager for rental car mock simulations.
 Adapted from AdaptiveComputing/examples/hero_HPC_managers/manager.py
 and /projects/newbridge/kgriffin/stdp-mnist/agent/manager.py.
 
-Polls the Hero task queue and launches Slurm jobs on Kestrel.
-Each task's metadata carries:
+Polls the Hero task queue and launches SLURM or PBS jobs depending on
+the scheduler field in hpc_config.py.  Each task's metadata carries:
     utility_rate          str   "Moderate" | "Aggressive"
     storage              str   "Grid" | "Storage-025" | ...
     number_of_daily_evs   int
@@ -189,19 +189,30 @@ def hero_manager():
                     _json.dump(config_data, f, indent=4)
                 print(f"Wrote config.json: {config_path}")
 
+                scheduler_type = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
+
                 if machine_name in hpc_config.batch_scripts:
                     scripts = hpc_config.batch_scripts[machine_name]
                     script_name = scripts[0] if isinstance(scripts, list) else scripts
-                    slurm_out   = os.path.join(case_logs_dir, "slurm_%j.out")
-                    slurm_err   = os.path.join(case_logs_dir, "slurm_%j.err")
 
-                    sbatch_flags = f"--output={slurm_out} --error={slurm_err} "
-                    if getattr(hpc_config, 'debug_run', False):
-                        debug_parts = getattr(hpc_config, 'debug_partitions', {})
-                        partition = debug_parts.get(machine_name)
-                        if partition:
-                            sbatch_flags += f"--partition={partition} "
-                    command = f"sbatch {sbatch_flags}{script_name} {task_id}"
+                    if scheduler_type == 'pbs':
+                        pbs_out = os.path.join(case_logs_dir, "pbs.out")
+                        pbs_err = os.path.join(case_logs_dir, "pbs.err")
+                        command = (
+                            f"qsub -v \"task_id={task_id}\" "
+                            f"-o {pbs_out} -e {pbs_err} "
+                            f"{script_name}"
+                        )
+                    else:
+                        slurm_out = os.path.join(case_logs_dir, "slurm_%j.out")
+                        slurm_err = os.path.join(case_logs_dir, "slurm_%j.err")
+                        sbatch_flags = f"--output={slurm_out} --error={slurm_err} "
+                        if getattr(hpc_config, 'debug_run', False):
+                            debug_parts = getattr(hpc_config, 'debug_partitions', {})
+                            partition = debug_parts.get(machine_name)
+                            if partition:
+                                sbatch_flags += f"--partition={partition} "
+                        command = f"sbatch {sbatch_flags}{script_name} {task_id}"
                 else:
                     raise RuntimeError(
                         f"Machine '{machine_name}' not in hpc_config.batch_scripts. "
@@ -214,7 +225,7 @@ def hero_manager():
                 )
 
                 if result.returncode != 0:
-                    print("sbatch error:")
+                    print(f"{'qsub' if scheduler_type == 'pbs' else 'sbatch'} error:")
                     print("  STDOUT:", result.stdout)
                     print("  STDERR:", result.stderr)
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
@@ -231,39 +242,58 @@ def hero_manager():
                     task_id=current_task["id"], state="ready",
                     name=current_task["name"], metadata=current_task["metadata"],
                 )
-                print(f"Task {current_task['id']}: Slurm job {job_id} queued on {machine_name}")
+                print(f"Task {current_task['id']}: {scheduler_type.upper()} job {job_id} queued on {machine_name}")
 
             else:
-                # Already submitted — check Slurm status
-                task_id = current_task["id"]
-                job_id  = current_task["metadata"]["scheduler_job_id"][machine_name]
-                sacct   = subprocess.run(
-                    f"sacct -j {job_id} --format=State --noheader",
-                    shell=True, capture_output=True, text=True,
-                )
-                sacct_out = sacct.stdout.strip()
+                # Already submitted — check scheduler status
+                task_id        = current_task["id"]
+                job_id         = current_task["metadata"]["scheduler_job_id"][machine_name]
+                scheduler_type = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
+                result_file    = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
 
-                if "COMPLETED" in sacct_out:
-                    status = "COMPLETED"
-                elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
-                    status = "FAILED"
-                elif not sacct_out:
-                    # sacct delay: job may still be running or just finished
-                    squeue = subprocess.run(
-                        f"squeue -j {job_id} --noheader",
+                if scheduler_type == 'pbs':
+                    qstat = subprocess.run(
+                        f"qstat -f -x {job_id}",
                         shell=True, capture_output=True, text=True,
                     )
-                    if squeue.stdout.strip():
-                        status = "PENDING"  # still in SLURM
+                    if qstat.returncode != 0 or not qstat.stdout.strip():
+                        # Job left the queue — treat as finished
+                        status = "COMPLETED"
                     else:
-                        # Not in squeue either — check for result file
-                        result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
-                        status = "COMPLETED" if os.path.exists(result_file) else "PENDING"
+                        import re as _re
+                        state_match = _re.search(r'job_state\s*=\s*(\S+)', qstat.stdout)
+                        state = state_match.group(1) if state_match else "?"
+                        if state in ('F', 'C'):
+                            exit_match = _re.search(r'exit_status\s*=\s*(\S+)', qstat.stdout)
+                            exit_val = int(exit_match.group(1)) if exit_match else 0
+                            status = "COMPLETED" if exit_val == 0 else "FAILED"
+                        elif state in ('R', 'E'):
+                            status = "PENDING"
+                        else:
+                            status = "PENDING"
                 else:
-                    status = "PENDING"
+                    sacct = subprocess.run(
+                        f"sacct -j {job_id} --format=State --noheader",
+                        shell=True, capture_output=True, text=True,
+                    )
+                    sacct_out = sacct.stdout.strip()
+                    if "COMPLETED" in sacct_out:
+                        status = "COMPLETED"
+                    elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
+                        status = "FAILED"
+                    elif not sacct_out:
+                        squeue = subprocess.run(
+                            f"squeue -j {job_id} --noheader",
+                            shell=True, capture_output=True, text=True,
+                        )
+                        if squeue.stdout.strip():
+                            status = "PENDING"
+                        else:
+                            status = "COMPLETED" if os.path.exists(result_file) else "PENDING"
+                    else:
+                        status = "PENDING"
 
                 if status == "COMPLETED":
-                    result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
                     result_value = "-1"
                     if os.path.exists(result_file):
                         with open(result_file) as f:
@@ -284,7 +314,7 @@ def hero_manager():
                     print(f"Task {task_id}: finalized with result={result_value}")
 
                 elif status == "FAILED":
-                    print(f"Slurm job {job_id} in error state: {sacct_out}")
+                    print(f"{scheduler_type.upper()} job {job_id} in error state.")
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
