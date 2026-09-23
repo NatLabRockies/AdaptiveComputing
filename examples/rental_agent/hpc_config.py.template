@@ -38,6 +38,20 @@ remote_dirs = {
     'kestrel': '/home/your_username/AdaptiveComputing/examples/rental_agent/',
 }
 
+# ── Multi-hop SSH (optional) ──────────────────────────────────────────────────
+# Some clusters do not allow direct SSH to specific login nodes from outside
+# (e.g. Aurora at ALCF).  Set proxy_hosts to the externally-reachable gateway
+# hostname; AC will connect via: ssh -J user@hostname user@node_name
+#
+# Example for Aurora:
+#   remote_hosts = {'aurora': 'aurora-uan-0010'}        # node_name (specific node)
+#   proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}   # hostname  (external gateway)
+#
+# For simple clusters where direct SSH is allowed, omit proxy_hosts entirely.
+proxy_hosts = {
+    # 'aurora': 'aurora.alcf.anl.gov',
+}
+
 # ── Scheduler selection ───────────────────────────────────────────────────────
 # Set to 'slurm' (default) or 'pbs' for each machine.
 scheduler = {

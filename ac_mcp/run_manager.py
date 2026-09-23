@@ -141,6 +141,7 @@ def _ensure_hpc_running(hpc_config_path: str) -> Any:
 
         hpc          = _load_hpc_config(hpc_config_path)
         python_paths = getattr(hpc, "python_paths", {})
+        proxy_hosts  = getattr(hpc, "proxy_hosts", {})
 
         # setup_remote_state registers a SIGINT handler; Python only allows
         # that from the main thread, so worker threads temporarily no-op it.
@@ -149,12 +150,14 @@ def _ensure_hpc_running(hpc_config_path: str) -> Any:
             _signal.signal = lambda *a, **kw: None
             try:
                 setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                                   hpc.remote_hosts, hpc.remote_dirs, python_paths)
+                                   hpc.remote_hosts, hpc.remote_dirs, python_paths,
+                                   proxy_hosts=proxy_hosts)
             finally:
                 _signal.signal = _orig
         else:
             setup_remote_state(hpc.machine_names, hpc.remote_usernames,
-                               hpc.remote_hosts, hpc.remote_dirs, python_paths)
+                               hpc.remote_hosts, hpc.remote_dirs, python_paths,
+                               proxy_hosts=proxy_hosts)
 
         # Detect existing managers (e.g. server restart with managers still alive).
         all_alive = all(

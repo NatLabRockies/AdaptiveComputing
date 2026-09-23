@@ -12,11 +12,20 @@ remote_usernames = {
     'machine_b': 'your_username'
 }
 
-# Domain names for ssh. Use the specific hostname of an individual login node so that tmux can run a lightweight processes on the login node and check on that same process later
+# node_name: the specific login node to connect to.  Use a pinned node (not a
+# load-balanced alias) so that the manager's tmux session stays reachable.
 remote_hosts = {
     'machine_a': 'machine-a.hpc.example.gov',
     'machine_b': 'machine-b.hpc.example.gov'
 }
+
+# hostname / gateway (optional): externally-reachable address used as an SSH
+# ProxyJump (-J) to reach the node_name above.  Only needed on clusters where
+# direct SSH to specific login nodes is blocked from outside (e.g. Aurora).
+# AC connects via: ssh -J user@hostname user@node_name
+# proxy_hosts = {
+#     'aurora': 'aurora.alcf.anl.gov',  # hostname (gateway) for Aurora
+# }
 
 # Remote directory paths to the hero_HPC_managers directory on the remote machines
 remote_dirs = {
@@ -71,10 +80,14 @@ python_paths = {
 #     'vermilion': '/home/your_nlr_username/.conda-envs/AC/bin/python',
 # }
 
-# Example configuration for Aurora (PBS scheduler):
+# Example configuration for Aurora (PBS, multi-hop SSH):
+# Aurora blocks direct SSH to login nodes from outside ALCF.  Use proxy_hosts
+# to route through the gateway to a pinned node.  First SSH to aurora.alcf.anl.gov,
+# note which node you land on (e.g. aurora-uan-0010), then pin to it here.
 # machine_names = ['aurora']
 # remote_usernames = {'aurora': 'your_alcf_username'}
-# remote_hosts = {'aurora': 'aurora-uan-0011.alcf.anl.gov'}
+# remote_hosts = {'aurora': 'aurora-uan-0010'}          # node_name: specific login node
+# proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}      # hostname: external gateway
 # remote_dirs = {'aurora': '/home/your_alcf_username/AdaptiveComputing/examples/hero_HPC_managers/'}
 # scheduler = {'aurora': 'pbs'}
 # batch_scripts = {'aurora': ['simulation_files/script_generic_pbs.sh']}

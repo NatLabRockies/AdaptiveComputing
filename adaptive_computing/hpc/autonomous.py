@@ -15,16 +15,30 @@ Typical usage
     )
 
     setup_remote_state(
-        machine_names  = hpc_config.machine_names,
+        machine_names    = hpc_config.machine_names,
         remote_usernames = hpc_config.remote_usernames,
-        remote_hosts   = hpc_config.remote_hosts,
-        remote_dirs    = hpc_config.remote_dirs,
-        python_paths   = hpc_config.python_paths,
+        remote_hosts     = hpc_config.remote_hosts,
+        remote_dirs      = hpc_config.remote_dirs,
+        python_paths     = hpc_config.python_paths,
+        # Optional — only needed for multi-hop systems like Aurora:
+        proxy_hosts      = getattr(hpc_config, 'proxy_hosts', {}),
     )
     run_remote_managers()
     wait_for_managers()
     # ... run your workflow ...
     cleanup_remote_managers()
+
+Multi-hop SSH (e.g. Aurora at ALCF)
+------------------------------------
+Some HPC systems do not allow direct SSH to specific login nodes from outside
+the facility network, but they do allow SSH to a load-balanced gateway.  Use
+``proxy_hosts`` to route through the gateway to a pinned login node::
+
+    # hpc_config.py
+    remote_hosts = {'aurora': 'aurora-uan-0010'}        # specific node (node_name)
+    proxy_hosts  = {'aurora': 'aurora.alcf.anl.gov'}   # external gateway (hostname)
+
+The SSH command becomes: ``ssh -J user@aurora.alcf.anl.gov user@aurora-uan-0010``
 
 A signal handler (SIGINT / SIGTERM / SIGHUP) is registered by
 ``setup_remote_state`` so that Ctrl-C from the controller triggers a clean
@@ -49,6 +63,7 @@ _remote_usernames: dict[str, str] = {}
 _remote_hosts: dict[str, str] = {}
 _remote_dirs: dict[str, str] = {}
 _python_paths: dict[str, str] = {}
+_proxy_hosts: dict[str, str] = {}   # optional jump / gateway hosts
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +76,7 @@ def setup_remote_state(
     remote_hosts: dict[str, str],
     remote_dirs: dict[str, str],
     python_paths: dict[str, str],
+    proxy_hosts: dict[str, str] | None = None,
 ) -> None:
     """Populate module-level SSH settings and register a clean-shutdown signal handler.
 
@@ -72,19 +88,30 @@ def setup_remote_state(
     Args:
         machine_names:   List of logical machine names (keys for the dicts below).
         remote_usernames: ``{machine_name: ssh_username}``
-        remote_hosts:    ``{machine_name: ssh_hostname_or_ip}``
+        remote_hosts:    ``{machine_name: node_name}`` — the specific login node
+                         to connect to (e.g. ``"aurora-uan-0010"``).  For simple
+                         clusters where direct SSH is allowed, this is the same
+                         as the public hostname.
         remote_dirs:     ``{machine_name: absolute_remote_path}`` — directory where
                          ``manager.py`` lives on the remote machine.
         python_paths:    ``{machine_name: absolute_path_to_python}`` — full path to
                          the Python executable in the AC environment on each remote
                          machine, e.g. ``"/home/user/.conda-envs/AC/bin/python"``.
+        proxy_hosts:     ``{machine_name: hostname}`` — optional SSH jump / gateway
+                         host.  When set for a machine, all SSH connections to that
+                         machine go through ``-J user@hostname`` first.  Use this
+                         for clusters like Aurora where direct SSH to specific login
+                         nodes is blocked from outside but a load-balanced gateway
+                         is reachable (e.g. ``"aurora.alcf.anl.gov"``).
     """
-    global _machine_names, _remote_usernames, _remote_hosts, _remote_dirs, _python_paths
+    global _machine_names, _remote_usernames, _remote_hosts, _remote_dirs
+    global _python_paths, _proxy_hosts
     _machine_names = machine_names
     _remote_usernames = remote_usernames
     _remote_hosts = remote_hosts
     _remote_dirs = remote_dirs
     _python_paths = python_paths
+    _proxy_hosts = proxy_hosts or {}
 
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, _signal_handler)
@@ -101,6 +128,38 @@ def _signal_handler(sig, frame):
 
 
 # ---------------------------------------------------------------------------
+# SSH helpers
+# ---------------------------------------------------------------------------
+
+def _ssh_opts(machine_name: str, connect_timeout: int = 15) -> list[str]:
+    """Return base SSH option flags, including -J ProxyJump when configured.
+
+    Args:
+        machine_name:    Logical machine name.
+        connect_timeout: Value for SSH ConnectTimeout option (seconds).
+
+    Returns:
+        List of SSH option flags to insert between ``["ssh"]`` and the
+        target ``user@host`` argument.
+    """
+    opts = [
+        "-o", "BatchMode=yes",
+        "-o", "StrictHostKeyChecking=no",
+        "-o", f"ConnectTimeout={connect_timeout}",
+    ]
+    proxy = _proxy_hosts.get(machine_name)
+    if proxy:
+        user = _remote_usernames[machine_name]
+        opts += ["-J", f"{user}@{proxy}"]
+    return opts
+
+
+def _ssh_target(machine_name: str) -> str:
+    """Return ``user@node_name`` for the final SSH target."""
+    return f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}"
+
+
+# ---------------------------------------------------------------------------
 # Hostname check (advisory; never blocks startup)
 # ---------------------------------------------------------------------------
 
@@ -110,16 +169,16 @@ def _check_remote_hostname(machine_name: str) -> None:
     Load balancers (e.g. ``aurora.alcf.anl.gov``) may route each connection to
     a different login node, breaking tmux session reuse.  Running ``hostname``
     over SSH lets us detect this and suggest the specific node to pin to.
+    Skipped when ``proxy_hosts`` is already configured for this machine (the
+    user has already opted into pinned-node routing).
     """
+    if machine_name in _proxy_hosts:
+        return  # already pinned via ProxyJump — nothing to warn about
     configured_host = _remote_hosts[machine_name]
     try:
         result = subprocess.run(
-            [
-                "ssh",
-                "-o", "BatchMode=yes",
-                "-o", "StrictHostKeyChecking=no",
-                "-o", "ConnectTimeout=15",
-                f"{_remote_usernames[machine_name]}@{configured_host}",
+            ["ssh"] + _ssh_opts(machine_name) + [
+                _ssh_target(machine_name),
                 "bash -l -c 'hostname -f'",
             ],
             capture_output=True, text=True, timeout=20,
@@ -136,8 +195,9 @@ def _check_remote_hostname(machine_name: str) -> None:
                 f"'{actual_short}'.\n"
                 f"   tmux sessions may not be reachable if the load balancer "
                 f"routes to a different node each time.\n"
-                f"   Recommended fix in hpc_config.py:\n"
-                f"       remote_hosts = {{'{machine_name}': '{actual_short}'}}"
+                f"   If direct SSH to the node is blocked (e.g. Aurora), use:\n"
+                f"       remote_hosts = {{'{machine_name}': '{actual_short}'}}\n"
+                f"       proxy_hosts  = {{'{machine_name}': '{configured_host}'}}"
             )
     except (subprocess.TimeoutExpired, Exception):
         pass  # advisory only
@@ -149,12 +209,8 @@ def _check_remote_hostname(machine_name: str) -> None:
 
 def _is_manager_running(machine_name: str) -> bool:
     """Return True if the manager tmux session exists AND manager.py is running in it."""
-    ssh_command = [
-        "ssh",
-        "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "ConnectTimeout=15",
-        f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
+    ssh_command = ["ssh"] + _ssh_opts(machine_name) + [
+        _ssh_target(machine_name),
         (
             "bash -l -c 'command -v tmux &>/dev/null || module load tmux 2>/dev/null; "
             f"tmux list-panes -t {SESSION_NAME} -F \"#{{pane_current_command}}\" 2>/dev/null "
@@ -190,21 +246,24 @@ def run_remote_managers() -> None:
         if _is_manager_running(machine_name):
             user = _remote_usernames[machine_name]
             host = _remote_hosts[machine_name]
+            proxy = _proxy_hosts.get(machine_name)
+            kill_cmd = (
+                f"ssh -J {user}@{proxy} {user}@{host} "
+                f"\"tmux kill-session -t {SESSION_NAME}\""
+                if proxy else
+                f"ssh {user}@{host} \"tmux kill-session -t {SESSION_NAME}\""
+            )
             print(
                 f"⚠️  {machine_name}: manager session already running "
                 f"— skipping launch to avoid duplicates\n"
                 f"   To abort and start fresh, kill the session then re-run:\n"
-                f"     ssh {user}@{host} \"tmux kill-session -t {SESSION_NAME}\""
+                f"     {kill_cmd}"
             )
             continue
         python = _python_paths[machine_name]
         remote_dir = _remote_dirs[machine_name]
-        ssh_command = [
-            "ssh",
-            "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=30",
-            f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
+        ssh_command = ["ssh"] + _ssh_opts(machine_name, connect_timeout=30) + [
+            _ssh_target(machine_name),
             f"{python} -m adaptive_computing.hpc.remote_manager start {machine_name} {remote_dir}",
         ]
         print(f"Launching manager on {machine_name}")
@@ -269,12 +328,8 @@ def cleanup_remote_managers() -> None:
     for machine_name in _machine_names:
         python = _python_paths[machine_name]
         remote_dir = _remote_dirs[machine_name]
-        ssh_command = [
-            "ssh",
-            "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=no",
-            "-o", "ConnectTimeout=30",
-            f"{_remote_usernames[machine_name]}@{_remote_hosts[machine_name]}",
+        ssh_command = ["ssh"] + _ssh_opts(machine_name, connect_timeout=30) + [
+            _ssh_target(machine_name),
             f"{python} -m adaptive_computing.hpc.remote_manager stop {machine_name} {remote_dir}",
         ]
         try:
