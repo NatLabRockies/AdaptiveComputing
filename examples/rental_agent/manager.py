@@ -317,6 +317,49 @@ def hero_manager():
                             name=current_task["name"], metadata=current_task["metadata"],
                         )
                         continue
+
+                    # Sleep briefly so other managers' polling loops can see
+                    # this task in "running" state and cancel their own scheduler
+                    # jobs before we finalize.  Also gives us a window to detect
+                    # the rare race where two machines both got through
+                    # hero_initialize simultaneously.
+                    time.sleep(5)
+
+                    # Re-read running tasks to detect concurrent claims.
+                    running_check = task_engine.read_tasks(
+                        queue_id=queue_record["id"], metatype="Task", state="running"
+                    )
+                    task_now = next((t for t in running_check if t["id"] == task_id), None)
+                    if task_now:
+                        rivals = [
+                            m for m, v in task_now["metadata"].get("running", {}).items()
+                            if v and m != machine_name
+                        ]
+                        if rivals:
+                            # Two machines both claimed — tiebreak by machine_names order.
+                            all_claimants = [
+                                m for m, v in task_now["metadata"]["running"].items() if v
+                            ]
+                            winner = min(
+                                all_claimants,
+                                key=lambda m: hpc_config.machine_names.index(m)
+                                if m in hpc_config.machine_names else 999,
+                            )
+                            if winner != machine_name:
+                                print(f"Task {task_id}: race detected — deferring to {winner}")
+                                jid = current_task["metadata"]["scheduler_job_id"].get(machine_name, -1)
+                                if jid != -1:
+                                    cc = f"qdel {jid}" if scheduler_type == "pbs" else f"scancel {jid}"
+                                    subprocess.run(cc, shell=True)
+                                m2 = task_now["metadata"]
+                                m2["running"][machine_name] = False
+                                m2["scheduler_job_id"][machine_name] = -1
+                                task_engine.update_task(
+                                    task_id=task_id, state="running",
+                                    name=current_task["name"], metadata=m2,
+                                )
+                                continue
+
                     _call_hero_finalize(result_value, task_id, machine_name, task_engine)
                     print(f"Task {task_id}: finalized with result={result_value}")
 
