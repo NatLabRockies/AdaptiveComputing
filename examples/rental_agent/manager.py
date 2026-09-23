@@ -341,11 +341,13 @@ def hero_manager():
             meta    = current_task["metadata"]
             meta.setdefault("scheduler_job_id", {}).setdefault(machine_name, -1)
             meta.setdefault("running", {}).setdefault(machine_name, False)
+            sched = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
             if not meta["running"][machine_name]:
                 job_id = current_task["metadata"]["scheduler_job_id"][machine_name]
                 if job_id != -1:
-                    print(f"Cancelling Slurm job {job_id} (task claimed by another machine)")
-                    subprocess.run(f"scancel {job_id}", shell=True)
+                    cancel_cmd = f"qdel {job_id}" if sched == 'pbs' else f"scancel {job_id}"
+                    print(f"Cancelling {sched.upper()} job {job_id} (task claimed by another machine)")
+                    subprocess.run(cancel_cmd, shell=True)
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     task_engine.update_task(
                         task_id=task_id, state="running",
@@ -353,14 +355,41 @@ def hero_manager():
                     )
             else:
                 job_id = current_task["metadata"]["scheduler_job_id"][machine_name]
-                sacct  = subprocess.run(
-                    f"sacct -j {job_id} --format=State --noheader",
-                    shell=True, capture_output=True, text=True,
-                )
-                sacct_out = sacct.stdout.strip()
+                result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
 
-                if "COMPLETED" in sacct_out:
-                    result_file = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
+                if sched == 'pbs':
+                    import re as _re
+                    qstat = subprocess.run(
+                        f"qstat -f -x {job_id}",
+                        shell=True, capture_output=True, text=True,
+                    )
+                    if qstat.returncode != 0 or not qstat.stdout.strip():
+                        status = "COMPLETED"
+                    else:
+                        state_match = _re.search(r'job_state\s*=\s*(\S+)', qstat.stdout)
+                        state = state_match.group(1) if state_match else "?"
+                        if state in ('F', 'C'):
+                            exit_match = _re.search(r'exit_status\s*=\s*(\S+)', qstat.stdout)
+                            exit_val = int(exit_match.group(1)) if exit_match else 0
+                            status = "COMPLETED" if exit_val == 0 else "FAILED"
+                        elif state in ('R', 'E'):
+                            status = "PENDING"
+                        else:
+                            status = "PENDING"
+                else:
+                    sacct = subprocess.run(
+                        f"sacct -j {job_id} --format=State --noheader",
+                        shell=True, capture_output=True, text=True,
+                    )
+                    sacct_out = sacct.stdout.strip()
+                    if "COMPLETED" in sacct_out:
+                        status = "COMPLETED"
+                    elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
+                        status = "FAILED"
+                    else:
+                        status = "PENDING"
+
+                if status == "COMPLETED":
                     result_value = "-1"
                     if os.path.exists(result_file):
                         with open(result_file) as f:
@@ -368,8 +397,8 @@ def hero_manager():
                         os.remove(result_file)
                     _call_hero_finalize(result_value, task_id, machine_name, task_engine)
                     print(f"Task {task_id}: finalized with result={result_value}")
-                elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
-                    print(f"Slurm job {job_id} failed: {sacct_out}")
+                elif status == "FAILED":
+                    print(f"{sched.upper()} job {job_id} failed.")
                     current_task["metadata"]["scheduler_job_id"][machine_name] = -1
                     current_task["metadata"]["running"][machine_name] = False
                     task_engine.update_task(
