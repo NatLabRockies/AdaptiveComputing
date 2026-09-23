@@ -118,7 +118,7 @@ def main():
     print(f"Config: {json.dumps(config, indent=2)}")
 
     # Artificial delay so Slurm jobs are visible in squeue during testing.
-    #time.sleep(10)
+    time.sleep(7)
 
     cost = compute_cost(
         utility_rate=config["utility_rate"],
