@@ -440,6 +440,8 @@ def _eval_worker(run_id: str, entry: dict, jobs: list[dict]):
     # Capture HERO_QUEUE now. hero_authenticate() inside ActiveLoopDriverHero
     # calls set_hero_env_vars() again which would reset HERO_QUEUE; passing it
     # as queue_name bypasses that second overwrite.
+    from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars as _sev
+    _sev()
     from hero import get_env_variable as _gev
     _hero_queue = _gev('HERO_QUEUE')
 
@@ -541,6 +543,8 @@ def _opt_worker(run_id: str, entry: dict,
     # Capture HERO_QUEUE now. hero_authenticate() inside ActiveLoopDriverHero
     # calls set_hero_env_vars() again which would reset HERO_QUEUE; passing it
     # as queue_name bypasses that second overwrite.
+    from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars as _sev
+    _sev()
     from hero import get_env_variable as _gev
     _hero_queue = _gev('HERO_QUEUE')
 
