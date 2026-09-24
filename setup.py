@@ -24,7 +24,8 @@ setup(
         "agents": [
             "langchain-core",
             "langchain-openai",
-            "langgraph[sqlite]",
+            "langgraph",
+            "langgraph-checkpoint-sqlite",
             "typing_extensions",
             "fastmcp",
         ],
