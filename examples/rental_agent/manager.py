@@ -165,9 +165,9 @@ def hero_manager():
                     print(f"Task {task_id}: {early_claimer} is RUNNING — cancelling our "
                           f"{sched_ec.upper()} job {own_job}")
                     subprocess.run(cc, shell=True)
-                    meta["scheduler_job_id"][machine_name] = -1
-                    task_engine.update_task(task_id=task_id, state="ready",
-                                            name=current_task["name"], metadata=meta)
+                    # Do NOT reset job_id to -1 here: if qdel fails silently we'd
+                    # lose track of the job.  The running_tasks and done_tasks
+                    # sections will retry qdel and reset once confirmed gone.
                 continue
 
             if meta["scheduler_job_id"][machine_name] == -1:
@@ -324,7 +324,11 @@ def hero_manager():
                         status = "COMPLETED"
                     elif any(s in sacct_out for s in ("FAILED", "CANCELLED", "TIMEOUT")):
                         status = "FAILED"
+                    elif "RUNNING" in sacct_out or "COMPLETING" in sacct_out:
+                        # sacct shows the job is actively executing
+                        status = "RUNNING"
                     elif not sacct_out:
+                        # sacct has no record yet — fall back to squeue
                         squeue = subprocess.run(
                             f"squeue -j {job_id} --format=%T --noheader",
                             shell=True, capture_output=True, text=True,
@@ -357,14 +361,13 @@ def hero_manager():
                                                 name=current_task["name"], metadata=fm)
                         print(f"Task {task_id}: job RUNNING on {machine_name} — early_claim set")
                     elif existing != machine_name:
-                        # Another machine already claimed — cancel ours
+                        # Another machine already claimed — cancel ours.
+                        # Keep job_id in metadata so running_tasks/done_tasks can
+                        # retry qdel if this one fails silently.
                         print(f"Task {task_id}: {existing} claimed first — cancelling our "
                               f"{scheduler_type.upper()} job {job_id}")
                         cc = f"qdel {job_id}" if scheduler_type == 'pbs' else f"scancel {job_id}"
                         subprocess.run(cc, shell=True)
-                        fm["scheduler_job_id"][machine_name] = -1
-                        task_engine.update_task(task_id=task_id, state="ready",
-                                                name=current_task["name"], metadata=fm)
 
                 elif status == "COMPLETED":
                     result_value = "-1"
