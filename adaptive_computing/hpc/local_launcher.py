@@ -59,6 +59,21 @@ def _tmux(*args: str, env: dict) -> subprocess.CompletedProcess:
     return subprocess.run(["tmux"] + list(args), env=env, capture_output=True, text=True)
 
 
+def _tmux_new_session(session_name: str, env: dict) -> subprocess.CompletedProcess:
+    """Create a detached tmux session, using setsid on Linux when available.
+
+    ``setsid`` prevents systemd ``KillUserProcesses=yes`` from killing the
+    tmux server when the SSH session that spawned it disconnects.  It is
+    Linux-only; macOS has no systemd so we fall back to plain ``tmux
+    new-session`` there.
+    """
+    prefix = "setsid " if shutil.which("setsid") else ""
+    return subprocess.run(
+        f"{prefix}tmux new-session -d -s {session_name}",
+        shell=True, env=env, capture_output=True, text=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -110,12 +125,7 @@ def launch_manager_in_tmux(
     # Kill any stale session to start clean.
     _tmux("kill-session", "-t", session_name, env=env)
 
-    # setsid prevents systemd KillUserProcesses=yes from killing the tmux
-    # server when the short-lived parent process that spawned it exits.
-    result = subprocess.run(
-        f"setsid tmux new-session -d -s {session_name}",
-        shell=True, env=env, capture_output=True, text=True,
-    )
+    result = _tmux_new_session(session_name, env=env)
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to create tmux session '{session_name}': {result.stderr.strip()}"
@@ -195,10 +205,7 @@ def ensure_command_running(
     # Kill any stale session before creating a fresh one.
     _tmux("kill-session", "-t", session_name, env=env)
 
-    result = subprocess.run(
-        f"setsid tmux new-session -d -s {session_name}",
-        shell=True, env=env, capture_output=True, text=True,
-    )
+    result = _tmux_new_session(session_name, env=env)
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to create tmux session '{session_name}': {result.stderr.strip()}"
