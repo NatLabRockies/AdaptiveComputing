@@ -244,10 +244,21 @@ def hero_manager():
                     continue
 
                 job_id = result.stdout.strip().split()[-1]
-                current_task["metadata"]["scheduler_job_id"][machine_name] = job_id
+                # Re-read metadata before writing to capture any concurrent
+                # updates from other managers (avoids overwriting their job_ids).
+                try:
+                    fresh = task_engine.read_tasks(
+                        queue_id=queue_record["id"], metatype="Task", state="ready"
+                    )
+                    fresh_task = next((t for t in fresh if t["id"] == current_task["id"]), None)
+                    write_meta = fresh_task["metadata"] if fresh_task else current_task["metadata"]
+                except Exception:
+                    write_meta = current_task["metadata"]
+                write_meta.setdefault("scheduler_job_id", {})[machine_name] = job_id
+                write_meta.setdefault("running", {})[machine_name] = False
                 task_engine.update_task(
                     task_id=current_task["id"], state="ready",
-                    name=current_task["name"], metadata=current_task["metadata"],
+                    name=current_task["name"], metadata=write_meta,
                 )
                 print(f"Task {current_task['id']}: {scheduler_type.upper()} job {job_id} queued on {machine_name}")
 
@@ -259,15 +270,18 @@ def hero_manager():
                 result_file    = os.path.join(agent_dir, "simulation_files", f"result_{task_id}.txt")
 
                 if scheduler_type == 'pbs':
+                    import re as _re
                     qstat = subprocess.run(
                         f"qstat -f -x {job_id}",
                         shell=True, capture_output=True, text=True,
                     )
                     if qstat.returncode != 0 or not qstat.stdout.strip():
-                        # Job left the queue — treat as finished
-                        status = "COMPLETED"
+                        # qstat failed — job not found in scheduler.  Could be:
+                        #   (a) truly finished and left the queue, or
+                        #   (b) transient error / job not yet visible.
+                        # Use result file as ground truth to avoid false positives.
+                        status = "COMPLETED" if os.path.exists(result_file) else "PENDING"
                     else:
-                        import re as _re
                         state_match = _re.search(r'job_state\s*=\s*(\S+)', qstat.stdout)
                         state = state_match.group(1) if state_match else "?"
                         if state in ('F', 'C'):
@@ -448,6 +462,28 @@ def hero_manager():
                         task_id=task_id, state="error",
                         name=current_task["name"], metadata=current_task["metadata"],
                     )
+
+        # ----------------------------------------------------------------
+        # Done tasks: cancel any lingering scheduler jobs this machine
+        # submitted but that were claimed and finalized by another machine
+        # before our running_tasks loop could cancel them.
+        # ----------------------------------------------------------------
+        done_tasks = task_engine.read_tasks(
+            queue_id=queue_record["id"], metatype="Task", state="done"
+        )
+        sched_global = getattr(hpc_config, 'scheduler', {}).get(machine_name, 'slurm')
+        for done_task in done_tasks:
+            done_job_id = done_task.get("metadata", {}).get("scheduler_job_id", {}).get(machine_name, -1)
+            if done_job_id != -1:
+                cancel_cmd = f"qdel {done_job_id}" if sched_global == 'pbs' else f"scancel {done_job_id}"
+                print(f"Cancelling lingering {sched_global.upper()} job {done_job_id} "
+                      f"for done task {done_task['id'][:8]}")
+                subprocess.run(cancel_cmd, shell=True)
+                done_task["metadata"]["scheduler_job_id"][machine_name] = -1
+                task_engine.update_task(
+                    task_id=done_task["id"], state="done",
+                    name=done_task["name"], metadata=done_task["metadata"],
+                )
 
         _consecutive_errors = 0
       except Exception:
