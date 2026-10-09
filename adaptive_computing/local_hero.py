@@ -29,9 +29,51 @@ the hero_client on the dataset again before calling hero_authenticate:
     ac_driver.dataset.hero_authenticate(machine_names=[...], hero_client=local_hero)
 """
 
+import contextlib
 import json
 import os
+import sys
 import uuid as _uuid_module
+
+# ---------------------------------------------------------------------------
+# Cross-platform file lock — ensures atomic read-modify-write across processes
+# ---------------------------------------------------------------------------
+
+if sys.platform == "win32":
+    import msvcrt as _msvcrt
+
+    @contextlib.contextmanager
+    def _lock_file(path: str):
+        lf = open(path + ".lock", "a")
+        try:
+            while True:
+                try:
+                    _msvcrt.locking(lf.fileno(), _msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    import time as _t
+                    _t.sleep(0.005)
+            try:
+                yield
+            finally:
+                _msvcrt.locking(lf.fileno(), _msvcrt.LK_UNLCK, 1)
+        finally:
+            lf.close()
+else:
+    import fcntl as _fcntl
+
+    @contextlib.contextmanager
+    def _lock_file(path: str):
+        """Acquire an exclusive advisory lock on ``path + ".lock"``."""
+        lf = open(path + ".lock", "a")
+        try:
+            _fcntl.flock(lf.fileno(), _fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                _fcntl.flock(lf.fileno(), _fcntl.LOCK_UN)
+        finally:
+            lf.close()
 
 
 def get_env_variable(name, default=None):
@@ -58,15 +100,25 @@ class LocalTaskEngine:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _load(self) -> dict:
+    def _load_raw(self) -> dict:
+        """Read the database without acquiring the file lock (caller holds it)."""
         if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 0:
             with open(self.db_path) as f:
                 return json.load(f)
         return {"queues": {}, "tasks": {}}
 
-    def _save(self, db: dict) -> None:
+    def _save_raw(self, db: dict) -> None:
+        """Write the database without acquiring the file lock (caller holds it)."""
         with open(self.db_path, "w") as f:
             json.dump(db, f, indent=2)
+
+    def _load(self) -> dict:
+        with _lock_file(self.db_path):
+            return self._load_raw()
+
+    def _save(self, db: dict) -> None:
+        with _lock_file(self.db_path):
+            self._save_raw(db)
 
     # ------------------------------------------------------------------
     # Queue operations
@@ -124,13 +176,35 @@ class LocalTaskEngine:
 
     def update_task(self, task_id: str, state: str, name: str,
                     metadata: dict) -> dict:
-        db = self._load()
-        if task_id not in db["tasks"]:
-            raise KeyError(f"Task {task_id!r} not found")
-        db["tasks"][task_id].update({"state": state, "name": name,
-                                     "metadata": metadata})
-        self._save(db)
-        return db["tasks"][task_id]
+        with _lock_file(self.db_path):
+            db = self._load_raw()
+            if task_id not in db["tasks"]:
+                raise KeyError(f"Task {task_id!r} not found")
+            db["tasks"][task_id].update({"state": state, "name": name,
+                                         "metadata": metadata})
+            self._save_raw(db)
+            return db["tasks"][task_id]
+
+    def claim_task(self, task_id: str, claimer: str = "worker") -> bool:
+        """Atomically transition a task from ``"ready"`` to ``"running"``.
+
+        Safe to call concurrently from multiple processes.  Returns ``True``
+        if this caller claimed the task, ``False`` if another process already
+        claimed it (task is no longer ``"ready"``).
+
+        Args:
+            task_id: ID of the task to claim.
+            claimer: Identifier for the claiming worker (stored in metadata).
+        """
+        with _lock_file(self.db_path):
+            db = self._load_raw()
+            task = db["tasks"].get(task_id)
+            if task is None or task["state"] != "ready":
+                return False
+            task["state"] = "running"
+            task["metadata"]["_claimed_by"] = claimer
+            self._save_raw(db)
+        return True
 
     def delete_task(self, task_id: str) -> None:
         db = self._load()
