@@ -3,6 +3,7 @@
 import os
 import sys
 import numpy as np
+import pytest
 import matplotlib.pyplot as plt
 
 def test_bayesian_1d_sf(monkeypatch):
@@ -150,6 +151,42 @@ def test_rental_agent_HPC_onsite(monkeypatch):
     expected_output = [1.0, 4.0, 9.0, 16.0]
     tolerances = [0.01, 0.01, 0.01, 0.01]
     output_validator(expected_output, results, tolerances)
+
+
+# Multi-fidelity BO drivers on the mf_benchmarks example: 2D Rosenbrock (AVT-331
+# MF2, LF f3, HF:LF cost 10:1), 4 initial HF points, a short budget of 4 HF
+# evaluation equivalents (2 for MF-KG / MF-MES, which take ~25 mostly-LF steps
+# per 4 HF-equivalents and are the slowest).  Checks that each driver runs end
+# to end, spends the budget, never makes the best HF value worse, and (for
+# MF-SEGO and promotion-first) actually uses both fidelities: before the
+# MF-SEGO fixes it flipped between all-LF and all-HF.
+MF_BENCHMARK_EXPECT_BOTH_FIDELITIES = {"sfbo": False, "mfsego": True, "promotion": True,
+                                       "mfkg": False, "mfmes": False}
+
+
+@pytest.mark.parametrize("policy", list(MF_BENCHMARK_EXPECT_BOTH_FIDELITIES))
+def test_mf_benchmarks(monkeypatch, policy):
+    import pathlib
+    monkeypatch.setattr(plt, 'show', lambda: None)
+    repo_root = pathlib.Path(__file__).resolve().parents[1]
+    monkeypatch.syspath_prepend(str(repo_root / 'examples' / 'mf_benchmarks'))
+    from run_benchmark import run_benchmark
+
+    budget = 2.0 if policy in ('mfkg', 'mfmes') else 4.0
+    # 256 instead of 1024 Sobol candidates for MF-KG / MF-MES: plenty in 2D, ~20% faster
+    kw = {'n_sobol': 256} if policy in ('mfkg', 'mfmes') else None
+    r = run_benchmark(problem='rosenbrock', ndim=2, policy=policy, n_init_hf=4, budget=budget,
+                      seed=38, driver_kwargs=kw, quiet=True)
+    print(f"{policy}: regret {r['regret'][0]:.4g} -> {r['final_regret']:.4g}, "
+          f"{r['n_hf']} HF / {r['n_lf']} LF selections, {r['elapsed']:.0f}s")
+
+    assert r['cost'][-1] >= budget - 1e-9
+    assert np.all(np.diff(r['regret']) <= 1e-12), "best-so-far HF regret must not increase"
+    assert r['final_regret'] >= -1e-9
+    if policy == 'sfbo':
+        assert r['n_lf'] == 0
+    if MF_BENCHMARK_EXPECT_BOTH_FIDELITIES[policy]:
+        assert r['n_hf'] > 0 and r['n_lf'] > 0, f"{policy} used only one fidelity: {r['fidelities']}"
 
 
 # 1st arg is always monkeypatch
