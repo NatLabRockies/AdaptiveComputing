@@ -49,8 +49,12 @@ class MockSimManager(LocalHPCManager):
             # Run the batch script directly without a scheduler so tests work
             # on machines that don't have sbatch/qsub.  The #SBATCH/#PBS
             # directives are silently ignored by bash.
+            # SLURM_SUBMIT_DIR is set to what sbatch would give the script; otherwise,
+            # when this runs inside a Slurm job (e.g. pytest under sbatch), the script
+            # would cd into the outer job's submit dir and write its result there.
             cmd = f"bash {script} {t} {task_id}"
-            subprocess.run(cmd, shell=True, cwd=SIMULATION_DIR)
+            env = {**os.environ, 'SLURM_SUBMIT_DIR': SIMULATION_DIR}
+            subprocess.run(cmd, shell=True, cwd=SIMULATION_DIR, env=env)
             return f"mock_{task_id}"
         if self.scheduler_type == 'pbs':
             cmd = f"qsub -v 'temp={t},task_id={task_id}' {script}"

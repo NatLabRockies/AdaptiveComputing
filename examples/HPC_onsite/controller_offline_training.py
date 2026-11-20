@@ -103,8 +103,9 @@ def controller_offline_training(scheduler_type='slurm', mock_mode=None):
     print(f'_x_data       = {ac_driver.dataset._x_data}')
     print(f'_y_data       = {ac_driver.dataset._y_data}')
 
-    if os.path.exists(db_path):
-        os.remove(db_path)
+    for path in (db_path, db_path + ".lock"):
+        if os.path.exists(path):
+            os.remove(path)
 
     return ac_driver
 

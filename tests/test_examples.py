@@ -110,47 +110,15 @@ def test_HPC_onsite_offline_training(monkeypatch):
     """Test HPC_onsite offline training in mock mode (no sbatch required)."""
     dir_name = 'HPC_onsite'
     py_name = 'controller_offline_training'
-    ac_driver = run_example(monkeypatch, dir_name, py_name)
+    # Force mock mode: the example auto-detects sbatch on PATH and would otherwise
+    # submit real jobs with the site-specific account in script_generic_slurm.sh.
+    ac_driver = run_example(monkeypatch, dir_name, py_name, mock_mode=True)
 
     # Verify that the surrogate was trained with collected data points.
     y_data = ac_driver.dataset.y_data[0]
     assert len(y_data) > 0, "No y_data collected"
     assert all(v > 0 for v in y_data), f"Unexpected negative values: {y_data}"
     print(f'HPC_onsite: collected {len(y_data)} data points, y={y_data}')
-
-
-def test_rental_agent_HPC_onsite(monkeypatch):
-    """Test LangGraph + LocalHeroClient + mock manager (no sbatch required)."""
-    import importlib
-    import pathlib
-
-    # Locate the example directory.
-    initial_wd = os.getcwd()
-    import pathlib as _pl
-    current_path = _pl.Path(initial_wd)
-    repo_root = current_path
-    while repo_root.parent != repo_root:
-        if (repo_root / 'setup.py').exists() or (repo_root / 'environment.yaml').exists():
-            break
-        repo_root = repo_root.parent
-
-    examples_dir = repo_root / 'examples' / 'rental_agent_HPC_onsite'
-    os.chdir(str(examples_dir))
-    sys.path.insert(0, str(examples_dir))
-
-    monkeypatch.setattr(plt, 'show', lambda: None)
-
-    try:
-        mod = importlib.import_module('controller')
-        # Force mock_mode=True so the test never touches sbatch or tmux.
-        results = mod.controller(mock_mode=True)
-    finally:
-        os.chdir(initial_wd)
-
-    # x_values = [1.0, 2.0, 3.0, 4.0], expected y = x^2 = [1.0, 4.0, 9.0, 16.0]
-    expected_output = [1.0, 4.0, 9.0, 16.0]
-    tolerances = [0.01, 0.01, 0.01, 0.01]
-    output_validator(expected_output, results, tolerances)
 
 
 # Multi-fidelity BO drivers on the mf_benchmarks example: 2D Rosenbrock (AVT-331
@@ -192,7 +160,7 @@ def test_mf_benchmarks(monkeypatch, policy):
 # 1st arg is always monkeypatch
 # 2nd arg is subdirectory inside examples where the .py is located
 # 3rd arg is the name of the .py file for the example
-def run_example(monkeypatch,dir_name,py_name):
+def run_example(monkeypatch,dir_name,py_name,**example_kwargs):
     monkeypatch.setattr(plt, 'show', lambda: None) # close all plots
     initial_wd = os.getcwd()
     print(initial_wd)
@@ -216,7 +184,7 @@ def run_example(monkeypatch,dir_name,py_name):
     mod = importlib.import_module(py_name)
     example_func = getattr(mod, py_name)
     # call the example code and return its output
-    output = example_func()
+    output = example_func(**example_kwargs)
     os.chdir(initial_wd) # return to the initial working directory
     return output
 

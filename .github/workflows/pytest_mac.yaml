@@ -21,7 +21,7 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           auto-activate-base: false
-	  activate-environment: AC
+          activate-environment: AC
           environment-file: environment.yml
           use-mamba: false
       - name: Install AdaptiveComputing in development mode
