@@ -30,6 +30,7 @@ import copy
 import numpy as np
 from scipy import linalg
 from scipy.linalg import solve_triangular
+from scipy.integrate import trapezoid
 from scipy.stats import norm, qmc
 
 from adaptive_computing.drivers.hero_mfsego import ActiveLoopDriverHeroMFSEGO
@@ -326,7 +327,7 @@ def _mes_correlated(gamma, rho):
     z = _ZGRID[None, None, :]
     logp = (norm.logpdf(z) + norm.logcdf((gamma[..., None] + rho * z) / s)
             - norm.logcdf(gamma)[..., None])
-    ent = -np.trapz(np.exp(logp) * logp, _ZGRID, axis=-1)
+    ent = -trapezoid(np.exp(logp) * logp, _ZGRID, axis=-1)
     return np.maximum(_HALF_LOG_2PI_E - ent, 0.0)
 
 

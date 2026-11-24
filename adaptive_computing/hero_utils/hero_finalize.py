@@ -1,6 +1,5 @@
 import sys
 
-from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 
 
 def hero_finalize(cond, task_id, machine_name, i_fidelity=0, task_engine=None):
@@ -21,7 +20,10 @@ def hero_finalize(cond, task_id, machine_name, i_fidelity=0, task_engine=None):
         RuntimeError: Authentication failed or the Hero API call failed.
     """
     if task_engine is None:
+        # Imported here so LocalHeroClient workflows need neither the Hero SDK
+        # nor the (gitignored) credentials module.
         from hero import HeroClient, get_env_variable
+        from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
         set_hero_env_vars()
         try:
             hero_env     = get_env_variable('HERO_ENV', 'dev')

@@ -1,11 +1,9 @@
 from adaptive_computing.datasets import DatasetBase
 
-from hero import HeroClient, get_env_variable
 import threading
 import time
 import numpy as np
 import sys
-from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
 
 # Set this event from outside (e.g. a manager watchdog) to abort hero_wait_for_data().
 _abort_event = threading.Event()
@@ -130,7 +128,10 @@ class HeroDataset(DatasetBase):
             application_id = getattr(hero_client, 'application_id', 'local')
             hero = hero_client
         else:
-            # Real Hero client path.
+            # Real Hero client path.  Imported here so LocalHeroClient workflows need
+            # neither the Hero SDK nor the (gitignored) credentials module.
+            from hero import HeroClient, get_env_variable
+            from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
             set_hero_env_vars()
             try:
                 HERO_ENV  = get_env_variable('HERO_ENV', 'dev')
