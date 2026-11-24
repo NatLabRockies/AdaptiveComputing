@@ -94,6 +94,9 @@ def create_manager(scheduler_type='slurm', hero_client=None, mock_mode=False):
         batch_script = os.path.join(SIMULATION_DIR, 'script_generic_slurm.sh')
 
     poll_interval = 1 if mock_mode else 5
+    # Mock simulations finish in seconds, so fail fast instead of hanging if a
+    # result file goes missing.  Real jobs may queue for hours: no limit.
+    run_timeout = 300 if mock_mode else None
 
     return MockSimManager(
         machine_name='local',
@@ -103,4 +106,5 @@ def create_manager(scheduler_type='slurm', hero_client=None, mock_mode=False):
         poll_interval=poll_interval,
         hero_client=hero_client,
         mock_mode=mock_mode,
+        run_timeout=run_timeout,
     )

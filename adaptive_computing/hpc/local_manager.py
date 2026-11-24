@@ -53,6 +53,7 @@ tasks::
 
 from __future__ import annotations
 
+import math
 import os
 import subprocess
 import sys
@@ -109,6 +110,13 @@ class LocalHPCManager(ABC):
                         :class:`~adaptive_computing.local_hero.LocalHeroClient`
                         to use a local JSON file instead of the real Hero
                         service.  When ``None`` the real ``HeroClient`` is used.
+        run_timeout:    Default wall-clock limit in seconds for
+                        :meth:`run_until_done`.  When it expires with tasks
+                        still ``ready`` or ``running``, a :class:`TimeoutError`
+                        is raised instead of polling forever (e.g. when a
+                        result file never appears).  ``None`` (default) means
+                        no limit, which suits real HPC jobs that may queue
+                        for hours.
     """
 
     def __init__(
@@ -119,6 +127,7 @@ class LocalHPCManager(ABC):
         simulation_dir: str | None = None,
         poll_interval: int = 5,
         hero_client=None,
+        run_timeout: float | None = None,
     ) -> None:
         self.machine_name = machine_name
         self.batch_scripts = batch_scripts
@@ -126,6 +135,7 @@ class LocalHPCManager(ABC):
         self.simulation_dir = simulation_dir
         self.poll_interval = poll_interval
         self.hero_client = hero_client
+        self.run_timeout = run_timeout
 
     # ------------------------------------------------------------------
     # Abstract interface — implement these two methods in your subclass
@@ -209,7 +219,7 @@ class LocalHPCManager(ABC):
     # Main entry point
     # ------------------------------------------------------------------
 
-    def run_until_done(self, i_fidelity: int = 0) -> None:
+    def run_until_done(self, i_fidelity: int = 0, timeout: float | None = None) -> None:
         """Process all Hero tasks in the queue until none remain active.
 
         Authenticates with Hero, runs startup reconciliation to reset any
@@ -224,7 +234,18 @@ class LocalHPCManager(ABC):
 
         Args:
             i_fidelity: Fidelity level index (0 for single-fidelity).
+            timeout:    Wall-clock limit in seconds.  ``None`` (default) uses
+                        :attr:`run_timeout`; ``math.inf`` disables the limit.
+
+        Raises:
+            TimeoutError: If tasks are still ``ready`` or ``running`` after
+                *timeout* seconds.  Task state is left unchanged, so a later
+                call can resume via startup reconciliation.
         """
+        if timeout is None:
+            timeout = self.run_timeout
+        deadline = None if timeout is None else time.monotonic() + timeout
+
         if self.hero_client is not None:
             hero           = self.hero_client
             hero_queue     = getattr(self.hero_client, 'queue_name', 'local')
@@ -284,15 +305,25 @@ class LocalHPCManager(ABC):
                     task_engine, queue_record, machine_name, i_fidelity, scheduler_type
                 )
 
-                n_ready = len(task_engine.read_tasks(
+                ready_tasks = task_engine.read_tasks(
                     queue_id=queue_record["id"], metatype="Task", state="ready"
-                ))
-                n_running = len(task_engine.read_tasks(
+                )
+                running_tasks = task_engine.read_tasks(
                     queue_id=queue_record["id"], metatype="Task", state="running"
-                ))
-                if n_ready + n_running == 0:
+                )
+                if len(ready_tasks) + len(running_tasks) == 0:
                     print("All tasks complete (done or error). Exiting manager loop.")
                     break
+
+                if deadline is not None and time.monotonic() >= deadline:
+                    pending = [t["id"] for t in ready_tasks + running_tasks]
+                    raise TimeoutError(
+                        f"run_until_done timed out after {timeout:g}s on queue "
+                        f"'{queue_name}' with {len(ready_tasks)} ready and "
+                        f"{len(running_tasks)} running task(s): {pending}. "
+                        "Check that the batch script writes its result file "
+                        "into simulation_dir."
+                    )
 
                 time.sleep(self.poll_interval)
 
@@ -315,7 +346,7 @@ class LocalHPCManager(ABC):
             "Press Ctrl-C to stop."
         )
         while True:
-            self.run_until_done(i_fidelity=i_fidelity)
+            self.run_until_done(i_fidelity=i_fidelity, timeout=math.inf)
             print(
                 f"Queue empty — sleeping {self.poll_interval}s before next check..."
             )
